@@ -391,11 +391,16 @@ void gpgpu_context::gpgpu_ptxinfo_load_from_string(const char *p_for_info,
 
     printf("GPGPU-Sim PTX: extracting embedded .ptx to temporary file \"%s\"\n",
            fname);
-    snprintf(commandline, 4096, "cat %s > %s", ptx_file, fname);
-    if (system(commandline) != 0) {
-      printf("ERROR: %s command failed\n", commandline);
-      exit(0);
-    }
+    // gpuFI start
+    // snprintf(commandline, 4096, "cat %s > %s", ptx_file, fname);
+    // if (system(commandline) != 0) {
+    //   printf("ERROR: %s command failed\n", commandline);
+    //   exit(0);
+    // }
+    FILE *ptxfile = fopen(fname, "w");
+    fprintf(ptxfile, "%s", p_for_info);
+    fclose(ptxfile);
+    // gpuFI end
 
     snprintf(fname2, 1024, "_ptx2_XXXXXX");
     fd = mkstemp(fname2);
@@ -540,8 +545,12 @@ void gpgpu_context::gpgpu_ptxinfo_load_from_string(const char *p_for_info,
   // one file and pass it to rest of the code as usual.
   if (no_of_ptx > 0) {
     char commandline3[4096];
-    snprintf(final_tempfile_ptxinfo, 1024, "f_tempfile_ptx");
-    snprintf(commandline3, 4096, "cat *info > %s", final_tempfile_ptxinfo);
+    // snprintf(final_tempfile_ptxinfo, 1024, "f_tempfile_ptx");
+    // snprintf(commandline3, 4096, "cat *info > %s", final_tempfile_ptxinfo);
+    snprintf(final_tempfile_ptxinfo, 1024, "%sf_tempfile_ptx", fname);  // gpuFI
+    snprintf(commandline3, 4096, "cat %s > %s", tempfile_ptxinfo,       // gpuFI
+             final_tempfile_ptxinfo);
+
     if (system(commandline3) != 0) {
       printf("ERROR: Either we dont have info files or cat is not working \n");
       printf("ERROR: %s command failed\n", commandline3);
@@ -562,12 +571,20 @@ void gpgpu_context::gpgpu_ptxinfo_load_from_string(const char *p_for_info,
   ptxinfo_lex_destroy(ptxinfo->scanner);
   fclose(ptxinfo_in);
 
-  snprintf(commandline, 1024, "rm -f *info");
-  if (system(commandline) != 0) {
-    printf("GPGPU-Sim PTX: ERROR ** while removing temporary info files\n");
-    exit(1);
-  }
+  // snprintf(commandline, 1024, "rm -f *info");
+  // if (system(commandline) != 0) {
+  //   printf("GPGPU-Sim PTX: ERROR ** while removing temporary info files\n");
+  //   exit(1);
+  // }
+
   if (!g_save_embedded_ptx) {
+    // gpuFI start
+    snprintf(commandline, 1024, "rm -f *info");
+    if (system(commandline) != 0) {
+      printf("GPGPU-Sim PTX: ERROR ** while removing temporary info files\n");
+      exit(1);
+    }
+    // gpuFI end
     if (no_of_ptx > 0)
       snprintf(commandline, 1024, "rm -f %s %s %s", fname, fname2,
                final_tempfile_ptxinfo);

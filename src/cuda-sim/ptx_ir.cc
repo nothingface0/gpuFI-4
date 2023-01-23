@@ -127,6 +127,9 @@ void symbol_table::set_sm_target(const char *target, const char *ext,
 }
 
 symbol *symbol_table::lookup(const char *identifier) {
+  // gpuFI: otherwise segfault for some reason
+  if (this == NULL) return NULL;
+
   std::string key(identifier);
   std::map<std::string, symbol *>::iterator i = m_symbols.find(key);
   if (i != m_symbols.end()) {

@@ -428,6 +428,34 @@ class gpgpu_sim_config : public power_config,
   double dram_period;
   double l2_period;
 
+  // gpuFI start
+  // GPGPU custom options
+  char *run_uid;
+  unsigned profile;
+  unsigned last_cycle;
+
+  unsigned component_to_flip;
+  unsigned thread_rand;
+  unsigned warp_rand;
+  unsigned total_cycle_rand;
+  char *register_rand_n;
+  char *reg_bitflip_rand_n;
+  bool per_warp;
+  char *kernel_n;
+  char *local_mem_bitflip_rand_n;
+  char *components_to_flip;
+  unsigned block_rand;
+  unsigned block_n;
+  char *shared_mem_bitflip_rand_n;
+  char *l1d_shader_rand_n;
+  char *l1d_cache_bitflip_rand_n;
+  char *l1c_shader_rand_n;
+  char *l1c_cache_bitflip_rand_n;
+  char *l1t_shader_rand_n;
+  char *l1t_cache_bitflip_rand_n;
+  char *l2_cache_bitflip_rand_n;
+  // gpuFI end
+
   // GPGPU-Sim timing model options
   unsigned long long gpu_max_cycle_opt;
   unsigned long long gpu_max_insn_opt;
@@ -526,6 +554,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned finished_kernel();
   void set_kernel_done(kernel_info_t *kernel);
   void stop_all_running_kernels();
+  void bitflip_l1_cache(unsigned cache_type);  // gpuFI
 
   void init();
   void cycle();
@@ -603,6 +632,13 @@ class gpgpu_sim : public gpgpu_t {
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+  // gpuFI start
+  std::vector<unsigned> kernel_vector;
+  class simt_core_cluster **m_cluster;
+  class memory_sub_partition **m_memory_sub_partition;
+  const memory_config *m_memory_config;
+  const shader_core_config *m_shader_config;
+  // gpuFI end
 
  private:
   // clocks
@@ -621,9 +657,9 @@ class gpgpu_sim : public gpgpu_t {
 
  protected:
   ///// data /////
-  class simt_core_cluster **m_cluster;
+  // class simt_core_cluster **m_cluster;
   class memory_partition_unit **m_memory_partition_unit;
-  class memory_sub_partition **m_memory_sub_partition;
+  // class memory_sub_partition **m_memory_sub_partition;
 
   std::vector<kernel_info_t *> m_running_kernels;
   unsigned m_last_issued_kernel;
@@ -651,8 +687,8 @@ class gpgpu_sim : public gpgpu_t {
   const gpgpu_sim_config &m_config;
 
   const struct cudaDeviceProp *m_cuda_properties;
-  const shader_core_config *m_shader_config;
-  const memory_config *m_memory_config;
+  // const shader_core_config *m_shader_config;
+  // const memory_config *m_memory_config;
 
   // stats
   class shader_core_stats *m_shader_stats;
@@ -685,6 +721,43 @@ class gpgpu_sim : public gpgpu_t {
   unsigned gpu_sim_insn_last_update_sid;
   occupancy_stats gpu_occupancy;
   occupancy_stats gpu_tot_occupancy;
+
+  // gpuFI start
+  // L1 data cache fault injection
+  std::vector<bool> l1d_enabled;
+  std::vector<std::vector<bool>> l1d_bf_enabled;
+  std::vector<unsigned> l1d_cluster_idx;
+  std::vector<unsigned> l1d_shader_core_ctx;
+  std::vector<std::vector<unsigned>> l1d_line_bitflip_bits_idx;
+  std::vector<std::vector<new_addr_type>> l1d_tag;
+  std::vector<std::vector<unsigned>> l1d_index;
+
+  // L1 constant cache fault injection
+  std::vector<bool> l1c_enabled;
+  std::vector<std::vector<bool>> l1c_bf_enabled;
+  std::vector<unsigned> l1c_cluster_idx;
+  std::vector<unsigned> l1c_shader_core_ctx;
+  std::vector<std::vector<unsigned>> l1c_line_bitflip_bits_idx;
+  std::vector<std::vector<new_addr_type>> l1c_tag;
+  std::vector<std::vector<unsigned>> l1c_index;
+
+  // L1 texture cache fault injection
+  std::vector<bool> l1t_enabled;
+  std::vector<std::vector<bool>> l1t_bf_enabled;
+  std::vector<unsigned> l1t_cluster_idx;
+  std::vector<unsigned> l1t_shader_core_ctx;
+  std::vector<std::vector<unsigned>> l1t_line_bitflip_bits_idx;
+  std::vector<std::vector<new_addr_type>> l1t_tag;
+  std::vector<std::vector<unsigned>> l1t_index;
+
+  // L2 cache
+  bool l2_enabled;
+  std::vector<bool> l2_bf_enabled;
+  std::vector<unsigned> l2_bank_id;
+  std::vector<unsigned> l2_line_bitflip_bits_idx;
+  std::vector<new_addr_type> l2_tag;
+  std::vector<unsigned> l2_index;
+  // gpuFI end
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;

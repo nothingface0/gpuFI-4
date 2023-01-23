@@ -83,6 +83,9 @@ class mem_storage {
     fflush(fout);
   }
 
+  // gpuFI
+  unsigned char *get_m_data() { return m_data; }
+
  private:
   unsigned m_nbytes;
   unsigned char *m_data;
@@ -101,6 +104,7 @@ class memory_space {
   virtual void read(mem_addr_t addr, size_t length, void *data) const = 0;
   virtual void print(const char *format, FILE *fout) const = 0;
   virtual void set_watch(addr_t addr, unsigned watchpoint) = 0;
+  virtual unsigned size_in_bytes() = 0;  // gpuFI
 };
 
 template <unsigned BSIZE>
@@ -116,6 +120,19 @@ class memory_space_impl : public memory_space {
   virtual void print(const char *format, FILE *fout) const;
 
   virtual void set_watch(addr_t addr, unsigned watchpoint);
+  // gpuFI
+  mem_map<mem_addr_t, mem_storage<BSIZE> > &get_m_data() { return m_data; }
+
+  virtual unsigned size_in_bytes() {
+    typename map_t::const_iterator i_page;
+    unsigned bytes = 0;
+
+    for (i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
+      bytes += BSIZE;
+    }
+
+    return bytes;
+  }
 
  private:
   void read_single_block(mem_addr_t blk_idx, mem_addr_t addr, size_t length,

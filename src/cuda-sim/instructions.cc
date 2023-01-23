@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Ali Bakhoda,
 // Jimmy Kwa, George L. Yuan, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -49,6 +50,7 @@ class ptx_recognizer;
 #include <string>
 #include "../abstract_hardware_model.h"
 #include "../gpgpu-sim/gpu-sim.h"
+#include "../gpgpu-sim/l2cache.h"
 #include "../gpgpu-sim/shader.h"
 #include "cuda-math.h"
 #include "cuda_device_printf.h"
@@ -70,6 +72,666 @@ const char *g_opcode_string[NUM_OPCODES] = {
 #undef OP_DEF
 #undef OP_W_DEF
 };
+// gpuFI start
+bool thread_in_shader(ptx_thread_info *thread, shader_core_ctx *shader_core,
+                      simt_core_cluster *simt_cluster) {
+  for (unsigned warp_idx = 0;
+       warp_idx < simt_cluster->get_config()->max_warps_per_shader;
+       warp_idx++) {
+    shd_warp_t *shd_warp = (shader_core->get_warp())[warp_idx];
+    unsigned m_warp_id = shd_warp->get_warp_id();
+    unsigned m_warp_size = shd_warp->get_warp_size();
+    for (unsigned thread_shd_idx = m_warp_id * m_warp_size;
+         thread_shd_idx < (m_warp_id + 1) * m_warp_size; thread_shd_idx++) {
+      ptx_thread_info *ptx_thread_info =
+          (shader_core->get_thread_info())[thread_shd_idx];
+      if (ptx_thread_info != NULL &&
+          (ptx_thread_info->get_uid() == thread->get_uid())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void find_l1_used(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
+                  int &l1_used_index, unsigned l1_cache) {
+  std::vector<bool> *l1_enabled;
+  std::vector<unsigned> *l1_cluster_idx;
+  std::vector<unsigned> *l1_shader_core_ctx;
+  if (l1_cache == 0) {  // Data cache
+    l1_enabled = &gpu_sim->l1d_enabled;
+    l1_cluster_idx = &gpu_sim->l1d_cluster_idx;
+    l1_shader_core_ctx = &gpu_sim->l1d_shader_core_ctx;
+  } else if (l1_cache == 1) {  // Constant cache
+    l1_enabled = &gpu_sim->l1c_enabled;
+    l1_cluster_idx = &gpu_sim->l1c_cluster_idx;
+    l1_shader_core_ctx = &gpu_sim->l1c_shader_core_ctx;
+  } else {  // Texture cache
+    l1_enabled = &gpu_sim->l1t_enabled;
+    l1_cluster_idx = &gpu_sim->l1t_cluster_idx;
+    l1_shader_core_ctx = &gpu_sim->l1t_shader_core_ctx;
+  }
+  // find if the thread belongs to a shader that we want to inject its L1D cache
+  for (int i = 0; i < (*l1_enabled).size(); i++) {
+    if ((*l1_enabled)[i] == false) continue;
+    simt_core_cluster *simt_cluster_tmp =
+        gpu_sim->m_cluster[(*l1_cluster_idx)[i]];
+    shader_core_ctx *shader_core_tmp =
+        simt_cluster_tmp->get_core()[(*l1_shader_core_ctx)[i]];
+
+    if (thread_in_shader(thread, shader_core_tmp, simt_cluster_tmp)) {
+      l1_used_index = i;
+      break;
+    }
+  }
+}
+
+void *find_l1(ptx_thread_info *thread, gpgpu_sim *gpu_sim, unsigned l1_cache) {
+  for (unsigned cluster_idx = 0;
+       cluster_idx < gpu_sim->m_shader_config->n_simt_clusters; cluster_idx++) {
+    simt_core_cluster *simt_core_cluster = gpu_sim->m_cluster[cluster_idx];
+    for (unsigned shd_core_idx = 0;
+         shd_core_idx <
+         simt_core_cluster->get_config()->n_simt_cores_per_cluster;
+         shd_core_idx++) {
+      shader_core_ctx *shader_core_ctx =
+          (simt_core_cluster->get_core())[shd_core_idx];
+      if (thread_in_shader(thread, shader_core_ctx, simt_core_cluster)) {
+        if (l1_cache == 0) {
+          return (void *)shader_core_ctx->m_ldst_unit->m_L1D;
+        } else if (l1_cache == 1) {
+          return (void *)shader_core_ctx->m_ldst_unit->m_L1C;
+        } else {
+          return (void *)shader_core_ctx->m_ldst_unit->m_L1T;
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
+                           ptx_reg_t &data, size_t size, bool is_store,
+                           bool is_rw, bool is_constant, bool is_texture) {
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  //  printf("GLOBAL/LOCAL MISSED L1 -> READ L2 OEOEOEO FROM ld_exec from thread
+  //  uid=%u on address=%x\n", thread->get_uid(), addr);
+
+  addrdec_t addrdec = addrdec_t();
+  gpu_sim->m_memory_config->m_L2_config.m_address_mapping->addrdec_tlx(
+      addr, &addrdec);
+
+  l2_cache *L2 =
+      gpu_sim->m_memory_sub_partition[addrdec.sub_partition]->m_L2cache;
+
+  new_addr_type block_addr = L2->m_config.block_addr(addr);
+  unsigned set_index = L2->m_config.set_index(block_addr);
+  new_addr_type tag = L2->m_config.tag(block_addr);
+  unsigned bit_start = (addr % L2->m_config.get_line_sz()) * 8;
+  unsigned bit_end = bit_start + size - 1;
+
+  for (int j = 0; j < gpu_sim->l2_line_bitflip_bits_idx.size(); j++) {
+    if (!gpu_sim->l2_bf_enabled[j] ||
+        (gpu_sim->l2_bank_id[j] != addrdec.sub_partition))
+      continue;
+    unsigned index;
+    // line cache block, we don't care about mask
+    mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+    mask.set(0);
+    enum cache_request_status probe_status =
+        L2->m_tag_array->probe(addr, index, mask, false, NULL);
+
+    if (gpu_sim->l2_index[j] == index) {
+      //        printf("Thread = %u, index = %u, l2_idx = %u, tag = %u,
+      //        l2_tag=%u, probe_status = %u\n", thread->get_uid(), index,
+      //        gpu_sim->l2_index[j], tag, gpu_sim->l2_tag[j], probe_status);
+      //        printf("l2_line_bitflip_bits_idx=%u, bit_start=%u,
+      //        bit_end=%u\n", gpu_sim->l2_line_bitflip_bits_idx[j], bit_start,
+      //        bit_end);
+      bool probe_status_hit, probe_status_miss;
+      if (is_store || is_rw) {
+        probe_status_hit = probe_status == HIT || probe_status == HIT_RESERVED;
+        probe_status_miss =
+            (probe_status != RESERVATION_FAIL && probe_status != HIT &&
+             probe_status != HIT_RESERVED);
+      } else if (is_constant) {
+        probe_status_hit = probe_status == HIT;
+        probe_status_miss =
+            (probe_status != RESERVATION_FAIL && probe_status != HIT);
+      } else if (is_texture) {
+        probe_status_hit = probe_status == HIT;
+        probe_status_miss = probe_status == MISS;
+      }
+
+      if (is_store && gpu_sim->l2_tag[j] == tag && probe_status_hit) {
+        printf("DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+        gpu_sim->l2_bf_enabled[j] = false;
+        continue;
+      }
+      if (gpu_sim->l2_tag[j] == tag && probe_status_hit) {  // hit
+        // Inject the error to the specific value of a thread that the bit flip
+        // belongs to
+        if (gpu_sim->l2_line_bitflip_bits_idx[j] >= bit_start &&
+            gpu_sim->l2_line_bitflip_bits_idx[j] <= bit_end) {
+          unsigned long long *reg_bf;
+          unsigned bf_size_bits_idx;
+
+          if (size == 128) {
+            unsigned bf_128_bits_idx =
+                gpu_sim->l2_line_bitflip_bits_idx[j] % 128;
+            if (bf_128_bits_idx >= 0 && bf_128_bits_idx <= 31) {
+              reg_bf = (unsigned long long *)&(data.u128.lowest);
+            } else if (bf_128_bits_idx >= 32 && bf_128_bits_idx <= 63) {
+              reg_bf = (unsigned long long *)&(data.u128.low);
+            } else if (bf_128_bits_idx >= 64 && bf_128_bits_idx <= 95) {
+              reg_bf = (unsigned long long *)&(data.u128.high);
+            } else {
+              reg_bf = (unsigned long long *)&(data.u128.highest);
+            }
+            bf_size_bits_idx = gpu_sim->l2_line_bitflip_bits_idx[j] % 32;
+          } else {
+            reg_bf = &data.u64;
+            bf_size_bits_idx = gpu_sim->l2_line_bitflip_bits_idx[j] % size;
+          }
+
+          //            printf("bit_start=%u, bit_end=%u,
+          //            bf_line_sz_bits_idx=%u, bf_size_bits_idx=%u\n",
+          //            bit_start, bit_end,
+          //            gpu_sim->l2_line_bitflip_bits_idx[j]+1,
+          //            bf_size_bits_idx+1); printf("Before bit flip of
+          //            thread=%u, value = %llu, reg_bf=%u\n",
+          //            thread->get_uid(), data.u64, bf_size_bits_idx+1);
+          *reg_bf ^= 1UL << bf_size_bits_idx;
+          //            printf("After bit flip value = %llu\n", data.u64);
+          //            printf("DATA INSIDE= %llu\n", data.u64);
+        }
+      } else if (gpu_sim->l2_tag[j] == tag && probe_status_miss) {
+        if (is_constant) {
+          // check if is really a miss and not reservation fail
+          new_addr_type mshr_addr = L2->m_config.mshr_addr(addr);
+          bool mshr_hit = L2->m_mshrs.probe(mshr_addr);
+          bool mshr_avail = !(L2->m_mshrs.full(mshr_addr));
+          if ((mshr_hit && mshr_avail) ||
+              (!mshr_hit && mshr_avail &&
+               (L2->m_miss_queue.size() < L2->m_config.m_miss_queue_size))) {
+            printf("DEACTIVATING L2 BIT FLIP ON LOAD CONSTANT\n");
+            gpu_sim->l2_bf_enabled[j] = false;
+          }
+        } else {
+          printf("DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+          // TODO disable main flag if l2_bf_enabled[*]==false
+          gpu_sim->l2_bf_enabled[j] = false;
+        }
+      }
+    }
+  }
+}
+
+void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
+                  unsigned long data_size, ptx_reg_t &data_bf,
+                  int l1t_used_index) {
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+  simt_core_cluster *simt_cluster =
+      gpu_sim->m_cluster[gpu_sim->l1t_cluster_idx[l1t_used_index]];
+  shader_core_ctx *shader_core =
+      simt_cluster->get_core()[gpu_sim->l1t_shader_core_ctx[l1t_used_index]];
+
+  //  printf("...on address=%x\n", data_tex_array_index);
+
+  tex_cache *L1T = shader_core->m_ldst_unit->m_L1T;
+  new_addr_type block_addr = L1T->m_config.block_addr(data_tex_array_index);
+  unsigned set_index = L1T->m_config.set_index(block_addr);
+  new_addr_type tag = L1T->m_config.tag(block_addr);
+  unsigned bit_start = (data_tex_array_index % L1T->m_config.get_line_sz()) * 8;
+  unsigned bit_end = bit_start + data_size - 1;
+
+  std::vector<bool> &l1t_bf_enabled_vector =
+      gpu_sim->l1t_bf_enabled[l1t_used_index];
+  std::vector<unsigned> l1t_line_bitflip_bits_idx_vector =
+      gpu_sim->l1t_line_bitflip_bits_idx[l1t_used_index];
+  std::vector<new_addr_type> l1t_tag_vector = gpu_sim->l1t_tag[l1t_used_index];
+  std::vector<unsigned> l1t_index_vector = gpu_sim->l1t_index[l1t_used_index];
+
+  for (int j = 0; j < l1t_line_bitflip_bits_idx_vector.size(); j++) {
+    if (!l1t_bf_enabled_vector[j]) continue;
+    unsigned index;
+    // line cache block so we don't care about masking
+    mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+    mask.set(0);
+    enum cache_request_status probe_status =
+        L1T->m_tags.probe(data_tex_array_index, index, mask, false, NULL);
+    if (L1T->m_fragment_fifo.full() || L1T->m_request_fifo.full() ||
+        L1T->m_rob.full()) {
+      probe_status = RESERVATION_FAIL;
+    }
+
+    if (l1t_index_vector[j] == index) {
+      //      printf("index = %u, l1t_idx = %u, tag = %u, l1t_tag=%u,
+      //      probe_status = %u\n", index, l1t_index_vector[j], tag,
+      //      l1t_tag_vector[j], probe_status);
+      //      printf("l1t_line_bitflip_bits_idx=%u, bit_start=%u, bit_end=%u\n",
+      //      l1t_line_bitflip_bits_idx_vector[j], bit_start, bit_end);
+      if (l1t_tag_vector[j] == tag && probe_status == HIT) {  // hit
+        // Inject the error to the specific value of a thread that the bit flip
+        // belongs to
+        if (l1t_line_bitflip_bits_idx_vector[j] >= bit_start &&
+            l1t_line_bitflip_bits_idx_vector[j] <= bit_end) {
+          unsigned bf_size_bits_idx =
+              l1t_line_bitflip_bits_idx_vector[j] % data_size;
+          unsigned long long *reg_bf = &data_bf.u64;
+
+          //          printf("bit_start=%u, bit_end=%u, bf_line_sz_bits_idx=%u,
+          //          bf_size_bits_idx=%u\n", bit_start, bit_end,
+          //          l1t_line_bitflip_bits_idx_vector[j]+1,
+          //          bf_size_bits_idx+1); printf("Before bit flip value = %llu,
+          //          reg_bf=%u\n", data_bf.u64, bf_size_bits_idx+1);
+          *reg_bf ^= 1UL << bf_size_bits_idx;
+          //          printf("After bit flip value = %llu\n", data_bf.u64);
+        }
+      } else if (l1t_tag_vector[j] == tag && probe_status == MISS) {  // miss
+        printf("DEACTIVATING L1T BIT FLIP ON LOAD TEXTURE\n");
+        l1t_bf_enabled_vector[j] = false;
+      }
+    }
+  }
+}
+
+void l2_wrapper_L1T(ptx_thread_info *thread, unsigned data_tex_array_index,
+                    unsigned long data_size, ptx_reg_t &data_bf) {
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  tex_cache *L1T = (tex_cache *)find_l1(thread, gpu_sim, 2);
+  if (L1T != NULL && gpu_sim->l2_enabled) {
+    // line cache block so we don't care about masking
+    mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+    mask.set(0);
+    unsigned index;
+    enum cache_request_status probe_status =
+        L1T->m_tags.probe(data_tex_array_index, index, mask, false, NULL);
+    if (L1T->m_fragment_fifo.full() || L1T->m_request_fifo.full() ||
+        L1T->m_rob.full()) {
+      probe_status = RESERVATION_FAIL;
+    }
+
+    if (probe_status == MISS) {
+      // check L2 on load miss
+      check_and_apply_l2_bf(thread, data_tex_array_index, data_bf, data_size,
+                            false, false, false, true);
+    }
+  }
+}
+
+void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
+                              size_t size, addr_t addr, memory_space_t space) {
+  if (!space.is_global() && !space.is_local()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  // TODO reformat and improve duplicate code in ld_exec for L1D, L1C and in
+  // st_impl for L1D find if the thread belongs to a shader that we want to
+  // inject its L1D cache
+  int l1d_used_index = -1;
+  find_l1_used(thread, gpu_sim, l1d_used_index, 0);
+
+  if (l1d_used_index != -1) {
+    simt_core_cluster *simt_cluster =
+        gpu_sim->m_cluster[gpu_sim->l1d_cluster_idx[l1d_used_index]];
+    shader_core_ctx *shader_core =
+        simt_cluster->get_core()[gpu_sim->l1d_shader_core_ctx[l1d_used_index]];
+
+    //      printf("GLOBAL/LOCAL READ OEOEOEO FROM ld_exec from thread uid=%u on
+    //      address=%x with instruction type=%u\n", thread->get_uid(), addr,
+    //      type);
+
+    l1_cache *L1D = shader_core->m_ldst_unit->m_L1D;
+    new_addr_type block_addr = L1D->m_config.block_addr(addr);
+    unsigned set_index = L1D->m_config.set_index(block_addr);
+    new_addr_type tag = L1D->m_config.tag(block_addr);
+    unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
+                         (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
+    mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+    mask.set(chunk_idx);
+    unsigned bit_start = (addr % L1D->m_config.get_line_sz()) * 8;
+    unsigned bit_end = bit_start + size - 1;
+
+    std::vector<bool> &l1d_bf_enabled_vector =
+        gpu_sim->l1d_bf_enabled[l1d_used_index];
+    std::vector<unsigned> l1d_line_bitflip_bits_idx_vector =
+        gpu_sim->l1d_line_bitflip_bits_idx[l1d_used_index];
+    std::vector<new_addr_type> l1d_tag_vector =
+        gpu_sim->l1d_tag[l1d_used_index];
+    std::vector<unsigned> l1d_index_vector = gpu_sim->l1d_index[l1d_used_index];
+
+    for (int j = 0; j < l1d_line_bitflip_bits_idx_vector.size(); j++) {
+      if (!l1d_bf_enabled_vector[j]) continue;
+      unsigned bf_chunk_idx =
+          l1d_line_bitflip_bits_idx_vector[j] /
+          (L1D->m_config.get_line_sz() * 8 / SECTOR_CHUNCK_SIZE);
+
+      if (chunk_idx == bf_chunk_idx) {
+        unsigned index;
+        enum cache_request_status probe_status =
+            L1D->m_tag_array->probe(addr, index, mask, false, NULL);
+
+        if (l1d_index_vector[j] == index) {
+          //            printf("Thread = %u, bf_chunk_idx = %u, index = %u,
+          //            l1d_idx = %u, tag = %u, l1d_tag=%u, probe_status =
+          //            %u\n", thread->get_uid(), bf_chunk_idx, index,
+          //            l1d_index_vector[j], tag, l1d_tag_vector[j],
+          //            probe_status); printf("l1d_line_bitflip_bits_idx=%u,
+          //            bit_start=%u, bit_end=%u\n",
+          //            l1d_line_bitflip_bits_idx_vector[j], bit_start,
+          //            bit_end);
+          if (l1d_tag_vector[j] == tag &&
+              (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
+            // Inject the error to the specific value of a thread that the bit
+            // flip belongs to
+            if (l1d_line_bitflip_bits_idx_vector[j] >= bit_start &&
+                l1d_line_bitflip_bits_idx_vector[j] <= bit_end) {
+              unsigned long long *reg_bf;
+              unsigned bf_size_bits_idx;
+
+              if (size == 128) {
+                unsigned bf_128_bits_idx =
+                    l1d_line_bitflip_bits_idx_vector[j] % 128;
+                if (bf_128_bits_idx >= 0 && bf_128_bits_idx <= 31) {
+                  reg_bf = (unsigned long long *)&(data.u128.lowest);
+                } else if (bf_128_bits_idx >= 32 && bf_128_bits_idx <= 63) {
+                  reg_bf = (unsigned long long *)&(data.u128.low);
+                } else if (bf_128_bits_idx >= 64 && bf_128_bits_idx <= 95) {
+                  reg_bf = (unsigned long long *)&(data.u128.high);
+                } else {
+                  reg_bf = (unsigned long long *)&(data.u128.highest);
+                }
+                bf_size_bits_idx = l1d_line_bitflip_bits_idx_vector[j] % 32;
+              } else {
+                reg_bf = &data.u64;
+                bf_size_bits_idx = l1d_line_bitflip_bits_idx_vector[j] % size;
+              }
+
+              //                printf("Thread on chunk %u, bit_start=%u,
+              //                bit_end=%u, bf_line_sz_bits_idx=%u,
+              //                bf_size_bits_idx=%u\n", chunk_idx, bit_start,
+              //                bit_end, l1d_line_bitflip_bits_idx_vector[j]+1,
+              //                bf_size_bits_idx+1); printf("Before bit flip of
+              //                thread=%u, value = %llu, reg_bf=%u\n",
+              //                thread->get_uid(), data.u64,
+              //                bf_size_bits_idx+1);
+              *reg_bf ^= 1UL << bf_size_bits_idx;
+              //                printf("After bit flip value = %llu\n",
+              //                data.u64); printf("DATA INSIDE= %f\n",
+              //                data.f32);
+            }
+          } else if (l1d_tag_vector[j] == tag &&
+                     probe_status != RESERVATION_FAIL) {  // miss
+            printf("DEACTIVATING L1D BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+            l1d_bf_enabled_vector[j] = false;
+          }
+        }
+      }
+    }
+  }
+}
+
+void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
+                          addr_t addr, memory_space_t space) {
+  if (!space.is_const()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+  // find if the thread belongs to a shader that we want to inject its L1C cache
+  int l1c_used_index = -1;
+  find_l1_used(thread, gpu_sim, l1c_used_index, 1);
+
+  if (l1c_used_index != -1) {
+    simt_core_cluster *simt_cluster =
+        gpu_sim->m_cluster[gpu_sim->l1c_cluster_idx[l1c_used_index]];
+    shader_core_ctx *shader_core =
+        simt_cluster->get_core()[gpu_sim->l1c_shader_core_ctx[l1c_used_index]];
+
+    read_only_cache *L1C = shader_core->m_ldst_unit->m_L1C;
+    new_addr_type block_addr = L1C->m_config.block_addr(addr);
+    unsigned set_index = L1C->m_config.set_index(block_addr);
+    new_addr_type tag = L1C->m_config.tag(block_addr);
+    unsigned bit_start = (addr % L1C->m_config.get_line_sz()) * 8;
+    unsigned bit_end = bit_start + size - 1;
+
+    std::vector<bool> &l1c_bf_enabled_vector =
+        gpu_sim->l1c_bf_enabled[l1c_used_index];
+    std::vector<unsigned> l1c_line_bitflip_bits_idx_vector =
+        gpu_sim->l1c_line_bitflip_bits_idx[l1c_used_index];
+    std::vector<new_addr_type> l1c_tag_vector =
+        gpu_sim->l1c_tag[l1c_used_index];
+    std::vector<unsigned> l1c_index_vector = gpu_sim->l1c_index[l1c_used_index];
+
+    for (int j = 0; j < l1c_line_bitflip_bits_idx_vector.size(); j++) {
+      if (!l1c_bf_enabled_vector[j]) continue;
+      unsigned index;
+      // line cache block, we don't care about mask
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      mask.set(0);
+      enum cache_request_status probe_status = L1C->m_tag_array->probe(
+          addr, index, mask, false, false, NULL, 666U);  // TODO: check is_write
+      if (l1c_index_vector[j] == index) {
+        //        printf("Thread = %u, index = %u, l1c_idx = %u, tag = %u,
+        //        l1c_tag=%u, probe_status = %u\n", thread->get_uid(), index,
+        //        l1c_index_vector[j], tag, l1c_tag_vector[j], probe_status);
+        //        printf("l1c_line_bitflip_bits_idx=%u, bit_start=%u,
+        //        bit_end=%u\n", l1c_line_bitflip_bits_idx_vector[j], bit_start,
+        //        bit_end);
+        if (l1c_tag_vector[j] == tag && probe_status == HIT) {  // hit
+          // Inject the error to the specific value of a thread that the bit
+          // flip belongs to
+          if (l1c_line_bitflip_bits_idx_vector[j] >= bit_start &&
+              l1c_line_bitflip_bits_idx_vector[j] <= bit_end) {
+            unsigned long long *reg_bf;
+            unsigned bf_size_bits_idx;
+
+            if (size == 128) {
+              unsigned bf_128_bits_idx =
+                  l1c_line_bitflip_bits_idx_vector[j] % 128;
+              if (bf_128_bits_idx >= 0 && bf_128_bits_idx <= 31) {
+                reg_bf = (unsigned long long *)&(data.u128.lowest);
+              } else if (bf_128_bits_idx >= 32 && bf_128_bits_idx <= 63) {
+                reg_bf = (unsigned long long *)&(data.u128.low);
+              } else if (bf_128_bits_idx >= 64 && bf_128_bits_idx <= 95) {
+                reg_bf = (unsigned long long *)&(data.u128.high);
+              } else {
+                reg_bf = (unsigned long long *)&(data.u128.highest);
+              }
+              bf_size_bits_idx = l1c_line_bitflip_bits_idx_vector[j] % 32;
+            } else {
+              reg_bf = &data.u64;
+              bf_size_bits_idx = l1c_line_bitflip_bits_idx_vector[j] % size;
+            }
+
+            //            printf("bit_start=%u, bit_end=%u,
+            //            bf_line_sz_bits_idx=%u, bf_size_bits_idx=%u\n",
+            //            bit_start, bit_end,
+            //            l1c_line_bitflip_bits_idx_vector[j]+1,
+            //            bf_size_bits_idx+1); printf("Before bit flip of
+            //            thread=%u, value = %llu, reg_bf=%u\n",
+            //            thread->get_uid(), data.u64, bf_size_bits_idx+1);
+            *reg_bf ^= 1UL << bf_size_bits_idx;
+            //            printf("After bit flip value = %llu\n", data.u64);
+            //            printf("DATA INSIDE= %f\n", data.f64);
+          }
+        } else if (l1c_tag_vector[j] == tag &&
+                   probe_status != RESERVATION_FAIL) {
+          // check if is really a miss and not reservation fail
+          new_addr_type mshr_addr = L1C->m_config.mshr_addr(addr);
+          bool mshr_hit = L1C->m_mshrs.probe(mshr_addr);
+          bool mshr_avail = !(L1C->m_mshrs.full(mshr_addr));
+          if ((mshr_hit && mshr_avail) ||
+              (!mshr_hit && mshr_avail &&
+               (L1C->m_miss_queue.size() < L1C->m_config.m_miss_queue_size))) {
+            printf("DEACTIVATING L1D BIT FLIP ON LOAD CONST\n");
+            l1c_bf_enabled_vector[j] = false;
+          }
+        }
+      }
+    }
+  }
+}
+
+void local_global_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
+                             size_t size, addr_t addr, memory_space_t space) {
+  if (!space.is_global() && !space.is_local()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  if (gpu_sim->l2_enabled) {
+    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, 0);
+    if (L1D != NULL) {
+      unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
+                           (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      mask.set(chunk_idx);
+
+      unsigned index;
+      enum cache_request_status probe_status =
+          L1D->m_tag_array->probe(addr, index, mask, false, NULL);
+
+      if (probe_status != HIT && probe_status != HIT_RESERVED &&
+          probe_status != RESERVATION_FAIL) {
+        // check L2 on load miss
+        check_and_apply_l2_bf(thread, addr, data, size, false, true, false,
+                              false);
+      }
+    }
+  }
+}
+
+void constant_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
+                         addr_t addr, memory_space_t space) {
+  if (!space.is_const()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  if (gpu_sim->l2_enabled) {
+    read_only_cache *L1C = (read_only_cache *)find_l1(thread, gpu_sim, 1);
+    if (L1C != NULL) {
+      unsigned index;
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      mask.set(0);
+      enum cache_request_status probe_status =
+          L1C->m_tag_array->probe(addr, index, mask, false, NULL);
+
+      if (probe_status != HIT && probe_status != RESERVATION_FAIL) {
+        // check if is really a miss and not reservation fail
+        new_addr_type mshr_addr = L1C->m_config.mshr_addr(addr);
+        bool mshr_hit = L1C->m_mshrs.probe(mshr_addr);
+        bool mshr_avail = !(L1C->m_mshrs.full(mshr_addr));
+        if ((mshr_hit && mshr_avail) ||
+            (!mshr_hit && mshr_avail &&
+             (L1C->m_miss_queue.size() < L1C->m_config.m_miss_queue_size))) {
+          // check L2 on load miss
+          check_and_apply_l2_bf(thread, addr, data, size, false, false, true,
+                                false);
+        }
+      }
+    }
+  }
+}
+
+void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
+                               size_t size, addr_t addr, memory_space_t space) {
+  if (!space.is_global() && !space.is_local()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+  int l1d_used_index = -1;
+  find_l1_used(thread, gpu_sim, l1d_used_index, 0);
+
+  if (l1d_used_index != -1) {
+    simt_core_cluster *simt_cluster =
+        gpu_sim->m_cluster[gpu_sim->l1d_cluster_idx[l1d_used_index]];
+    shader_core_ctx *shader_core =
+        simt_cluster->get_core()[gpu_sim->l1d_shader_core_ctx[l1d_used_index]];
+
+    //  printf("GLOBAL/LOCAL WRITE OEOEOEO FROM st_impl from thread uid=%u on
+    //  address=%x with instruction type=%u\n", thread->get_uid(), addr, type);
+
+    l1_cache *L1D = shader_core->m_ldst_unit->m_L1D;
+    new_addr_type block_addr = L1D->m_config.block_addr(addr);
+    unsigned set_index = L1D->m_config.set_index(block_addr);
+    new_addr_type tag = L1D->m_config.tag(block_addr);
+    unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
+                         (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
+    mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+    mask.set(chunk_idx);
+    unsigned bit_start = (addr % L1D->m_config.get_line_sz()) * 8;
+    unsigned bit_end = bit_start + size - 1;
+
+    std::vector<bool> &l1d_bf_enabled_vector =
+        gpu_sim->l1d_bf_enabled[l1d_used_index];
+    std::vector<unsigned> l1d_line_bitflip_bits_idx_vector =
+        gpu_sim->l1d_line_bitflip_bits_idx[l1d_used_index];
+    std::vector<new_addr_type> l1d_tag_vector =
+        gpu_sim->l1d_tag[l1d_used_index];
+    std::vector<unsigned> l1d_index_vector = gpu_sim->l1d_index[l1d_used_index];
+
+    for (int j = 0; j < l1d_line_bitflip_bits_idx_vector.size(); j++) {
+      if (!l1d_bf_enabled_vector[j]) continue;
+      unsigned bf_chunk_idx =
+          l1d_line_bitflip_bits_idx_vector[j] /
+          (L1D->m_config.get_line_sz() * 8 / SECTOR_CHUNCK_SIZE);
+
+      if (chunk_idx == bf_chunk_idx) {
+        unsigned index;
+        enum cache_request_status probe_status =
+            L1D->m_tag_array->probe(addr, index, mask, false, NULL);
+
+        if (l1d_index_vector[j] == index) {
+          //            printf("Thread = %u, bf_chunk_idx = %u, index = %u,
+          //            l1d_idx = %u, tag = %u, l1d_tag=%u, probe_status =
+          //            %u\n", thread->get_uid(), bf_chunk_idx, index,
+          //            l1d_index_vector[j], tag, l1d_tag_vector[j],
+          //            probe_status); printf("l1d_line_bitflip_bits_idx=%u,
+          //            bit_start=%u, bit_end=%u\n",
+          //            l1d_line_bitflip_bits_idx_vector[j], bit_start,
+          //            bit_end);
+          // Write no-allocate policy so we don't care about miss or reservation
+          // fail statuses
+          if (l1d_tag_vector[j] == tag &&
+              (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
+            printf("DEACTIVATING L1D BIT FLIP ON WRITE\n");
+            l1d_bf_enabled_vector[j] = false;
+          }
+        }
+      }
+    }
+  }
+}
+
+void local_global_write_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
+                              size_t size, addr_t addr, memory_space_t space) {
+  if (!space.is_global() && !space.is_local()) return;
+
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  if (gpu_sim->l2_enabled) {
+    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, 0);
+    if (L1D != NULL) {
+      unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
+                           (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      mask.set(chunk_idx);
+
+      unsigned index;
+      enum cache_request_status probe_status =
+          L1D->m_tag_array->probe(addr, index, mask, false, NULL);
+
+      if (probe_status == HIT || probe_status == HIT_RESERVED) {
+        // check L2 on write hit
+        check_and_apply_l2_bf(thread, addr, data, size, true, false, false,
+                              false);
+      }
+    }
+  }
+}
+// gpuFI end
+
 // Using profiled information::check the TensorCoreMatrixArrangement.xls for
 // details
 unsigned thread_group_offset(int thread, unsigned wmma_type,
@@ -403,6 +1065,11 @@ ptx_reg_t ptx_thread_info::get_operand_value(const operand_info &op,
     mem = thread->get_global_memory();
     type_info_key::type_decode(opType, size, t);
     mem->read(result.u32, size / 8, &finalResult.u128);
+
+    local_global_read_l1D_bf(thread, finalResult, size, result.u32,  // gpuFI
+                             memory_space_t(op.get_addr_space()));
+    local_global_read_l2_bf(thread, finalResult, size, result.u32,  // gpuFI
+                            memory_space_t(op.get_addr_space()));
     thread->m_last_effective_address = result.u32;
     thread->m_last_memory_space = global_space;
 
@@ -424,6 +1091,11 @@ ptx_reg_t ptx_thread_info::get_operand_value(const operand_info &op,
     type_info_key::type_decode(opType, size, t);
     mem->read((result.u32 + op.get_const_mem_offset()), size / 8,
               &finalResult.u128);
+    //    constant_read_l1C_bf(thread, finalResult, size, (result.u32 + // gpuFI
+    //    op.get_const_mem_offset()), memory_space_t(op.get_addr_space()));
+    // constant_read_l2_bf(thread, finalResult, size, (result.u32 + // gpuFI
+    // op.get_const_mem_offset()), memory_space_t(op.get_addr_space()));
+
     thread->m_last_effective_address = result.u32;
     thread->m_last_memory_space = const_space;
     if (opType == S16_TYPE || opType == S32_TYPE)
@@ -433,6 +1105,10 @@ ptx_reg_t ptx_thread_info::get_operand_value(const operand_info &op,
     mem = thread->m_local_mem;
     type_info_key::type_decode(opType, size, t);
     mem->read(result.u32, size / 8, &finalResult.u128);
+    local_global_read_l1D_bf(thread, finalResult, size, result.u32,
+                             memory_space_t(op.get_addr_space()));  // gpuFI
+    local_global_read_l2_bf(thread, finalResult, size, result.u32,
+                            memory_space_t(op.get_addr_space()));  // gpuFI
     thread->m_last_effective_address = result.u32;
     thread->m_last_memory_space = local_space;
     if (opType == S16_TYPE || opType == S32_TYPE)
@@ -751,8 +1427,14 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
     dstData = thread->get_operand_value(dst, dst, type, thread, 0);
     mem = thread->get_global_memory();
     type_info_key::type_decode(type, size, t);
-
-    mem->write(dstData.u32, size / 8, &data.u128, thread, pI);
+    ptx_reg_t temp_reg;         // gpuFI
+    temp_reg.u128 = data.u128;  // gpuFI
+    // mem->write(dstData.u32, size / 8, &data.u128, thread, pI); // gpuFI
+    local_global_write_l1D_bf(thread, temp_reg, size, dstData.u32,  // gpuFI
+                              memory_space_t(dst.get_addr_space()));
+    local_global_write_l2_bf(thread, temp_reg, size, dstData.u32,  // gpuFI
+                             memory_space_t(dst.get_addr_space()));
+    mem->write(dstData.u32, size / 8, &temp_reg.u128, thread, pI);  // gpuFI
     thread->m_last_effective_address = dstData.u32;
     thread->m_last_memory_space = global_space;
   }
@@ -773,8 +1455,15 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
     dstData = thread->get_operand_value(dst, dst, type, thread, 0);
     mem = thread->m_local_mem;
     type_info_key::type_decode(type, size, t);
+    ptx_reg_t temp_reg;         // gpuFI
+    temp_reg.u128 = data.u128;  // gpuFI
 
-    mem->write(dstData.u32, size / 8, &data.u128, thread, pI);
+    // mem->write(dstData.u32, size / 8, &data.u128, thread, pI); // gpuFI
+    local_global_write_l1D_bf(thread, temp_reg, size, dstData.u32,  // gpuFI
+                              memory_space_t(dst.get_addr_space()));
+    local_global_write_l2_bf(thread, temp_reg, size, dstData.u32,  // gpuFI
+                             memory_space_t(dst.get_addr_space()));
+    mem->write(dstData.u32, size / 8, &temp_reg.u128, thread, pI);  // gpuFI
     thread->m_last_effective_address = dstData.u32;
     thread->m_last_memory_space = local_space;
   }
@@ -1194,9 +1883,9 @@ void atom_callback(const inst_t *inst, ptx_thread_info *thread) {
   assert(space == global_space || space == shared_space);
 
   memory_space *mem = NULL;
-  if (space == global_space)
+  if (space == global_space) {
     mem = thread->get_global_memory();
-  else if (space == shared_space)
+  } else if (space == shared_space)
     mem = thread->m_shared_mem;
   else
     abort();
@@ -1204,6 +1893,10 @@ void atom_callback(const inst_t *inst, ptx_thread_info *thread) {
   // Copy value pointed to in operand 'a' into register 'd'
   // (i.e. copy src1_data to dst)
   mem->read(effective_address, size / 8, &data.s64);
+  local_global_read_l1D_bf(thread, data, size, effective_address,
+                           space);  // gpuFI
+  local_global_read_l2_bf(thread, data, size, effective_address,
+                          space);  // gpuFI
   if (dst.get_symbol()->type()) {
     thread->set_operand_value(dst, data, to_type, thread,
                               pI);  // Write value into register 'd'
@@ -1457,6 +2150,10 @@ void atom_callback(const inst_t *inst, ptx_thread_info *thread) {
   // Write operation result into  memory
   // (i.e. copy src1_data to dst)
   if (data_ready) {
+    local_global_write_l1D_bf(thread, op_result, size, effective_address,
+                              space);  // gpuFI
+    local_global_write_l2_bf(thread, op_result, size, effective_address,
+                             space);  // gpuFI
     mem->write(effective_address, size / 8, &op_result.s64, thread, pI);
   } else {
     printf("Execution error: data_ready not set\n");
@@ -3391,16 +4088,47 @@ void ld_exec(const ptx_instruction *pI, ptx_thread_info *thread) {
   type_info_key::type_decode(type, size, t);
   if (!vector_spec) {
     mem->read(addr, size / 8, &data.s64);
+    local_global_read_l1D_bf(thread, data, size, addr, space);  // gpuFI
+    local_global_read_l2_bf(thread, data, size, addr, space);   // gpuFI
+    //    constant_read_l1C_bf(thread, data, size, addr, space);// gpuFI
+    //    constant_read_l2_bf(thread, data, size, addr, space);	// gpuFI
     if (type == S16_TYPE || type == S32_TYPE) sign_extend(data, size, dst);
     thread->set_operand_value(dst, data, type, thread, pI);
   } else {
     ptx_reg_t data1, data2, data3, data4;
     mem->read(addr, size / 8, &data1.s64);
+    local_global_read_l1D_bf(thread, data1, size, addr, space);  // gpuFI
+    local_global_read_l2_bf(thread, data1, size, addr, space);   // gpuFI
+    // constant_read_l1C_bf(thread, data1, size, addr, space);      // gpuFI
+    // constant_read_l2_bf(thread, data1, size, addr, space);       // gpuFI
     mem->read(addr + size / 8, size / 8, &data2.s64);
+    local_global_read_l1D_bf(thread, data2, size, addr + size / 8,
+                             space);  // gpuFI
+    local_global_read_l2_bf(thread, data2, size, addr + size / 8,
+                            space);  // gpuFI
+    // constant_read_l1C_bf(thread, data2, size, addr + size / 8, space);  //
+    // constant_read_l2_bf(thread, data2, size, addr + size / 8, space);
+
     if (vector_spec != V2_TYPE) {  // either V3 or V4
       mem->read(addr + 2 * size / 8, size / 8, &data3.s64);
+      local_global_read_l1D_bf(thread, data3, size, addr + 2 * size / 8,
+                               space);  // gpuFI
+      local_global_read_l2_bf(thread, data3, size, addr + 2 * size / 8,
+                              space);  // gpuFI
+                                       // gpuFI
+      // constant_read_l1C_bf(thread, data3, size, addr + 2 * size / 8, space);
+      // constant_read_l2_bf(thread, data3, size, addr + 2 * size / 8,
+      //                     space);
       if (vector_spec != V3_TYPE) {  // v4
         mem->read(addr + 3 * size / 8, size / 8, &data4.s64);
+        local_global_read_l1D_bf(thread, data4, size, addr + 3 * size / 8,
+                                 space);  // gpuFI
+        local_global_read_l2_bf(thread, data4, size, addr + 3 * size / 8,
+                                space);  // gpuFI
+                                         // gpuFI
+        // constant_read_l1C_bf(thread, data4, size, addr + 3 * size / 8,
+        // space); constant_read_l2_bf(thread, data4, size, addr + 3 * size / 8,
+        // space);
         thread->set_vector_operand_values(dst, data1, data2, data3, data4);
       } else  // v3
         thread->set_vector_operand_values(dst, data1, data2, data3, data3);
@@ -3487,6 +4215,10 @@ void mma_st_impl(const ptx_instruction *pI, core_t *core, warp_inst_t &inst) {
       if (type == F32_TYPE) {
         // mem->write(new_addr+4*acc_float_offset(k,wmma_layout,stride),size/8,&v[k].s64,thread,pI);
         push_addr = new_addr + 4 * acc_float_offset(k, wmma_layout, stride);
+        local_global_write_l1D_bf(thread, v[k], size, push_addr,
+                                  space);  // gpuFI
+        local_global_write_l2_bf(thread, v[k], size, push_addr,
+                                 space);  // gpuFI
         mem->write(push_addr, size / 8, &v[k].s64, thread, pI);
         mem_txn_addr[num_mem_txn++] = push_addr;
 
@@ -3508,11 +4240,19 @@ void mma_st_impl(const ptx_instruction *pI, core_t *core, warp_inst_t &inst) {
         if (wmma_layout == ROW) {
           // mem->write(new_addr+k*2,size/8,&nw_v[k].s64,thread,pI);
           push_addr = new_addr + k * 2;
+          local_global_write_l1D_bf(thread, nw_v[k], size, push_addr,
+                                    space);  // gpuFI
+          local_global_write_l2_bf(thread, nw_v[k], size, push_addr,
+                                   space);  // gpuFI
           mem->write(push_addr, size / 8, &nw_v[k].s64, thread, pI);
           if (k % 2 == 0) mem_txn_addr[num_mem_txn++] = push_addr;
         } else if (wmma_layout == COL) {
           // mem->write(new_addr+k*2*stride,size/8,&nw_v[k].s64,thread,pI);
           push_addr = new_addr + k * 2 * stride;
+          local_global_write_l1D_bf(thread, nw_v[k], size, push_addr,
+                                    space);  // gpuFI
+          local_global_write_l2_bf(thread, nw_v[k], size, push_addr,
+                                   space);  // gpuFI
           mem->write(push_addr, size / 8, &nw_v[k].s64, thread, pI);
           mem_txn_addr[num_mem_txn++] = push_addr;
         }
@@ -3610,6 +4350,13 @@ void mma_ld_impl(const ptx_instruction *pI, core_t *core, warp_inst_t &inst) {
           printf("mma_ld:wrong_layout_type\n");
           abort();
         }
+        local_global_read_l1D_bf(thread, data[i], size, fetch_addr,
+                                 space);  // gpuFI
+        local_global_read_l2_bf(thread, data[i], size, fetch_addr,
+                                space);  // gpuFI
+                                         // gpuFI
+        // constant_read_l1C_bf(thread, data[i], size, fetch_addr, space);
+        // constant_read_l2_bf(thread, data[i], size, fetch_addr, space);
         if (i % 2 == 0) mem_txn_addr[num_mem_txn++] = fetch_addr;
       }
     } else if (wmma_type == LOAD_B) {
@@ -3626,6 +4373,13 @@ void mma_ld_impl(const ptx_instruction *pI, core_t *core, warp_inst_t &inst) {
           printf("mma_ld:wrong_layout_type\n");
           abort();
         }
+        local_global_read_l1D_bf(thread, data[i], size, fetch_addr,
+                                 space);  // gpuFI
+        local_global_read_l2_bf(thread, data[i], size, fetch_addr,
+                                space);  // gpuFI
+                                         // gpuFI
+        // constant_read_l1C_bf(thread, data[i], size, fetch_addr, space);
+        // constant_read_l2_bf(thread, data[i], size, fetch_addr, space);
         if (i % 2 == 0) mem_txn_addr[num_mem_txn++] = fetch_addr;
       }
     } else if (wmma_type == LOAD_C) {
@@ -3645,10 +4399,24 @@ void mma_ld_impl(const ptx_instruction *pI, core_t *core, warp_inst_t &inst) {
             printf("mma_ld:wrong_type\n");
             abort();
           }
+          local_global_read_l1D_bf(thread, data[i], size, fetch_addr,
+                                   space);  // gpuFI
+          local_global_read_l2_bf(thread, data[i], size, fetch_addr,
+                                  space);  // gpuFI
+                                           // gpuFI
+          // constant_read_l1C_bf(thread, data[i], size, fetch_addr, space);
+          // constant_read_l2_bf(thread, data[i], size, fetch_addr, space);
         } else if (type == F32_TYPE) {
           // mem->read(new_addr+4*acc_float_offset(i,wmma_layout,stride),size/8,&data[i].s64);
           fetch_addr = new_addr + 4 * acc_float_offset(i, wmma_layout, stride);
           mem->read(fetch_addr, size / 8, &data[i].s64);
+          local_global_read_l1D_bf(thread, data[i], size, fetch_addr,
+                                   space);  // gpuFI
+          local_global_read_l2_bf(thread, data[i], size, fetch_addr,
+                                  space);  // gpuFI
+                                           // gpuFI
+          // constant_read_l1C_bf(thread, data[i], size, fetch_addr, space);
+          // constant_read_l2_bf(thread, data[i], size, fetch_addr, space);
           mem_txn_addr[num_mem_txn++] = fetch_addr;
         } else {
           printf("wrong type");
@@ -3980,7 +4748,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
           fesetround(FE_TOWARDZERO);
           break;
         default:
-          //assert(0);
+          // assert(0);
           break;
       }
       d.f32 = a.f32 * b.f32 + c.f32;
@@ -4326,7 +5094,7 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case S64_TYPE:
       t.s64 = a.s64 * b.s64;
       assert(!pI->is_wide());
-      //assert(!pI->is_hi());
+      // assert(!pI->is_hi());
       d.s64 = t.s64;
       break;
     case U16_TYPE:
@@ -5688,6 +6456,11 @@ void sst_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   type_info_key::type_decode(type, size, t);
 
   // store data in sstarr memory
+
+  // probably not needed
+  local_global_write_l1D_bf(thread, src3_data, size, addr, space);  // gpuFI
+  local_global_write_l2_bf(thread, src3_data, size, addr, space);   // gpuFI
+
   mem->write(addr, size / 8, &src3_data.s64, thread, pI);
 
   // sync threads
@@ -5725,8 +6498,28 @@ void sst_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     for (int tid = 0; tid < NUM_THREADS; tid++) {
       if (sstarr_fdata[tid] != 0) {
         float ftid = (float)tid;
+
+        // gpuFI
+        ptx_reg_t sstarr_ldata_reg;
+        sstarr_ldata_reg.s64 = sstarr_ldata[tid];
+        local_global_write_l1D_bf(thread, sstarr_ldata_reg, size,
+                                  addr + (offset * 4), space);
+        local_global_write_l2_bf(thread, sstarr_ldata_reg, size,
+                                 addr + (offset * 4), space);
+        sstarr_ldata[tid] = sstarr_ldata_reg.s64;
+
         mem->write(addr + (offset * 4), size / 8, &sstarr_ldata[tid], thread,
                    pI);
+
+        // gpuFI
+        ptx_reg_t ftid_reg;
+        ftid_reg.f32 = ftid;
+        local_global_write_l1D_bf(thread, ftid_reg, size,
+                                  addr + ((NUM_THREADS + offset) * 4), space);
+        local_global_write_l2_bf(thread, ftid_reg, size,
+                                 addr + ((NUM_THREADS + offset) * 4), space);
+        ftid = ftid_reg.f32;
+
         mem->write(addr + ((NUM_THREADS + offset) * 4), size / 8, &ftid, thread,
                    pI);
         offset++;
@@ -5739,6 +6532,12 @@ void sst_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
 
     // fill the rest of the array with zeros (dst should always have a 0 in it)
     while (offset < NUM_THREADS) {
+      local_global_write_l1D_bf(thread, dst_data, size,
+                                addr + (offset * 4),  // gpuFI
+                                space);
+      local_global_write_l2_bf(thread, dst_data, size,
+                               addr + (offset * 4),  // gpuFI
+                               space);
       mem->write(addr + (offset * 4), size / 8, &dst_data.s64, thread, pI);
       offset++;
     }
@@ -5775,20 +6574,49 @@ void st_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
 
   if (!vector_spec) {
     data = thread->get_operand_value(src1, dst, type, thread, 1);
+    local_global_write_l1D_bf(thread, data, size, addr, space);  // gpuFI
+    local_global_write_l2_bf(thread, data, size, addr, space);   // gpuFI
     mem->write(addr, size / 8, &data.s64, thread, pI);
   } else {
     if (vector_spec == V2_TYPE) {
       ptx_reg_t *ptx_regs = new ptx_reg_t[2];
       thread->get_vector_operand_values(src1, ptx_regs, 2);
+      local_global_write_l1D_bf(thread, ptx_regs[0], size, addr,
+                                space);  // gpuFI
+      local_global_write_l2_bf(thread, ptx_regs[0], size, addr,
+                               space);  // gpuFI
       mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
+      local_global_write_l1D_bf(thread, ptx_regs[1], size, addr + size / 8,
+                                space);  // gpuFI
+      local_global_write_l2_bf(thread, ptx_regs[1], size, addr + size / 8,
+                               space);  // gpuFI
       mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
       delete[] ptx_regs;
     }
     if (vector_spec == V3_TYPE) {
       ptx_reg_t *ptx_regs = new ptx_reg_t[3];
       thread->get_vector_operand_values(src1, ptx_regs, 3);
+      local_global_write_l1D_bf(thread, ptx_regs[0], size, addr,
+                                space);  // gpuFI
+      local_global_write_l2_bf(thread, ptx_regs[0], size, addr,
+                               space);  // gpuFI
       mem->write(addr, size / 8, &ptx_regs[0].s64, thread, pI);
+
+      local_global_write_l1D_bf(thread, ptx_regs[1], size,
+                                addr + size / 8,  // gpuFI
+                                space);
+      local_global_write_l2_bf(thread, ptx_regs[1], size,
+                               addr + size / 8,  // gpuFI
+                               space);
       mem->write(addr + size / 8, size / 8, &ptx_regs[1].s64, thread, pI);
+
+      local_global_write_l1D_bf(thread, ptx_regs[2], size,
+                                addr + 2 * size / 8,  // gpuFI
+                                space);
+      local_global_write_l2_bf(thread, ptx_regs[2], size,
+                               addr + 2 * size / 8,  // gpuFI
+                               space);
+
       mem->write(addr + 2 * size / 8, size / 8, &ptx_regs[2].s64, thread, pI);
       delete[] ptx_regs;
     }
@@ -5946,20 +6774,56 @@ typedef unsigned (*texAddr_t)(unsigned x, unsigned y, unsigned mx, unsigned my,
 float tex_linf_sampling(memory_space *mem, unsigned tex_array_base, int x,
                         int y, unsigned int width, unsigned int height,
                         size_t elem_size, float alpha, float beta,
-                        texAddr_t b_lim) {
+                        texAddr_t b_lim, ptx_thread_info *thread) {  // gpuFI
   float Tij;
   float Ti1j;
   float Tij1;
   float Ti1j1;
 
-  mem->read(tex_array_base + b_lim(x, y, width, height, elem_size), 4, &Tij);
-  mem->read(tex_array_base + b_lim(x + elem_size, y, width, height, elem_size),
-            4, &Ti1j);
-  mem->read(tex_array_base + b_lim(x, y + 1, width, height, elem_size), 4,
-            &Tij1);
-  mem->read(
-      tex_array_base + b_lim(x + elem_size, y + 1, width, height, elem_size), 4,
-      &Ti1j1);
+  // gpuFI start
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  int l1t_used_index = -1;
+  find_l1_used(thread, gpu_sim, l1t_used_index, 2);
+  ptx_reg_t reg_bf = ptx_reg_t();
+
+  mem_addr_t addr = tex_array_base + b_lim(x, y, width, height, elem_size);
+  mem->read(addr, 4, &Tij);
+  if (l1t_used_index != -1) {
+    reg_bf.u64 = (unsigned long long)Tij;
+    l1t_bit_flip(thread, addr, 4, reg_bf, l1t_used_index);
+  }
+  if (gpu_sim->l2_enabled) {
+    l2_wrapper_L1T(thread, addr, 4, reg_bf);
+  }
+  addr = tex_array_base + b_lim(x + elem_size, y, width, height, elem_size);
+  mem->read(addr, 4, &Ti1j);
+  if (l1t_used_index != -1) {
+    reg_bf.u64 = (unsigned long long)Ti1j;
+    l1t_bit_flip(thread, addr, 4, reg_bf, l1t_used_index);
+  }
+  if (gpu_sim->l2_enabled) {
+    l2_wrapper_L1T(thread, addr, 4, reg_bf);
+  }
+  addr = tex_array_base + b_lim(x, y + 1, width, height, elem_size);
+  mem->read(addr, 4, &Tij1);
+  if (l1t_used_index != -1) {
+    reg_bf.u64 = (unsigned long long)Tij1;
+    l1t_bit_flip(thread, addr, 4, reg_bf, l1t_used_index);
+  }
+  if (gpu_sim->l2_enabled) {
+    l2_wrapper_L1T(thread, addr, 4, reg_bf);
+  }
+  addr = tex_array_base + b_lim(x + elem_size, y + 1, width, height, elem_size);
+  mem->read(addr, 4, &Ti1j1);
+  if (l1t_used_index != -1) {
+    reg_bf.u64 = (unsigned long long)Ti1j1;
+    l1t_bit_flip(thread, addr, 4, reg_bf, l1t_used_index);
+  }
+  if (gpu_sim->l2_enabled) {
+    l2_wrapper_L1T(thread, addr, 4, reg_bf);
+  }
+  // gpuFI end
 
   float sample = (1 - alpha) * (1 - beta) * Tij + alpha * (1 - beta) * Ti1j +
                  (1 - alpha) * beta * Tij1 + alpha * beta * Ti1j1;
@@ -6013,6 +6877,12 @@ void textureNormalizeOutput(const struct cudaChannelFormatDesc &desc,
 }
 
 void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
+  bool data1_en = false, data2_en = false, data3_en = false,
+       data4_en = false;  // gpuFI
+  unsigned data1_tex_array_index, data2_tex_array_index, data3_tex_array_index,
+      data4_tex_array_index;                                     // gpuFI
+  unsigned long data1_size, data2_size, data3_size, data4_size;  // gpuFI
+
   unsigned dimension = pI->dimension();
   const operand_info &dst =
       pI->dst();  // the registers to which fetched texel will be placed
@@ -6206,18 +7076,33 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case S32_TYPE: {
       unsigned long long elementOffset = 0;  // offset into the next element
       mem->read(tex_array_index, cuArray->desc.x / 8, &data1.u32);
+
+      data1_en = true;                          // gpuFI
+      data1_tex_array_index = tex_array_index;  // gpuFI
+      data1_size = cuArray->desc.x;             // gpuFI
+
       elementOffset += cuArray->desc.x / 8;
       if (cuArray->desc.y) {
         mem->read(tex_array_index + elementOffset, cuArray->desc.y / 8,
                   &data2.u32);
+        data2_en = true;                                          // gpuFI
+        data2_tex_array_index = tex_array_index + elementOffset;  // gpuFI
+        data2_size = cuArray->desc.y;                             // gpuFI
         elementOffset += cuArray->desc.y / 8;
         if (cuArray->desc.z) {
           mem->read(tex_array_index + elementOffset, cuArray->desc.z / 8,
                     &data3.u32);
+          data3_en = true;                                          // gpuFI
+          data3_tex_array_index = tex_array_index + elementOffset;  // gpuFI
+          data3_size = cuArray->desc.z;                             // gpuFI
           elementOffset += cuArray->desc.z / 8;
-          if (cuArray->desc.w)
+          if (cuArray->desc.w) {
             mem->read(tex_array_index + elementOffset, cuArray->desc.w / 8,
                       &data4.u32);
+            data4_en = true;                                          // gpuFI
+            data4_tex_array_index = tex_array_index + elementOffset;  // gpuFI
+            data4_size = cuArray->desc.w;                             // gpuFI
+          }
         }
       }
       break;
@@ -6226,11 +7111,30 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case U64_TYPE:
     case S64_TYPE:
       mem->read(tex_array_index, 8, &data1.u64);
+      data1_en = true;                          // gpuFI
+      data1_tex_array_index = tex_array_index;  // gpuFI
+      data1_size = 64;                          // gpuFI
       if (cuArray->desc.y) {
         mem->read(tex_array_index + 8, 8, &data2.u64);
+        data2_en = true;                              // gpuFI
+        data2_tex_array_index = tex_array_index + 8;  // gpuFI
+        data2_size = 64;                              // gpuFI
         if (cuArray->desc.z) {
           mem->read(tex_array_index + 16, 8, &data3.u64);
-          if (cuArray->desc.w) mem->read(tex_array_index + 24, 8, &data4.u64);
+
+          // gpuFI start
+          // if (cuArray->desc.w) mem->read(tex_array_index + 24, 8,
+          // &data4.u64);
+          data3_en = true;
+          data3_tex_array_index = tex_array_index + 16;
+          data3_size = 64;
+          if (cuArray->desc.w) {
+            mem->read(tex_array_index + 24, 8, &data4.u64);
+            data4_en = true;
+            data4_tex_array_index = tex_array_index + 24;
+            data4_size = 64;
+          }
+          // gpuFI end
         }
       }
       break;
@@ -6248,34 +7152,50 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
                            8;
         size_t elem_ofst = 0;
 
-        data1.f32 =
-            tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y, width,
-                              height, elem_size, alpha, beta, b_lim);
+        data1.f32 = tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y,
+                                      width, height, elem_size, alpha, beta,
+                                      b_lim, thread);  // gpuFI
         elem_ofst += cuArray->desc.x / 8;
         if (cuArray->desc.y) {
-          data2.f32 =
-              tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y, width,
-                                height, elem_size, alpha, beta, b_lim);
+          data2.f32 = tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y,
+                                        width, height, elem_size, alpha, beta,
+                                        b_lim, thread);  // gpuFI
           elem_ofst += cuArray->desc.y / 8;
           if (cuArray->desc.z) {
-            data3.f32 =
-                tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y, width,
-                                  height, elem_size, alpha, beta, b_lim);
+            data3.f32 = tex_linf_sampling(mem, tex_array_base, x + elem_ofst, y,
+                                          width, height, elem_size, alpha, beta,
+                                          b_lim, thread);  // gpuFI
             elem_ofst += cuArray->desc.z / 8;
             if (cuArray->desc.w)
               data4.f32 = tex_linf_sampling(mem, tex_array_base, x + elem_ofst,
                                             y, width, height, elem_size, alpha,
-                                            beta, b_lim);
+                                            beta, b_lim, thread);  // gpuFI
           }
         }
       } else {
         mem->read(tex_array_index, cuArray->desc.x / 8, &data1.f32);
+        data1_en = true;                          // gpuFI
+        data1_tex_array_index = tex_array_index;  // gpuFI
+        data1_size = cuArray->desc.x;             // gpuFI
         if (cuArray->desc.y) {
           mem->read(tex_array_index + 4, cuArray->desc.y / 8, &data2.f32);
+          data2_en = true;                              // gpuFI
+          data2_tex_array_index = tex_array_index + 4;  // gpuFI
+          data2_size = cuArray->desc.y;                 // gpuFI
           if (cuArray->desc.z) {
             mem->read(tex_array_index + 8, cuArray->desc.z / 8, &data3.f32);
-            if (cuArray->desc.w)
+            // gpuFI start
+            // if (cuArray->desc.w)
+            data3_en = true;
+            data3_tex_array_index = tex_array_index + 8;
+            data3_size = cuArray->desc.z;
+            if (cuArray->desc.w) {
               mem->read(tex_array_index + 12, cuArray->desc.w / 8, &data4.f32);
+              data4_en = true;
+              data4_tex_array_index = tex_array_index + 12;
+              data4_size = cuArray->desc.w;
+            }
+            // gpuFI end
           }
         }
       }
@@ -6283,11 +7203,29 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case F64_TYPE:
     case FF64_TYPE:
       mem->read(tex_array_index, 8, &data1.f64);
+      data1_en = true;                          // gpuFI
+      data1_tex_array_index = tex_array_index;  // gpuFI
+      data1_size = 8;                           // gpuFI
       if (cuArray->desc.y) {
         mem->read(tex_array_index + 8, 8, &data2.f64);
+        data2_en = true;                              // gpuFI
+        data2_tex_array_index = tex_array_index + 8;  // gpuFI
+        data2_size = 8;                               // gpuFI
         if (cuArray->desc.z) {
           mem->read(tex_array_index + 16, 8, &data3.f64);
-          if (cuArray->desc.w) mem->read(tex_array_index + 24, 8, &data4.f64);
+          // gpuFI start
+          // if (cuArray->desc.w) mem->read(tex_array_index + 24, 8,
+          // &data4.f64);
+          data3_en = true;
+          data3_tex_array_index = tex_array_index + 16;
+          data3_size = 8;
+          if (cuArray->desc.w) {
+            mem->read(tex_array_index + 24, 8, &data4.f64);
+            data4_en = true;
+            data4_tex_array_index = tex_array_index + 24;
+            data4_size = 8;
+          }
+          // gpuFI end
         }
       }
       break;
@@ -6295,6 +7233,41 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       assert(0);
       break;
   }
+
+  // gpuFI strat
+  gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
+
+  // find if the thread belongs to a shader that we want to inject its L1T cache
+  int l1t_used_index = -1;
+  find_l1_used(thread, gpu_sim, l1t_used_index, 2);
+
+  if (l1t_used_index != -1) {
+    if (data1_en)
+      l1t_bit_flip(thread, data1_tex_array_index, data1_size, data1,
+                   l1t_used_index);
+    if (data2_en)
+      l1t_bit_flip(thread, data2_tex_array_index, data2_size, data2,
+                   l1t_used_index);
+    if (data3_en)
+      l1t_bit_flip(thread, data3_tex_array_index, data3_size, data3,
+                   l1t_used_index);
+    if (data4_en)
+      l1t_bit_flip(thread, data4_tex_array_index, data4_size, data4,
+                   l1t_used_index);
+  }
+
+  if (gpu_sim->l2_enabled) {
+    if (data1_en)
+      l2_wrapper_L1T(thread, data1_tex_array_index, data1_size, data1);
+    if (data2_en)
+      l2_wrapper_L1T(thread, data2_tex_array_index, data2_size, data2);
+    if (data3_en)
+      l2_wrapper_L1T(thread, data3_tex_array_index, data3_size, data3);
+    if (data4_en)
+      l2_wrapper_L1T(thread, data4_tex_array_index, data4_size, data4);
+  }
+  // gpuFI end
+
   int x_block_coord, y_block_coord, memreqindex, blockoffset;
 
   switch (dimension) {
@@ -6500,6 +7473,10 @@ ptx_reg_t srcOperandModifiers(ptx_reg_t opData, operand_info opInfo,
     mem = thread->get_global_memory();
     type_info_key::type_decode(type, size, t);
     mem->read(opData.u32, size / 8, &result.u64);
+    local_global_read_l1D_bf(thread, result, size, opData.u32,
+                             memory_space_t(opInfo.get_addr_space()));  // gpuFI
+    local_global_read_l2_bf(thread, result, size, opData.u32,
+                            memory_space_t(opInfo.get_addr_space()));  // gpuFI
     if (type == S16_TYPE || type == S32_TYPE)
       sign_extend(result, size, dstInfo);
   } else if (opInfo.get_addr_space() == shared_space) {
@@ -6516,7 +7493,13 @@ ptx_reg_t srcOperandModifiers(ptx_reg_t opData, operand_info opInfo,
 
     mem->read((opData.u32 + opInfo.get_const_mem_offset()), size / 8,
               &result.u64);
-
+    // gpuFI
+    // constant_read_l1C_bf(thread, result, size, (opData.u32 +
+    // opInfo.get_const_mem_offset()),
+    // memory_space_t(opInfo.get_addr_space()));
+    // constant_read_l2_bf(thread, result, size, (opData.u32 +
+    // opInfo.get_const_mem_offset()),
+    // memory_space_t(opInfo.get_addr_space()));
     if (type == S16_TYPE || type == S32_TYPE)
       sign_extend(result, size, dstInfo);
   } else {

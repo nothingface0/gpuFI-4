@@ -522,6 +522,11 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
       bool port_free = m_L2cache->data_port_free();
       if (!output_full && port_free) {
         std::list<cache_event> events;
+        // gpuFI
+        //        printf("Accessing L2 cache bank = %u at address %x on cycle
+        //        =%llu\n", this->m_id, mf->get_addr(), m_gpu->gpu_sim_cycle
+        //        + m_gpu->gpu_tot_sim_cycle +
+        //            m_memcpy_cycle_offset);
         enum cache_request_status status =
             m_L2cache->access(mf->get_addr(), mf,
                               m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +

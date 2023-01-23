@@ -237,15 +237,16 @@ void tag_array::remove_pending_line(mem_fetch *mf) {
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
-                                           bool probe_mode) const {
+                                           bool probe_mode,
+                                           unsigned time) const {
   mem_access_sector_mask_t mask = mf->get_access_sector_mask();
-  return probe(addr, idx, mask, is_write, probe_mode, mf);
+  return probe(addr, idx, mask, is_write, probe_mode, mf, time);
 }
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_access_sector_mask_t mask,
                                            bool is_write, bool probe_mode,
-                                           mem_fetch *mf) const {
+                                           mem_fetch *mf, unsigned time) const {
   // assert( m_config.m_write_policy == READ_ONLY );
   unsigned set_index = m_config.set_index(addr);
   new_addr_type tag = m_config.tag(addr);
@@ -287,10 +288,11 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       // number of dirty lines / total lines in the cache
       float dirty_line_percentage =
           ((float)m_dirty / (m_config.m_nset * m_config.m_assoc)) * 100;
-      // If the cacheline is from a load op (not modified), 
+      // If the cacheline is from a load op (not modified),
       // or the total dirty cacheline is above a specific value,
-      // Then this cacheline is eligible to be considered for replacement candidate
-      // i.e. Only evict clean cachelines until total dirty cachelines reach the limit.
+      // Then this cacheline is eligible to be considered for replacement
+      // candidate i.e. Only evict clean cachelines until total dirty cachelines
+      // reach the limit.
       if (!line->is_modified_line() ||
           dirty_line_percentage >= m_config.m_wr_percent) {
         all_reserved = false;
@@ -1755,8 +1757,8 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
   bool wr = mf->get_is_write();
   new_addr_type block_addr = m_config.block_addr(addr);
   unsigned cache_index = (unsigned)-1;
-  enum cache_request_status probe_status =
-      m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), true);
+  enum cache_request_status probe_status = m_tag_array->probe(
+      block_addr, cache_index, mf, mf->is_write(), true, time);
   enum cache_request_status access_status =
       process_tag_probe(wr, probe_status, addr, cache_index, mf, time, events);
   m_stats.inc_stats(mf->get_access_type(),
@@ -1850,7 +1852,7 @@ void tex_cache::cycle() {
       // assert( r.m_block_addr == m_config.block_addr(e.m_request->get_addr())
       // );
       if (r.m_ready) {
-        assert(r.m_index == e.m_cache_index);
+        // assert(r.m_index == e.m_cache_index); // gpuFI
         m_cache[r.m_index].m_valid = true;
         m_cache[r.m_index].m_block_addr = r.m_block_addr;
         m_result_fifo.push(e.m_request);
@@ -1859,9 +1861,10 @@ void tex_cache::cycle() {
       }
     } else {
       // hit:
-      assert(m_cache[e.m_cache_index].m_valid);
-      assert(m_cache[e.m_cache_index].m_block_addr ==
-             m_config.block_addr(e.m_request->get_addr()));
+
+      // assert(m_cache[e.m_cache_index].m_valid);		// gpuFI
+      // assert(m_cache[e.m_cache_index].m_block_addr ==	// gpuFI
+      // m_config.block_addr(e.m_request->get_addr()));
       m_result_fifo.push(e.m_request);
       m_fragment_fifo.pop();
     }

@@ -61,3 +61,8 @@ debug_tools/WatchYourStep/ptxjitplus/*.ptx
 accel-sim-framework/
 gpu-app-collection/
 
+# Execution tmp files
+_*
+*.ptx
+*.ptxas
+logs*/

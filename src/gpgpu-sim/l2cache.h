@@ -204,12 +204,12 @@ class memory_sub_partition {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask);
     m_memcpy_cycle_offset += 1;
   }
-
+  class l2_cache *m_L2cache;  // gpuFI
  private:
   // data
   unsigned m_id;  //< the global sub partition ID
   const memory_config *m_config;
-  class l2_cache *m_L2cache;
+  // class l2_cache *m_L2cache;
   class L2interface *m_L2interface;
   class gpgpu_sim *m_gpu;
   partition_mf_allocator *m_mf_allocator;

@@ -459,6 +459,11 @@ class ptx_thread_info {
   // Jin: get corresponding kernel grid for CDP purpose
   kernel_info_t &get_kernel() { return m_kernel; }
 
+  // gpuFI
+  std::list<tr1_hash_map<const symbol *, ptx_reg_t>> &get_regs() {
+    return m_regs;
+  }
+
  public:
   addr_t m_last_effective_address;
   bool m_branch_taken;
@@ -470,13 +475,15 @@ class ptx_thread_info {
   ptx_warp_info *m_warp_info;
   ptx_cta_info *m_cta_info;
   ptx_reg_t m_last_set_operand_value;
+  core_t *m_core;                               // gpuFI
+  gpgpu_t *m_gpu;                               // gpuFI
 
  private:
   bool m_functionalSimulationMode;
   unsigned m_uid;
   kernel_info_t &m_kernel;
-  core_t *m_core;
-  gpgpu_t *m_gpu;
+  // core_t *m_core;
+  // gpgpu_t *m_gpu;
   bool m_valid;
   dim3 m_ntid;
   dim3 m_tid;

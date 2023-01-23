@@ -3552,6 +3552,8 @@ void gpgpu_context::cuobjdumpParseBinary(unsigned int handle) {
     printf("Adding %s with cubin handle %u\n", ptx->getPTXfilename().c_str(),
            handle);
     context->add_binary(symtab, handle);
+    context->no_of_ptx =
+        1;  // gpuFI: otherwise it will not run the PTXAS_CUDA_INSTALL_PATH
     gpgpu_ptxinfo_load_from_string(ptxcode, handle, max_capability,
                                    context->no_of_ptx);
     delete[] ptxplus_str;

@@ -59,9 +59,23 @@ void memory_space_impl<BSIZE>::write(mem_addr_t addr, size_t length,
                                      class ptx_thread_info *thd,
                                      const ptx_instruction *pI) {
   mem_addr_t index = addr >> m_log2_block_size;
+  unsigned lol = *((unsigned *)data);  // gpuFI
 
   if ((addr + length) <= (index + 1) * BSIZE) {
     // fast route for intra-block access
+
+    // gpuFI start
+    if (lol == 666U) {
+      printf("GLOBALL_MEMORY index = %u\n", index);
+      typename map_t::const_iterator i_page;
+
+      for (i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
+        fprintf(stdout, "%s %u: BSIZE= %u\n", m_name.c_str(), i_page->first,
+                BSIZE);
+        // i_page->second.print(format, fout);
+      }
+    }
+    // gpuFI end
     unsigned offset = addr & (BSIZE - 1);
     unsigned nbytes = length;
     m_data[index].write(offset, nbytes, (const unsigned char *)data);
@@ -169,7 +183,8 @@ void memory_space_impl<BSIZE>::print(const char *format, FILE *fout) const {
   typename map_t::const_iterator i_page;
 
   for (i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
-    fprintf(fout, "%s %08x:", m_name.c_str(), i_page->first);
+    +fprintf(fout, "%s %u: BSIZE= %u\n", m_name.c_str(), i_page->first,
+             BSIZE);  // gpUFI
     i_page->second.print(format, fout);
   }
 }
@@ -184,10 +199,11 @@ template class memory_space_impl<64>;
 template class memory_space_impl<8192>;
 template class memory_space_impl<16 * 1024>;
 
-void g_print_memory_space(memory_space *mem, const char *format = "%08x",
-                          FILE *fout = stdout) {
-  mem->print(format, fout);
-}
+// gpuFI
+// void g_print_memory_space(memory_space *mem, const char *format = "%08x",
+//                           FILE *fout = stdout) {
+//   mem->print(format, fout);
+// }
 
 #ifdef UNIT_TEST
 

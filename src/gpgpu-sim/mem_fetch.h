@@ -127,6 +127,9 @@ class mem_fetch {
 
   mem_fetch *get_original_mf() { return original_mf; }
   mem_fetch *get_original_wr_mf() { return original_wr_mf; }
+  // gpuFI
+  // request type, address, size, mask
+  mem_access_t m_access;
 
  private:
   // request source information
@@ -139,8 +142,9 @@ class mem_fetch {
   enum mem_fetch_status m_status;
   unsigned long long m_status_change;
 
-  // request type, address, size, mask
-  mem_access_t m_access;
+  // // request type, address, size, mask
+  // mem_access_t m_access;
+
   unsigned m_data_size;  // how much data is being written
   unsigned
       m_ctrl_size;  // how big would all this meta data be in hardware (does not

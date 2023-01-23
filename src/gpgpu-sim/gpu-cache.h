@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Vijay Kandiah,
+// Nikos Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -478,6 +479,7 @@ struct sector_cache_block : public cache_block_t {
     printf("m_block_addr is %llu, status = %u %u %u %u\n", m_block_addr,
            m_status[0], m_status[1], m_status[2], m_status[3]);
   }
+  cache_block_state m_status[SECTOR_CHUNCK_SIZE];  // gpuFI
 
  private:
   unsigned m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
@@ -486,7 +488,7 @@ struct sector_cache_block : public cache_block_t {
   unsigned m_line_alloc_time;
   unsigned m_line_last_access_time;
   unsigned m_line_fill_time;
-  cache_block_state m_status[SECTOR_CHUNCK_SIZE];
+  // cache_block_state m_status[SECTOR_CHUNCK_SIZE];
   bool m_ignore_on_fill_status[SECTOR_CHUNCK_SIZE];
   bool m_set_modified_on_fill[SECTOR_CHUNCK_SIZE];
   bool m_set_readable_on_fill[SECTOR_CHUNCK_SIZE];
@@ -825,6 +827,15 @@ class cache_config {
   char *m_config_stringPrefL1;
   char *m_config_stringPrefShared;
   FuncCache cache_status;
+  enum cache_type m_cache_type;  // gpuFI
+  unsigned m_assoc;              // gpuFI
+
+  // gpuFI
+  union {
+    unsigned m_miss_queue_size;
+    unsigned m_rob_entries;
+  };
+
   unsigned m_wr_percent;
   write_allocate_policy_t get_write_allocate_policy() {
     return m_write_alloc_policy;
@@ -844,7 +855,7 @@ class cache_config {
   unsigned m_line_sz_log2;
   unsigned m_nset;
   unsigned m_nset_log2;
-  unsigned m_assoc;
+  // unsigned m_assoc;
   unsigned m_atom_sz;
   unsigned m_sector_sz_log2;
   unsigned original_m_assoc;
@@ -856,7 +867,7 @@ class cache_config {
   enum allocation_policy_t
       m_alloc_policy;  // 'm' = allocate on miss, 'f' = allocate on fill
   enum mshr_config_t m_mshr_type;
-  enum cache_type m_cache_type;
+  // enum cache_type m_cache_type;
 
   write_allocate_policy_t
       m_write_alloc_policy;  // 'W' = Write allocate, 'N' = No write allocate
@@ -869,10 +880,10 @@ class cache_config {
     unsigned m_mshr_max_merge;
     unsigned m_request_fifo_entries;
   };
-  union {
-    unsigned m_miss_queue_size;
-    unsigned m_rob_entries;
-  };
+  // union {
+  //   unsigned m_miss_queue_size;
+  //   unsigned m_rob_entries;
+  // };
   unsigned m_result_fifo_entries;
   unsigned m_data_port_width;  //< number of byte the cache can access per cycle
   enum set_index_function
@@ -923,7 +934,7 @@ class l2_cache_config : public cache_config {
   void init(linear_to_raw_address_translation *address_mapping);
   virtual unsigned set_index(new_addr_type addr) const;
 
- private:
+  // private: // gpuFI
   linear_to_raw_address_translation *m_address_mapping;
 };
 
@@ -935,11 +946,12 @@ class tag_array {
 
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_fetch *mf, bool is_write,
-                                  bool probe_mode = false) const;
+                                  bool probe_mode = false,
+                                  unsigned time = 0) const;  // gpuFI
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_access_sector_mask_t mask, bool is_write,
-                                  bool probe_mode = false,
-                                  mem_fetch *mf = NULL) const;
+                                  bool probe_mode = false, mem_fetch *mf = NULL,
+                                  unsigned time = 0) const;
   enum cache_request_status access(new_addr_type addr, unsigned time,
                                    unsigned &idx, mem_fetch *mf);
   enum cache_request_status access(new_addr_type addr, unsigned time,
@@ -967,6 +979,8 @@ class tag_array {
   void update_cache_parameters(cache_config &config);
   void add_pending_line(mem_fetch *mf);
   void remove_pending_line(mem_fetch *mf);
+  cache_config &m_config;   // gpuFI
+  cache_block_t **m_lines;  // gpuFI: nbanks x nset x assoc lines in total
   void inc_dirty() { m_dirty++; }
 
  protected:
@@ -978,9 +992,9 @@ class tag_array {
   void init(int core_id, int type_id);
 
  protected:
-  cache_config &m_config;
+  // cache_config &m_config;
 
-  cache_block_t **m_lines; /* nbanks x nset x assoc lines in total */
+  // cache_block_t **m_lines; /* nbanks x nset x assoc lines in total */
 
   unsigned m_access;
   unsigned m_miss;
@@ -1337,6 +1351,12 @@ class baseline_cache : public cache_t {
     mem_access_byte_mask_t byte_mask;
     m_tag_array->fill(addr, time, mask, byte_mask, true);
   }
+	// gpuFI
+  cache_config &m_config;
+  tag_array *m_tag_array;
+  std::string m_name;
+  mshr_table m_mshrs;
+  std::list<mem_fetch *> m_miss_queue;	
 
  protected:
   // Constructor that can be used by derived classes with custom tag arrays
@@ -1351,11 +1371,11 @@ class baseline_cache : public cache_t {
   }
 
  protected:
-  std::string m_name;
-  cache_config &m_config;
-  tag_array *m_tag_array;
-  mshr_table m_mshrs;
-  std::list<mem_fetch *> m_miss_queue;
+  // std::string m_name;
+  // cache_config &m_config;
+  // tag_array *m_tag_array;
+  // mshr_table m_mshrs;
+  // std::list<mem_fetch *> m_miss_queue;
   enum mem_fetch_status m_miss_queue_status;
   mem_fetch_interface *m_memport;
 
@@ -1761,10 +1781,11 @@ class tex_cache : public cache_t {
     m_stats.get_sub_stats(css);
   }
 
- private:
-  std::string m_name;
-  const cache_config &m_config;
 
+  const cache_config &m_config;
+  tag_array m_tags;				// gpuFI
+  std::string m_name;			// gpuFI
+ private:                               // gpuFI
   struct fragment_entry {
     fragment_entry() {}
     fragment_entry(mem_fetch *mf, unsigned idx, bool m, unsigned d) {
@@ -1862,10 +1883,10 @@ class tex_cache : public cache_t {
     T *m_data;
   };
 
-  tag_array m_tags;
-  fifo<fragment_entry> m_fragment_fifo;
-  fifo<mem_fetch *> m_request_fifo;
-  fifo<rob_entry> m_rob;
+  // tag_array m_tags;
+  // fifo<fragment_entry> m_fragment_fifo;
+  // fifo<mem_fetch *> m_request_fifo;
+  // fifo<rob_entry> m_rob;
   data_block *m_cache;
   fifo<mem_fetch *> m_result_fifo;  // next completed texture fetch
 
@@ -1892,6 +1913,12 @@ class tex_cache : public cache_t {
   typedef std::map<mem_fetch *, extra_mf_fields> extra_mf_fields_lookup;
 
   extra_mf_fields_lookup m_extra_mf_fields;
+
+  // gpuFI
+ public:
+  fifo<fragment_entry> m_fragment_fifo;
+  fifo<mem_fetch *> m_request_fifo;
+  fifo<rob_entry> m_rob;
 };
 
 #endif

@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, George L. Yuan,
-// Ali Bakhoda, Andrew Turner, Ivan Sham, Vijay Kandiah, Nikos Hardavellas, 
+// Ali Bakhoda, Andrew Turner, Ivan Sham, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -30,6 +31,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "gpu-sim.h"
+#include <sys/time.h>  // gpuFI
 
 #include <math.h>
 #include <signal.h>
@@ -651,6 +653,49 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
   m_shader_config.reg_options(opp);
   m_memory_config.reg_options(opp);
   power_config::reg_options(opp);
+  // gpuFI start
+  option_parser_register(opp, "-run_uid", OPT_CSTR, &run_uid, "TODO", "0");
+  option_parser_register(opp, "-profile", OPT_INT32, &profile, "TODO", "0");
+  option_parser_register(opp, "-last_cycle", OPT_INT32, &last_cycle, "TODO",
+                         "0");
+  option_parser_register(opp, "-component_to_flip", OPT_INT32,
+                         &component_to_flip, "TODO", "0");
+  option_parser_register(opp, "-thread_rand", OPT_INT32, &thread_rand, "TODO",
+                         "0");
+  option_parser_register(opp, "-warp_rand", OPT_INT32, &warp_rand, "TODO", "0");
+  option_parser_register(opp, "-total_cycle_rand", OPT_INT32, &total_cycle_rand,
+                         "TODO", "0");
+  option_parser_register(opp, "-register_rand_n", OPT_CSTR, &register_rand_n,
+                         "TODO", "0");
+  option_parser_register(opp, "-reg_bitflip_rand_n", OPT_CSTR,
+                         &reg_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-per_warp", OPT_BOOL, &per_warp, "TODO", "0");
+  option_parser_register(opp, "-kernel_n", OPT_CSTR, &kernel_n, "TODO", "0");
+  option_parser_register(opp, "-local_mem_bitflip_rand_n", OPT_CSTR,
+                         &local_mem_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-components_to_flip", OPT_CSTR,
+                         &components_to_flip, "TODO", "0");
+  option_parser_register(opp, "-block_n", OPT_INT32, &block_n, "TODO", "0");
+  option_parser_register(opp, "-shared_mem_bitflip_rand_n", OPT_CSTR,
+                         &shared_mem_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-block_rand", OPT_INT32, &block_rand, "TODO",
+                         "0");
+  option_parser_register(opp, "-l1d_shader_rand_n", OPT_CSTR,
+                         &l1d_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l1d_cache_bitflip_rand_n", OPT_CSTR,
+                         &l1d_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l1c_shader_rand_n", OPT_CSTR,
+                         &l1c_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l1c_cache_bitflip_rand_n", OPT_CSTR,
+                         &l1c_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l1t_shader_rand_n", OPT_CSTR,
+                         &l1t_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l1t_cache_bitflip_rand_n", OPT_CSTR,
+                         &l1t_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-l2_cache_bitflip_rand_n", OPT_CSTR,
+                         &l2_cache_bitflip_rand_n, "TODO", "0");
+  // gpuFI end
+
   option_parser_register(opp, "-gpgpu_max_cycle", OPT_INT64, &gpu_max_cycle_opt,
                          "terminates gpu simulation early (0 = no limit)", "0");
   option_parser_register(opp, "-gpgpu_max_insn", OPT_INT64, &gpu_max_insn_opt,
@@ -702,7 +747,8 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
   option_parser_register(
       opp, "-gpgpu_max_concurrent_kernel", OPT_INT32, &max_concurrent_kernel,
       "maximum kernels that can run concurrently on GPU, set this value "
-      "according to max resident grids for your compute capability", "32");
+      "according to max resident grids for your compute capability",
+      "32");
   option_parser_register(
       opp, "-gpgpu_cflog_interval", OPT_INT32, &gpgpu_cflog_interval,
       "Interval between each snapshot in control flow logger", "0");
@@ -924,8 +970,9 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   ptx_file_line_stats_create_exposed_latency_tracker(m_config.num_shader());
 
 #ifdef GPGPUSIM_POWER_MODEL
-  m_gpgpusim_wrapper = new gpgpu_sim_wrapper(config.g_power_simulation_enabled,
-                                             config.g_power_config_name, config.g_power_simulation_mode, config.g_dvfs_enabled);
+  m_gpgpusim_wrapper = new gpgpu_sim_wrapper(
+      config.g_power_simulation_enabled, config.g_power_config_name,
+      config.g_power_simulation_mode, config.g_dvfs_enabled);
 #endif
 
   m_shader_stats = new shader_core_stats(m_shader_config);
@@ -991,6 +1038,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   // Jin: functional simulation for CDP
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
+  l2_enabled = false;  // gpuFI
 }
 
 int gpgpu_sim::shared_mem_size() const {
@@ -1863,6 +1911,455 @@ void gpgpu_sim::issue_block2core() {
 unsigned long long g_single_step =
     0;  // set this in gdb to single step the pipeline
 
+// gpuFI start
+void read_colon_option(std::vector<unsigned> &result_vector, char *option) {
+  char *tmp = strtok(option, ":");
+  while (tmp != NULL) {
+    result_vector.push_back(strtoul(tmp, NULL, 0));
+    tmp = strtok(NULL, ":");
+  }
+}
+
+struct cmp_str {
+  bool operator()(char const *a, char const *b) const {
+    return std::strcmp(a, b) < 0;
+  }
+};
+
+tr1_hash_map<unsigned, char *> kernel_name;
+tr1_hash_map<unsigned, std::vector<unsigned long long>> kernel_start_end_cycle;
+std::map<char *, unsigned, cmp_str> max_active_regs;
+std::map<char *, std::set<unsigned>, cmp_str> shaders_used;
+unsigned active_threads_sum;
+unsigned cycles_txt_lines;
+std::vector<unsigned> cycles_txt;
+
+void find_active_kernels_warps(
+    tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+        &active_threads_map,
+    const shader_core_config *m_shader_config,
+    class simt_core_cluster **m_cluster) {
+  for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
+       cluster_idx++) {
+    simt_core_cluster *simt_core_cluster = m_cluster[cluster_idx];
+    for (unsigned shd_core_idx = 0;
+         shd_core_idx <
+         simt_core_cluster->get_config()->n_simt_cores_per_cluster;
+         shd_core_idx++) {
+      shader_core_ctx *shader_core_ctx =
+          (simt_core_cluster->get_core())[shd_core_idx];
+      if (shader_core_ctx->get_not_completed()) {
+        //        printf("shader idx=%u on cluster=%u with warp size=%u\n",
+        //        shd_core_idx, cluster_idx, shader_core_ctx->get_warp_size());
+        kernel_info_t *k = shader_core_ctx->get_kernel();
+        if (kernel_name.find(k->get_uid()) == kernel_name.end()) {
+          char *kernel_name_cpy = new char[strlen(k->name().c_str()) + 1];
+          strcpy(kernel_name_cpy, k->name().c_str());
+          kernel_name[k->get_uid()] = kernel_name_cpy;
+        }
+        //        printf("HMMMMM Shader %u bind to kernel %u \'%s\'\n",
+        //        shader_core_ctx->get_sid(), k->get_uid(), k->name().c_str());
+        //        std::vector<std::vector<ptx_thread_info*>>
+        //        warp_threads_vector;
+        for (unsigned warp_idx = 0;
+             warp_idx < simt_core_cluster->get_config()->max_warps_per_shader;
+             warp_idx++) {
+          shd_warp_t *shd_warp = (shader_core_ctx->get_warp())[warp_idx];
+          if (!shd_warp->done_exit()) {
+            //              printf("warp id =%u\n", shd_warp->get_warp_id());
+            unsigned m_warp_id = shd_warp->get_warp_id();
+            unsigned m_warp_size = shd_warp->get_warp_size();
+            //            printf("shader idx=%u on cluster=%u with warp
+            //            size=%u\n", shd_core_idx, cluster_idx,
+            //            shd_warp->get_warp_size());
+            std::vector<ptx_thread_info *> threads_vector;
+            for (unsigned thread_shd_idx = m_warp_id * m_warp_size;
+                 thread_shd_idx < (m_warp_id + 1) * m_warp_size;
+                 thread_shd_idx++) {
+              ptx_thread_info *ptx_thread_info =
+                  (shader_core_ctx->get_thread_info())[thread_shd_idx];
+              if (ptx_thread_info != NULL && !ptx_thread_info->is_done()) {
+                //                printf("m_warp_id=%u\n",m_warp_id);
+                threads_vector.push_back(ptx_thread_info);
+              }
+            }
+            //            warp_threads_vector.push_back(threads_vector);
+            if (threads_vector.size() > 0) {
+              std::vector<std::vector<ptx_thread_info *>> &temp =
+                  active_threads_map[k->get_uid()];
+              temp.push_back(threads_vector);
+            }
+          }
+        }
+        //        active_threads_map[k->get_uid()] = warp_threads_vector;
+      }
+    }
+  }
+}
+
+void find_active_threads(
+    std::vector<ptx_thread_info *> &active_threads,
+    tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+        &active_kernels_warps,
+    std::vector<unsigned> &kernel_vector) {
+  for (tr1_hash_map<unsigned,
+                    std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
+           active_kernels_warps.begin();
+       itK != active_kernels_warps.end(); ++itK) {
+    //  printf("Kernel: %u\n", itK->first);
+    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
+      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
+          kernel_vector.end()) {
+        continue;
+      }
+    }
+    for (std::vector<std::vector<ptx_thread_info *>>::iterator itW =
+             itK->second.begin();
+         itW != itK->second.end(); ++itW) {
+      for (std::vector<ptx_thread_info *>::iterator itT = itW->begin();
+           itT != itW->end(); ++itT) {
+        active_threads.push_back(*itT);
+      }
+    }
+  }
+}
+
+void find_active_warps(
+    std::vector<std::vector<ptx_thread_info *>> &active_warps,
+    tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+        &active_kernels_warps,
+    std::vector<unsigned> &kernel_vector) {
+  for (tr1_hash_map<unsigned,
+                    std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
+           active_kernels_warps.begin();
+       itK != active_kernels_warps.end(); ++itK) {
+    //  printf("Kernel: %u\n", itK->first);
+    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
+      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
+          kernel_vector.end()) {
+        continue;
+      }
+    }
+    for (std::vector<std::vector<ptx_thread_info *>>::iterator itW =
+             itK->second.begin();
+         itW != itK->second.end(); ++itW) {
+      //    printf("Warp size: %u\n", itW->size());
+      active_warps.push_back(*itW);
+      //    printf("warp size=%u\n",(*itW).size());
+    }
+  }
+}
+
+void find_active_shared_memories(
+    std::vector<memory_space *> &shared_memories,
+    tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+        &active_kernels_warps,
+    std::vector<unsigned> &kernel_vector) {
+  for (tr1_hash_map<unsigned,
+                    std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
+           active_kernels_warps.begin();
+       itK != active_kernels_warps.end(); ++itK) {
+    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
+      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
+          kernel_vector.end()) {
+        continue;
+      }
+    }
+    tr1_hash_map<unsigned, memory_space *> shared_memory_map;
+    for (std::vector<std::vector<ptx_thread_info *>>::iterator itW =
+             itK->second.begin();
+         itW != itK->second.end(); ++itW) {
+      for (std::vector<ptx_thread_info *>::iterator itT = itW->begin();
+           itT != itW->end(); ++itT) {
+        //      printf("Thread uid=%u Thread hw tid=%u, cta hwid=%u, cta
+        //      uid=%u\n", (*itT)->get_uid(), (*itT)->get_hw_tid(),
+        //      (*itT)->get_hw_ctaid(), (*itT)->get_cta_uid());
+        shared_memory_map[(*itT)->get_cta_uid()] = (*itT)->m_shared_mem;
+      }
+    }
+    for (tr1_hash_map<unsigned, memory_space *>::iterator itSm =
+             shared_memory_map.begin();
+         itSm != shared_memory_map.end(); ++itSm) {
+      shared_memories.push_back(itSm->second);
+    }
+  }
+}
+
+void bitflip_n_nregs(std::vector<ptx_thread_info *> &threads_vector,
+                     char *register_rand_n, char *reg_bitflip_rand_n) {
+  std::vector<unsigned> reg_bitflip_vector, register_rand_n_vector;
+  read_colon_option(reg_bitflip_vector, reg_bitflip_rand_n);
+  read_colon_option(register_rand_n_vector, register_rand_n);
+  for (std::vector<ptx_thread_info *>::iterator threads_it =
+           threads_vector.begin();
+       threads_it != threads_vector.end(); ++threads_it) {
+    std::vector<const symbol *> reg_symbols;
+    std::vector<ptx_reg_t *> regs;
+    std::list<tr1_hash_map<const symbol *, ptx_reg_t>> &regs_list =
+        (*threads_it)->get_regs();
+    for (std::list<tr1_hash_map<const symbol *, ptx_reg_t>>::iterator
+             regs_map_it = regs_list.begin();
+         regs_map_it != regs_list.end(); ++regs_map_it) {
+      tr1_hash_map<const symbol *, ptx_reg_t> &regs_map = *regs_map_it;
+      for (tr1_hash_map<const symbol *, ptx_reg_t>::iterator regs_it =
+               regs_map.begin();
+           regs_it != regs_map.end(); ++regs_it) {
+        if (std::find(reg_symbols.begin(), reg_symbols.end(), regs_it->first) !=
+            reg_symbols.end()) {
+          continue;
+        }
+        reg_symbols.push_back(regs_it->first);
+        regs.push_back(&(regs_it->second));
+      }
+    }
+    for (std::vector<unsigned>::iterator reg_num_it =
+             register_rand_n_vector.begin();
+         reg_num_it != register_rand_n_vector.end(); ++reg_num_it) {
+      int reg_idx = (*reg_num_it) - 1;
+      if (reg_idx < regs.size()) {
+        ptx_reg_t *reg_to_bitflip = regs[reg_idx];
+        unsigned long *reg_64b = (unsigned long *)reg_to_bitflip;  // 8 bytes
+        for (std::vector<unsigned>::iterator bf_it = reg_bitflip_vector.begin();
+             bf_it != reg_bitflip_vector.end(); ++bf_it) {
+          //          printf("Before bit flip of reg=%s, value = %lu\n",
+          //          reg_symbols[reg_idx]->name().c_str(), *reg_to_bitflip);
+          *reg_64b ^= 1UL << (*bf_it - 1);
+          //          printf("After bit %u flip of reg=%s, value = %lu\n",
+          //          *bf_it, reg_symbols[reg_idx]->name().c_str(),
+          //          *reg_to_bitflip);
+        }
+      }
+    }
+    //    (*threads_it)->dump_regs(stdout);
+  }
+}
+
+void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
+                         char *local_mem_bitflip_rand_n) {
+  std::vector<unsigned> local_mem_bitflip_vector;
+  read_colon_option(local_mem_bitflip_vector, local_mem_bitflip_rand_n);
+
+  const unsigned bsize = 32U;  // BSIZE=32 for local memory
+  for (std::vector<ptx_thread_info *>::iterator threads_it =
+           threads_vector.begin();
+       threads_it != threads_vector.end(); ++threads_it) {
+    //    unsigned block_size = 1U <<
+    //    (*threads_it)->m_local_mem->get_log2_block_size();
+    memory_space_impl<bsize> *local_mem =
+        (memory_space_impl<bsize> *)(*threads_it)->m_local_mem;
+    mem_map<mem_addr_t, mem_storage<bsize>> &memory_data =
+        local_mem->get_m_data();
+    for (std::vector<unsigned>::iterator bf_it =
+             local_mem_bitflip_vector.begin();
+         bf_it != local_mem_bitflip_vector.end(); ++bf_it) {
+      unsigned bf = *bf_it;
+      unsigned block_idx =
+          bf / (bsize * 8);  // this in fact is the mem_addr_t of memory_data
+      unsigned bit_in_block = bf - block_idx * bsize * 8;
+      unsigned idx_64b = bit_in_block / 64;
+      unsigned bit_in_64b = bit_in_block - idx_64b * 64;
+
+      if (memory_data.find(block_idx) != memory_data.end()) {
+        unsigned long long *i_data =
+            (unsigned long long *)memory_data[block_idx].get_m_data();
+        //        printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //        (*threads_it)->m_local_mem->print("%d", stdout);
+        i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
+        //        printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //        g_print_memory_space((*threads_it)->m_local_mem, "%d");
+      }
+      printf(
+          "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
+          bf, block_idx, bit_in_block, idx_64b, bit_in_64b);
+    }
+  }
+}
+
+void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
+                                  unsigned block_rand, unsigned block_n,
+                                  char *shared_mem_bitflip_rand_n) {
+  std::vector<unsigned> shared_mem_bitflip_vector;
+  read_colon_option(shared_mem_bitflip_vector, shared_mem_bitflip_rand_n);
+
+  const unsigned bsize = 16 * 1024;  // BSIZE=16*1024 for shared memory
+  unsigned blk_n = block_n;
+  while (blk_n > 0 && !shared_memories.empty()) {
+    int block_idx = block_rand % shared_memories.size();
+    memory_space_impl<bsize> *shared_mem_to_bitflip =
+        (memory_space_impl<bsize> *)shared_memories[block_idx];
+    mem_map<mem_addr_t, mem_storage<bsize>> &memory_data =
+        shared_mem_to_bitflip->get_m_data();
+
+    for (std::vector<unsigned>::iterator bf_it =
+             shared_mem_bitflip_vector.begin();
+         bf_it != shared_mem_bitflip_vector.end(); ++bf_it) {
+      unsigned bf = *bf_it;
+      unsigned block_idx =
+          bf / (bsize * 8);  // this in fact is the mem_addr_t of memory_data
+      unsigned bit_in_block = bf - block_idx * bsize * 8;
+      unsigned idx_64b = bit_in_block / 64;
+      unsigned bit_in_64b = bit_in_block - idx_64b * 64;
+
+      if (memory_data.find(block_idx) != memory_data.end()) {
+        unsigned long long *i_data =
+            (unsigned long long *)memory_data[block_idx].get_m_data();
+        //        printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //        shared_mem_to_bitflip->print("%d", stdout);
+        i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
+        //        printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //        shared_mem_to_bitflip->print("%08x", stdout);
+      }
+      printf(
+          "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
+          bf, block_idx, bit_in_block, idx_64b, bit_in_64b);
+    }
+
+    shared_memories.erase(shared_memories.begin() + block_idx);
+    blk_n--;
+  }
+}
+
+// cache_type <= 0: L1D, 1: L1C, 2: L1T
+void gpgpu_sim::bitflip_l1_cache(unsigned cache_type) {
+  std::vector<unsigned> l1_bitflip_vector, l1_shader_vector;
+  char *l1_cache_bitflip_rand_n =
+      cache_type == 0   ? m_config.l1d_cache_bitflip_rand_n
+      : cache_type == 1 ? m_config.l1c_cache_bitflip_rand_n
+                        : m_config.l1t_cache_bitflip_rand_n;
+  char *l1_shader_rand_n = cache_type == 0   ? m_config.l1d_shader_rand_n
+                           : cache_type == 1 ? m_config.l1c_shader_rand_n
+                                             : m_config.l1t_shader_rand_n;
+  read_colon_option(l1_bitflip_vector, l1_cache_bitflip_rand_n);
+  read_colon_option(l1_shader_vector, l1_shader_rand_n);
+
+  std::vector<cache_t *> l1_to_bitflip;
+  std::vector<unsigned> l1_cluster_to_bitflip;
+  std::vector<unsigned> l1_shader_to_bitflip;
+
+  for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
+       cluster_idx++) {
+    simt_core_cluster *simt_core_cluster = m_cluster[cluster_idx];
+    for (unsigned shd_core_idx = 0;
+         shd_core_idx <
+         simt_core_cluster->get_config()->n_simt_cores_per_cluster;
+         shd_core_idx++) {
+      shader_core_ctx *shader_core_ctx =
+          (simt_core_cluster->get_core())[shd_core_idx];
+      if (std::find(l1_shader_vector.begin(), l1_shader_vector.end(),
+                    shader_core_ctx->get_sid()) != l1_shader_vector.end()) {
+        cache_t *cache_temp =
+            cache_type == 0   ? shader_core_ctx->m_ldst_unit->m_L1D
+            : cache_type == 1 ? (cache_t *)shader_core_ctx->m_ldst_unit->m_L1C
+                              : (cache_t *)shader_core_ctx->m_ldst_unit->m_L1T;
+        l1_to_bitflip.push_back(cache_temp);
+        l1_cluster_to_bitflip.push_back(cluster_idx);
+        l1_shader_to_bitflip.push_back(shd_core_idx);
+      }
+    }
+  }
+
+  for (int i = 0; i < l1_to_bitflip.size(); i++) {
+    cache_t *l1 = l1_to_bitflip[i];
+    std::string m_name = (cache_type == 0 || cache_type == 1)
+                             ? ((baseline_cache *)l1)->m_name.c_str()
+                             : ((tex_cache *)l1)->m_name.c_str();
+    std::vector<bool> l1_bf_enabled;
+    std::vector<unsigned> l1_line_bitflip_bits_idx;
+    std::vector<new_addr_type> l1_tag;
+    std::vector<unsigned> l1_index;
+    const cache_config &m_config = (cache_type == 0 || cache_type == 1)
+                                       ? ((baseline_cache *)l1)->m_config
+                                       : ((tex_cache *)l1)->m_config;
+    tag_array *m_tag_array = (cache_type == 0 || cache_type == 1)
+                                 ? ((baseline_cache *)l1)->m_tag_array
+                                 : &(((tex_cache *)l1)->m_tags);
+
+    std::ofstream outfile;
+    std::string file = "cache_logs/" + m_name.substr(0, m_name.size() - 4) +
+                       std::string("_") + std::string(this->m_config.run_uid);
+    outfile.open(file, std::ios::app);  // append instead of overwrite
+
+    unsigned tag_array_size_bits = 57;
+    for (int j = 0; j < l1_bitflip_vector.size(); j++) {
+      unsigned bf_l1 = l1_bitflip_vector[j] - 1;
+      unsigned l1_line_sz_extra_bits =
+          m_config.get_line_sz() * 8 + tag_array_size_bits;
+      unsigned bf_line_idx = bf_l1 / l1_line_sz_extra_bits;
+      unsigned bf_line_sz_bits_extra_idx =
+          bf_l1 - bf_line_idx * l1_line_sz_extra_bits;
+
+      // L1D: sector cache block, L1C & L1T: line cache block
+      cache_block_t *line = m_tag_array->m_lines[bf_line_idx];
+      outfile << m_name.c_str() << ", line " << bf_line_idx << ", bf "
+              << bf_l1 + 1 << std::endl;
+
+      // bf on tag array
+      if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
+        unsigned bf_tag = 63 - bf_line_sz_bits_extra_idx;
+        printf("Tag before = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
+        line->m_tag ^= 1UL << bf_tag;
+        printf("Tag after = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
+        continue;
+      }
+
+      bool is_valid_line = false;
+      if (cache_type == 0) {
+        for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
+          if (((sector_cache_block *)line)->m_status[i] != INVALID) {
+            is_valid_line = true;
+            break;
+          }
+        }
+      } else {
+        is_valid_line = line->is_valid_line();
+      }
+
+      unsigned l1_line_sz_data_bits_idx =
+          bf_line_sz_bits_extra_idx - tag_array_size_bits;
+      if (is_valid_line) {
+        l1_bf_enabled.push_back(true);
+        l1_line_bitflip_bits_idx.push_back(l1_line_sz_data_bits_idx);
+        l1_tag.push_back(line->m_tag);
+        l1_index.push_back(bf_line_idx);
+
+        printf(
+            "L1 %s ENABLED: bf_l1d = %u, l1d_line_sz_bits = %u, bf_line_idx = "
+            "%u, bf_1024bits_idx = %u and tag = %x\n",
+            m_name.c_str(), bf_l1, l1_line_sz_extra_bits, bf_line_idx,
+            l1_line_sz_data_bits_idx + 1, line->m_tag);
+      }
+    }
+    // different variables because we might run bit flips on more than one cache
+    // type
+    if (cache_type == 0) {
+      l1d_enabled.push_back(l1_bf_enabled.size() > 0);
+      l1d_bf_enabled.push_back(l1_bf_enabled);
+      l1d_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
+      l1d_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
+      l1d_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
+      l1d_tag.push_back(l1_tag);
+      l1d_index.push_back(l1_index);
+    } else if (cache_type == 1) {
+      l1c_enabled.push_back(l1_bf_enabled.size() > 0);
+      l1c_bf_enabled.push_back(l1_bf_enabled);
+      l1c_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
+      l1c_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
+      l1c_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
+      l1c_tag.push_back(l1_tag);
+      l1c_index.push_back(l1_index);
+    } else {
+      l1t_enabled.push_back(l1_bf_enabled.size() > 0);
+      l1t_bf_enabled.push_back(l1_bf_enabled);
+      l1t_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
+      l1t_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
+      l1t_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
+      l1t_tag.push_back(l1_tag);
+      l1t_index.push_back(l1_index);
+    }
+  }
+}
+// gpuFI end
+
 void gpgpu_sim::cycle() {
   int clock_mask = next_clock_domain();
 
@@ -1980,6 +2477,322 @@ void gpgpu_sim::cycle() {
         ((gpu_sim_cycle + gpu_tot_sim_cycle) >= g_single_step)) {
       raise(SIGTRAP);  // Debug breakpoint
     }
+
+    // gpuFI start
+    unsigned long long current_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+    if (current_cycle == 1) {
+      read_colon_option(kernel_vector, m_config.kernel_n);
+
+      if (m_config.profile == 2) {
+        active_threads_sum = 0;
+        FILE *file = fopen("./cycles.txt", "r");
+        cycles_txt_lines = 0;
+        int num;
+        while (fscanf(file, "%d", &num) > 0) {
+          cycles_txt_lines++;
+          cycles_txt.push_back(num);
+        }
+        fclose(file);
+      }
+    }
+
+    if (m_config.profile == 2) {
+      // key: kernel_id (index starts from 1)
+      tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+          active_kernels_warps;
+      find_active_kernels_warps(active_kernels_warps, m_shader_config,
+                                m_cluster);
+      std::vector<ptx_thread_info *> active_threads;
+
+      find_active_threads(active_threads, active_kernels_warps, kernel_vector);
+
+      if (std::find(cycles_txt.begin(), cycles_txt.end(), current_cycle) !=
+          cycles_txt.end()) {
+        active_threads_sum += active_threads.size();
+      }
+
+    } else if (m_config.profile == 1) {
+      // key: kernel_id (index starts from 1)
+      tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+          active_kernels_warps;
+      find_active_kernels_warps(active_kernels_warps, m_shader_config,
+                                m_cluster);
+
+      for (tr1_hash_map<unsigned,
+                        std::vector<std::vector<ptx_thread_info *>>>::iterator
+               itK = active_kernels_warps.begin();
+           itK != active_kernels_warps.end(); ++itK) {
+        std::vector<ptx_thread_info *> active_threads;
+        std::vector<unsigned> kernel_uid = {itK->first};
+        char *kernel_cstr = kernel_name[itK->first];
+        unsigned max_regs_size = 0;
+
+        // find start and last cycle of a kernel
+        if (kernel_start_end_cycle.find(itK->first) !=
+            kernel_start_end_cycle.end()) {
+          kernel_start_end_cycle[itK->first][1] = current_cycle;
+        } else {
+          kernel_start_end_cycle[itK->first] = {current_cycle, current_cycle};
+        }
+
+        // find maximum number of registers used by each kernel
+        find_active_threads(active_threads, active_kernels_warps, kernel_uid);
+        for (std::vector<ptx_thread_info *>::iterator itT =
+                 active_threads.begin();
+             itT != active_threads.end(); ++itT) {
+          if ((*itT)->get_regs().back().size() > max_regs_size) {
+            max_regs_size = (*itT)->get_regs().back().size();
+          }
+        }
+        if (max_active_regs.find(kernel_cstr) != max_active_regs.end()) {
+          if (max_regs_size > max_active_regs[kernel_cstr]) {
+            max_active_regs[kernel_cstr] = max_regs_size;
+          }
+        } else {
+          max_active_regs[kernel_cstr] = max_regs_size;
+        }
+
+        // find SIMT cores used by each kernel
+        for (unsigned cluster_idx = 0;
+             cluster_idx < m_shader_config->n_simt_clusters; cluster_idx++) {
+          simt_core_cluster *simt_core_cluster = m_cluster[cluster_idx];
+          for (unsigned shd_core_idx = 0;
+               shd_core_idx <
+               simt_core_cluster->get_config()->n_simt_cores_per_cluster;
+               shd_core_idx++) {
+            shader_core_ctx *shader_core_ctx =
+                (simt_core_cluster->get_core())[shd_core_idx];
+            if (shader_core_ctx->isactive()) {
+              unsigned kernel_uid = shader_core_ctx->get_kernel()->get_uid();
+              char *kernel_sh = kernel_name[kernel_uid];
+              if (shaders_used.find(kernel_sh) == shaders_used.end()) {
+                shaders_used[kernel_sh] = {shader_core_ctx->get_sid()};
+              } else {
+                shaders_used[kernel_sh].insert(shader_core_ctx->get_sid());
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (current_cycle == m_config.total_cycle_rand) {
+        printf("#### gpu_sim_cycle=%llu and gpu_tot_sim_cycle=%llu\n",
+               gpu_sim_cycle, gpu_tot_sim_cycle);
+        // Start measuring time
+        struct timeval begin, end;
+        gettimeofday(&begin, 0);
+
+        bool register_file = false, local_memory = false, shared_memory = false,
+             l1d_cache = false, l1c_cache = false, l1t_cache = false,
+             l2_cache_comp = false;
+
+        std::vector<unsigned> components_to_flip_vector;
+        read_colon_option(components_to_flip_vector,
+                          m_config.components_to_flip);
+
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      0) != components_to_flip_vector.end()) {
+          register_file = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      1) != components_to_flip_vector.end()) {
+          local_memory = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      2) != components_to_flip_vector.end()) {
+          shared_memory = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      3) != components_to_flip_vector.end()) {
+          l1d_cache = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      4) != components_to_flip_vector.end()) {
+          l1c_cache = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      5) != components_to_flip_vector.end()) {
+          l1t_cache = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      6) != components_to_flip_vector.end()) {
+          l2_cache_comp = true;
+        }
+
+        // key: kernel_id (index starts from 1)
+        tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
+            active_kernels_warps;
+        find_active_kernels_warps(active_kernels_warps, m_shader_config,
+                                  m_cluster);
+
+        std::vector<ptx_thread_info *> active_threads;
+        std::vector<std::vector<ptx_thread_info *>> active_warps;
+        std::vector<memory_space *> shared_memories;
+        std::vector<memory_space *> l1d_caches;
+
+        std::vector<ptx_thread_info *> threads_bitflip;
+
+        if (register_file || local_memory) {
+          if (m_config.per_warp) {
+            find_active_warps(active_warps, active_kernels_warps,
+                              kernel_vector);
+            if (active_warps.size() > 0) {
+              threads_bitflip =
+                  active_warps[m_config.warp_rand % active_warps.size()];
+            }
+          } else {
+            find_active_threads(active_threads, active_kernels_warps,
+                                kernel_vector);
+            if (active_threads.size() > 0) {
+              //              printf("ACTIVE THREADS %u\n",
+              //              active_threads.size());
+              //              g_print_memory_space(this->get_global_memory());
+              threads_bitflip.push_back(
+                  active_threads[m_config.thread_rand % active_threads.size()]);
+            }
+          }
+        }
+
+        if (register_file) {
+          bitflip_n_nregs(threads_bitflip, m_config.register_rand_n,
+                          m_config.reg_bitflip_rand_n);
+        }
+        if (local_memory) {
+          bitflip_n_local_mem(threads_bitflip,
+                              m_config.local_mem_bitflip_rand_n);
+        }
+        if (shared_memory) {
+          find_active_shared_memories(shared_memories, active_kernels_warps,
+                                      kernel_vector);
+          bitflip_n_shared_mem_nblocks(shared_memories, m_config.block_rand,
+                                       m_config.block_n,
+                                       m_config.shared_mem_bitflip_rand_n);
+        }
+        if (l1d_cache) {
+          bitflip_l1_cache(0);
+        }
+        if (l1c_cache) {
+          bitflip_l1_cache(1);
+        }
+        if (l1t_cache) {
+          bitflip_l1_cache(2);
+        }
+        if (l2_cache_comp) {
+          std::ofstream outfile;
+          std::string file =
+              "cache_logs/L2_" + std::string(this->m_config.run_uid);
+          outfile.open(file, std::ios::app);  // append instead of overwrite
+          std::vector<unsigned> l2_bitflip_vector;
+          read_colon_option(l2_bitflip_vector,
+                            m_config.l2_cache_bitflip_rand_n);
+          for (int j = 0; j < l2_bitflip_vector.size(); j++) {
+            // get_total_size_inKB() -> total size of L2 cache per bank
+            unsigned bf_l2 = l2_bitflip_vector[j] - 1;
+            unsigned l2_size_per_bank =
+                this->m_memory_config->m_L2_config.get_total_size_inKB() *
+                    1024 * 8 +
+                this->m_memory_config->m_L2_config.get_num_lines() * 57;
+            unsigned bank_id = bf_l2 / l2_size_per_bank;
+            unsigned bf_l2_cache_bank = bf_l2 % l2_size_per_bank;
+            l2_cache *l2_cache_bank =
+                this->m_memory_sub_partition[bank_id]->m_L2cache;
+            unsigned l2_line_sz_extra_bits =
+                l2_cache_bank->m_config.get_line_sz() * 8 + 57;
+            unsigned bf_line_idx = bf_l2_cache_bank / l2_line_sz_extra_bits;
+            unsigned bf_line_sz_bits_extra_idx =
+                bf_l2_cache_bank - bf_line_idx * l2_line_sz_extra_bits;
+
+            // line cache block
+            cache_block_t *line =
+                l2_cache_bank->m_tag_array->m_lines[bf_line_idx];
+            outfile << l2_cache_bank->m_name.c_str() << ", line " << bf_line_idx
+                    << ", total l2 bf " << bf_l2 + 1 << std::endl;
+
+            // bf on tag array
+            if (bf_line_sz_bits_extra_idx <= 56) {
+              unsigned bf_tag = 63 - bf_line_sz_bits_extra_idx;
+              printf("Tag before = %x, bf_tag=%u\n", line->m_tag, bf_tag);
+              line->m_tag ^= 1UL << bf_tag;
+              printf("Tag after = %x, bf_tag=%u\n", line->m_tag, bf_tag);
+              continue;
+            }
+
+            unsigned l2_line_sz_data_bits_idx = bf_line_sz_bits_extra_idx - 57;
+            if (line->is_valid_line()) {
+              this->l2_enabled = true;
+              this->l2_bf_enabled.push_back(true);
+              this->l2_bank_id.push_back(bank_id);
+              this->l2_line_bitflip_bits_idx.push_back(
+                  l2_line_sz_data_bits_idx);
+              this->l2_tag.push_back(line->m_tag);
+              this->l2_index.push_back(bf_line_idx);
+
+              printf(
+                  "L2 %s ENABLED: bf_l2_cache_bank = %u, l2_line_sz_bits = %u, "
+                  "bf_line_idx = %u, bf_line_sz_bits_idx = %u and tag = llu%\n",
+                  l2_cache_bank->m_name.c_str(), bf_l2_cache_bank,
+                  l2_line_sz_extra_bits, bf_line_idx,
+                  l2_line_sz_data_bits_idx + 1, line->m_tag);
+            }
+          }
+        }
+
+        // Stop measuring time and calculate the elapsed time
+        gettimeofday(&end, 0);
+        long seconds = end.tv_sec - begin.tv_sec;
+        long microseconds = end.tv_usec - begin.tv_usec;
+        double elapsed = seconds + microseconds * 1e-6;
+        printf("Fault injection time taken=  %.6f seconds\n", elapsed);
+        printf("Fault injection on total_cycle = %llu\n", current_cycle);
+      }
+    }
+
+    // print profiling information on last cycle
+    if (current_cycle == m_config.last_cycle - 1) {
+      if (m_config.profile == 2) {
+        if (cycles_txt_lines > 0) {
+          printf("Mean active threads = %d\n",
+                 active_threads_sum / cycles_txt_lines);
+        }
+      } else if (m_config.profile == 1) {
+        for (std::map<char *, unsigned>::iterator itREG =
+                 max_active_regs.begin();
+             itREG != max_active_regs.end(); ++itREG) {
+          printf("Kernel = %s, max active regs = %u\n", itREG->first,
+                 itREG->second);
+        }
+
+        for (std::map<char *, std::set<unsigned>>::iterator itK =
+                 shaders_used.begin();
+             itK != shaders_used.end(); ++itK) {
+          printf("Kernel = %s used shaders: ", itK->first);
+          for (std::set<unsigned>::iterator itSH = itK->second.begin();
+               itSH != itK->second.end(); ++itSH) {
+            printf("%u ", *itSH);
+          }
+          printf("\n");
+        }
+        for (tr1_hash_map<unsigned, std::vector<unsigned long long>>::iterator
+                 itK = kernel_start_end_cycle.begin();
+             itK != kernel_start_end_cycle.end(); ++itK) {
+          printf(
+              "Kernel = %u with name = %s, started on cycle = %llu and "
+              "finished on cycle = %llu\n",
+              itK->first, kernel_name[itK->first], (itK->second)[0],
+              (itK->second)[1]);
+          delete kernel_name[itK->first];
+        }
+      }
+    }
+    // gpuFI end
+
     gpu_sim_cycle++;
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
@@ -1987,11 +2800,11 @@ void gpgpu_sim::cycle() {
       // McPAT main cycle (interface with McPAT)
 #ifdef GPGPUSIM_POWER_MODEL
     if (m_config.g_power_simulation_enabled) {
-      if(m_config.g_power_simulation_mode == 0){
-      mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
-                  m_power_stats, m_config.gpu_stat_sample_freq,
-                  gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn,
-                  gpu_sim_insn, m_config.g_dvfs_enabled);
+      if (m_config.g_power_simulation_mode == 0) {
+        mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
+                    m_power_stats, m_config.gpu_stat_sample_freq,
+                    gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn,
+                    gpu_sim_insn, m_config.g_dvfs_enabled);
       }
     }
 #endif

@@ -785,6 +785,7 @@ void shader_core_stats::visualizer_print(gzFile visualizer_file) {
 
   gzprintf(visualizer_file, "ctas_completed: %d\n", ctas_completed);
   ctas_completed = 0;
+
   // warp issue breakdown
   unsigned sid = m_config->gpgpu_warp_issue_shader;
   unsigned count = 0;
@@ -924,10 +925,13 @@ void shader_core_ctx::fetch() {
       m_inst_fetch_buffer =
           ifetch_buffer_t(m_warp[mf->get_wid()]->get_pc(),
                           mf->get_access_size(), mf->get_wid());
-      assert(m_warp[mf->get_wid()]->get_pc() ==
-             (mf->get_addr() -
-              PROGRAM_MEM_START));  // Verify that we got the instruction we
-                                    // were expecting.
+      // gpuFI
+      // assert(m_warp[mf->get_wid()]->get_pc() ==
+      //        (mf->get_addr() -
+      //         PROGRAM_MEM_START));  // Verify that we got the instruction we
+      //                               // were expecting.
+      // printf("Got PC = %u\n", m_warp[mf->get_wid()]->get_pc());
+
       m_inst_fetch_buffer.m_valid = true;
       m_warp[mf->get_wid()]->set_last_fetch(m_gpu->gpu_sim_cycle);
       delete mf;
@@ -951,7 +955,8 @@ void shader_core_ctx::fetch() {
               m_threadState[tid].m_active = false;
               unsigned cta_id = m_warp[warp_id]->get_cta_id();
               if (m_thread[tid] == NULL) {
-                register_cta_thread_exit(cta_id, m_warp[warp_id]->get_kernel_info());
+                register_cta_thread_exit(cta_id,
+                                         m_warp[warp_id]->get_kernel_info());
               } else {
                 register_cta_thread_exit(cta_id,
                                          &(m_thread[tid]->get_kernel()));
@@ -988,14 +993,15 @@ void shader_core_ctx::fetch() {
               m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
           std::list<cache_event> events;
           enum cache_request_status status;
-          if (m_config->perfect_inst_const_cache){
+          if (m_config->perfect_inst_const_cache) {
             status = HIT;
             shader_cache_access_log(m_sid, INSTRUCTION, 0);
-          }
-          else
+          } else {
             status = m_L1I->access(
                 (new_addr_type)ppc, mf,
                 m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, events);
+            // printf("Accessing ppc = %x\n", ppc);
+          }
 
           if (status == MISS) {
             m_last_warp_fetched = warp_id;
@@ -1011,6 +1017,7 @@ void shader_core_ctx::fetch() {
             assert(status == RESERVATION_FAIL);
             delete mf;
           }
+          // printf("Got else PC = %u\n", m_warp[warp_id]->get_pc());
           break;
         }
       }
@@ -2014,6 +2021,19 @@ void ldst_unit::L1_latency_queue_cycle() {
       bool write_sent = was_write_sent(events);
       bool read_sent = was_read_sent(events);
 
+      // gpuFI start
+      mem_access_sector_mask_t mask = mf_next->get_access_sector_mask();
+      // printf(
+      //     "HIT/MISS FROM L1D at address %x on cycle %llu with l1_banks=%u on
+      //     " "bank = %d with mask %c%c%c%c\n", mf_next->get_addr(),
+      //     m_core->get_gpu()->gpu_sim_cycle +
+      //         m_core->get_gpu()->gpu_tot_sim_cycle,
+      //     m_config->m_L1D_config.l1_banks, j, mask[0] == 1U ? '1' : '0',
+      //     mask[1] == 1U ? '1' : '0', mask[2] == 1U ? '1' : '0',
+      //     mask[3] == 1U ? '1' : '0');
+      // mf_next->print(stdout, 1);
+      // gpuFI end
+
       if (status == HIT) {
         assert(!read_sent);
         l1_latency_queue[j][0] = NULL;
@@ -2689,6 +2709,11 @@ void ldst_unit::cycle() {
         m_response_fifo.pop_front();
       }
     } else if (mf->get_access_type() == CONST_ACC_R) {
+      // gpuFI
+      // printf("READING FROM CONSTANT MEMORY\n");
+      // mf->m_access.print(stdout);
+      // printf("\n");
+
       if (m_L1C->fill_port_free()) {
         mf->set_status(IN_SHADER_FETCHED,
                        m_core->get_gpu()->gpu_sim_cycle +
@@ -4242,18 +4267,22 @@ bool opndcoll_rfu_t::collector_unit_t::allocate(register_set *pipeline_reg_set,
   warp_inst_t **pipeline_reg = pipeline_reg_set->get_ready();
   if ((pipeline_reg) and !((*pipeline_reg)->empty())) {
     m_warp_id = (*pipeline_reg)->warp_id();
-    std::vector<int> prev_regs; // remove duplicate regs within same instr
+    std::vector<int> prev_regs;  // remove duplicate regs within same instr
     for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
-      int reg_num =
-          (*pipeline_reg)
-              ->arch_reg.src[op];  // this math needs to match that used in
-                                   // function_info::ptx_decode_inst
+      // this math needs to match that used in
+      // function_info::ptx_decode_inst
+      int reg_num = (*pipeline_reg)->arch_reg.src[op];
       bool new_reg = true;
-      for (auto r : prev_regs) {
-        if (r == reg_num)
+
+      // TODO: used iterator for older gcc version
+      for (auto r = prev_regs.begin(); r != prev_regs.end(); ++r) {
+        // for (auto r : prev_regs) {
+        if (*r == reg_num) {
           new_reg = false;
+        }
       }
-      if (reg_num >= 0 && new_reg) {          // valid register
+
+      if (reg_num >= 0 && new_reg) {  // valid register
         prev_regs.push_back(reg_num);
         m_src_op[op] = op_t(this, op, reg_num, m_num_banks, m_bank_warp_shift,
                             m_sub_core_model, m_num_banks_per_sched,

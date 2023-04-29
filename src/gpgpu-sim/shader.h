@@ -2576,6 +2576,8 @@ class simt_core_cluster {
                     memory_stats_t *mstats);
 
   void core_cycle();
+  // Cluster method which handles interconnection network operations
+  // for one cycle.
   void icnt_cycle();
 
   void reinit();

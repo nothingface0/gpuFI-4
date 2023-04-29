@@ -73,6 +73,9 @@ const char *g_opcode_string[NUM_OPCODES] = {
 #undef OP_W_DEF
 };
 // gpuFI start
+
+// Function that, given a ptx_thread_info pointer, checks if it belongs
+// to the supplied shader_core.
 bool thread_in_shader(ptx_thread_info *thread, shader_core_ctx *shader_core,
                       simt_core_cluster *simt_cluster) {
   for (unsigned warp_idx = 0;
@@ -94,6 +97,7 @@ bool thread_in_shader(ptx_thread_info *thread, shader_core_ctx *shader_core,
   return false;
 }
 
+//
 void find_l1_used(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
                   int &l1_used_index, unsigned l1_cache) {
   std::vector<bool> *l1_enabled;
@@ -269,6 +273,7 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
   }
 }
 
+// Bitflip L1T cache
 void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
                   unsigned long data_size, ptx_reg_t &data_bf,
                   int l1t_used_index) {
@@ -338,6 +343,8 @@ void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
   }
 }
 
+// ?????
+// Used in tex_linf_sampling and tex_impl.
 void l2_wrapper_L1T(ptx_thread_info *thread, unsigned data_tex_array_index,
                     unsigned long data_size, ptx_reg_t &data_bf) {
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
@@ -363,6 +370,8 @@ void l2_wrapper_L1T(ptx_thread_info *thread, unsigned data_tex_array_index,
   }
 }
 
+// Used in the simulator's functional part, when reading from any
+// memory space that passes through L1D cache: global, local memory.
 void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
                               size_t size, addr_t addr, memory_space_t space) {
   if (!space.is_global() && !space.is_local()) return;
@@ -475,6 +484,7 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
   }
 }
 
+// Unused for now
 void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
                           addr_t addr, memory_space_t space) {
   if (!space.is_const()) return;
@@ -575,6 +585,8 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
   }
 }
 
+// Used in the simulator's functional part, when reading from any
+// memory space that passes through L2 cache: global, local memory.
 void local_global_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
                              size_t size, addr_t addr, memory_space_t space) {
   if (!space.is_global() && !space.is_local()) return;
@@ -603,6 +615,8 @@ void local_global_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
   }
 }
 
+// Read L2-cached constant memory.
+// Unused for now.
 void constant_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
                          addr_t addr, memory_space_t space) {
   if (!space.is_const()) return;
@@ -635,6 +649,8 @@ void constant_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
   }
 }
 
+// Used in the functional simulator, when writing to destination operand
+// which is cached in L1D cache: local & global memory.
 void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
                                size_t size, addr_t addr, memory_space_t space) {
   if (!space.is_global() && !space.is_local()) return;
@@ -703,7 +719,8 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
     }
   }
 }
-
+// Used in the functional simulator, when writing to destination operand
+// which is cached in L2 cache: local & global memory.
 void local_global_write_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
                               size_t size, addr_t addr, memory_space_t space) {
   if (!space.is_global() && !space.is_local()) return;

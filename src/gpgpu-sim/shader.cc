@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Ali Bakhoda,
-// George L. Yuan, Andrew Turner, Inderpreet Singh, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// George L. Yuan, Andrew Turner, Inderpreet Singh, Vijay Kandiah, Nikos
+// Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The University of
+// British Columbia, Northwestern University, Purdue University All rights
+// reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -187,20 +188,16 @@ void shader_core_ctx::create_schedulers() {
   // must currently occur after all inputs have been initialized.
   std::string sched_config = m_config->gpgpu_scheduler_string;
   const concrete_scheduler scheduler =
-      sched_config.find("lrr") != std::string::npos
-          ? CONCRETE_SCHEDULER_LRR
-          : sched_config.find("two_level_active") != std::string::npos
-                ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
-                : sched_config.find("gto") != std::string::npos
-                      ? CONCRETE_SCHEDULER_GTO
-                      : sched_config.find("rrr") != std::string::npos
-                            ? CONCRETE_SCHEDULER_RRR
-                      : sched_config.find("old") != std::string::npos
-                            ? CONCRETE_SCHEDULER_OLDEST_FIRST
-                            : sched_config.find("warp_limiting") !=
-                                      std::string::npos
-                                  ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                  : NUM_CONCRETE_SCHEDULERS;
+      sched_config.find("lrr") != std::string::npos ? CONCRETE_SCHEDULER_LRR
+      : sched_config.find("two_level_active") != std::string::npos
+          ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
+      : sched_config.find("gto") != std::string::npos ? CONCRETE_SCHEDULER_GTO
+      : sched_config.find("rrr") != std::string::npos ? CONCRETE_SCHEDULER_RRR
+      : sched_config.find("old") != std::string::npos
+          ? CONCRETE_SCHEDULER_OLDEST_FIRST
+      : sched_config.find("warp_limiting") != std::string::npos
+          ? CONCRETE_SCHEDULER_WARP_LIMITING
+          : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
@@ -487,8 +484,8 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
   m_sid = shader_id;
   m_tpc = tpc_id;
 
-  if(get_gpu()->get_config().g_power_simulation_enabled){
-    scaling_coeffs =  get_gpu()->get_scaling_coeffs();
+  if (get_gpu()->get_config().g_power_simulation_enabled) {
+    scaling_coeffs = get_gpu()->get_scaling_coeffs();
   }
 
   m_last_inst_gpu_sim_cycle = 0;
@@ -895,7 +892,9 @@ void shader_core_ctx::decode() {
     m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
     if (pI1) {
       m_stats->m_num_decoded_insn[m_sid]++;
-      if ((pI1->oprnd_type == INT_OP) || (pI1->oprnd_type == UN_OP))  { //these counters get added up in mcPat to compute scheduler power
+      if ((pI1->oprnd_type == INT_OP) ||
+          (pI1->oprnd_type == UN_OP)) {  // these counters get added up in mcPat
+                                         // to compute scheduler power
         m_stats->m_num_INTdecoded_insn[m_sid]++;
       } else if (pI1->oprnd_type == FP_OP) {
         m_stats->m_num_FPdecoded_insn[m_sid]++;
@@ -906,7 +905,9 @@ void shader_core_ctx::decode() {
         m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(1, pI2);
         m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
         m_stats->m_num_decoded_insn[m_sid]++;
-        if ((pI1->oprnd_type == INT_OP) || (pI1->oprnd_type == UN_OP))  { //these counters get added up in mcPat to compute scheduler power
+        if ((pI1->oprnd_type == INT_OP) ||
+            (pI1->oprnd_type == UN_OP)) {  // these counters get added up in
+                                           // mcPat to compute scheduler power
           m_stats->m_num_INTdecoded_insn[m_sid]++;
         } else if (pI2->oprnd_type == FP_OP) {
           m_stats->m_num_FPdecoded_insn[m_sid]++;
@@ -918,6 +919,8 @@ void shader_core_ctx::decode() {
 }
 
 void shader_core_ctx::fetch() {
+  // Make sure that the register between fetch & decode contains
+  // no valid fetched instructions already, i.e. decode stage is not stalled.
   if (!m_inst_fetch_buffer.m_valid) {
     if (m_L1I->access_ready()) {
       mem_fetch *mf = m_L1I->next_access();
@@ -939,6 +942,8 @@ void shader_core_ctx::fetch() {
       // find an active warp with space in instruction buffer that is not
       // already waiting on a cache miss and get next 1-2 instructions from
       // i-cache...
+      // This loop acts as a Round-Robin warp scheduler. m_last_warp_fetched
+      // stores the id of the last scheduled warp.
       for (unsigned i = 0; i < m_config->max_warps_per_shader; i++) {
         unsigned warp_id =
             (m_last_warp_fetched + 1 + i) % m_config->max_warps_per_shader;
@@ -971,7 +976,8 @@ void shader_core_ctx::fetch() {
           assert(m_active_warps >= 0);
         }
 
-        // this code fetches instructions from the i-cache or generates memory
+        // this code fetches instructions from the i-cache (if hit) or generates
+        // memory accesses (if miss).
         if (!m_warp[warp_id]->functional_done() &&
             !m_warp[warp_id]->imiss_pending() &&
             m_warp[warp_id]->ibuffer_empty()) {
@@ -1136,11 +1142,12 @@ void scheduler_unit::order_rrr(
   if (m_num_issued_last_cycle > 0 || warp(m_current_turn_warp).done_exit() ||
       warp(m_current_turn_warp).waiting()) {
     std::vector<shd_warp_t *>::const_iterator iter =
-      (last_issued_from_input == input_list.end()) ? 
-        input_list.begin() : last_issued_from_input + 1;
+        (last_issued_from_input == input_list.end())
+            ? input_list.begin()
+            : last_issued_from_input + 1;
     for (unsigned count = 0; count < num_warps_to_add; ++iter, ++count) {
       if (iter == input_list.end()) {
-      iter = input_list.begin();
+        iter = input_list.begin();
       }
       unsigned warp_id = (*iter)->get_warp_id();
       if (!(*iter)->done_exit() && !(*iter)->waiting()) {
@@ -2116,7 +2123,8 @@ bool ldst_unit::constant_cycle(warp_inst_t &inst, mem_stage_stall_type &rc_fail,
     while (inst.accessq_count() > 0) inst.accessq_pop_back();
     if (inst.is_load()) {
       for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
-        if (inst.out[r] > 0) m_pending_writes[inst.warp_id()][inst.out[r]] -= access_count;
+        if (inst.out[r] > 0)
+          m_pending_writes[inst.warp_id()][inst.out[r]] -= access_count;
     }
   } else {
     fail = process_memory_access_queue(m_L1C, inst);
@@ -2304,7 +2312,7 @@ void sp_unit::active_lanes_in_pipeline() {
 void dp_unit::active_lanes_in_pipeline() {
   unsigned active_count = pipelined_simd_unit::get_active_lanes_in_pipeline();
   assert(active_count <= m_core->get_config()->warp_size);
-  //m_core->incspactivelanes_stat(active_count);
+  // m_core->incspactivelanes_stat(active_count);
   m_core->incfuactivelanes_stat(active_count);
   m_core->incfumemactivelanes_stat(active_count);
 }
@@ -3113,68 +3121,68 @@ void warp_inst_t::print(FILE *fout) const {
   m_config->gpgpu_ctx->func_sim->ptx_print_insn(pc, fout);
   fprintf(fout, "\n");
 }
-void shader_core_ctx::incexecstat(warp_inst_t *&inst)
-{
-    // Latency numbers for next operations are used to scale the power values
-    // for special operations, according observations from microbenchmarking
-    // TODO: put these numbers in the xml configuration
-  if(get_gpu()->get_config().g_power_simulation_enabled){
-    switch(inst->sp_op){
-    case INT__OP:
-      incialu_stat(inst->active_count(), scaling_coeffs->int_coeff);
-      break;
-    case INT_MUL_OP:
-      incimul_stat(inst->active_count(), scaling_coeffs->int_mul_coeff);
-      break;
-    case INT_MUL24_OP:
-      incimul24_stat(inst->active_count(), scaling_coeffs->int_mul24_coeff);
-      break;
-    case INT_MUL32_OP:
-      incimul32_stat(inst->active_count(), scaling_coeffs->int_mul32_coeff);
-      break;
-    case INT_DIV_OP:
-      incidiv_stat(inst->active_count(), scaling_coeffs->int_div_coeff);
-      break;
-    case FP__OP:
-      incfpalu_stat(inst->active_count(),scaling_coeffs->fp_coeff);
-      break;
-    case FP_MUL_OP:
-      incfpmul_stat(inst->active_count(), scaling_coeffs->fp_mul_coeff);
-      break;
-    case FP_DIV_OP:
-      incfpdiv_stat(inst->active_count(), scaling_coeffs->fp_div_coeff);
-      break;
-    case DP___OP:
-      incdpalu_stat(inst->active_count(), scaling_coeffs->dp_coeff);
-      break;
-    case DP_MUL_OP:
-      incdpmul_stat(inst->active_count(), scaling_coeffs->dp_mul_coeff);
-      break;
-    case DP_DIV_OP:
-      incdpdiv_stat(inst->active_count(), scaling_coeffs->dp_div_coeff);
-      break;
-    case FP_SQRT_OP:
-      incsqrt_stat(inst->active_count(), scaling_coeffs->sqrt_coeff);
-      break;
-    case FP_LG_OP:
-      inclog_stat(inst->active_count(), scaling_coeffs->log_coeff);
-      break;
-    case FP_SIN_OP:
-      incsin_stat(inst->active_count(), scaling_coeffs->sin_coeff);
-      break;
-    case FP_EXP_OP:
-      incexp_stat(inst->active_count(), scaling_coeffs->exp_coeff);
-      break;
-    case TENSOR__OP:
-      inctensor_stat(inst->active_count(), scaling_coeffs->tensor_coeff);
-      break;
-    case TEX__OP:
-      inctex_stat(inst->active_count(), scaling_coeffs->tex_coeff);
-      break;
-    default:
-      break;
+void shader_core_ctx::incexecstat(warp_inst_t *&inst) {
+  // Latency numbers for next operations are used to scale the power values
+  // for special operations, according observations from microbenchmarking
+  // TODO: put these numbers in the xml configuration
+  if (get_gpu()->get_config().g_power_simulation_enabled) {
+    switch (inst->sp_op) {
+      case INT__OP:
+        incialu_stat(inst->active_count(), scaling_coeffs->int_coeff);
+        break;
+      case INT_MUL_OP:
+        incimul_stat(inst->active_count(), scaling_coeffs->int_mul_coeff);
+        break;
+      case INT_MUL24_OP:
+        incimul24_stat(inst->active_count(), scaling_coeffs->int_mul24_coeff);
+        break;
+      case INT_MUL32_OP:
+        incimul32_stat(inst->active_count(), scaling_coeffs->int_mul32_coeff);
+        break;
+      case INT_DIV_OP:
+        incidiv_stat(inst->active_count(), scaling_coeffs->int_div_coeff);
+        break;
+      case FP__OP:
+        incfpalu_stat(inst->active_count(), scaling_coeffs->fp_coeff);
+        break;
+      case FP_MUL_OP:
+        incfpmul_stat(inst->active_count(), scaling_coeffs->fp_mul_coeff);
+        break;
+      case FP_DIV_OP:
+        incfpdiv_stat(inst->active_count(), scaling_coeffs->fp_div_coeff);
+        break;
+      case DP___OP:
+        incdpalu_stat(inst->active_count(), scaling_coeffs->dp_coeff);
+        break;
+      case DP_MUL_OP:
+        incdpmul_stat(inst->active_count(), scaling_coeffs->dp_mul_coeff);
+        break;
+      case DP_DIV_OP:
+        incdpdiv_stat(inst->active_count(), scaling_coeffs->dp_div_coeff);
+        break;
+      case FP_SQRT_OP:
+        incsqrt_stat(inst->active_count(), scaling_coeffs->sqrt_coeff);
+        break;
+      case FP_LG_OP:
+        inclog_stat(inst->active_count(), scaling_coeffs->log_coeff);
+        break;
+      case FP_SIN_OP:
+        incsin_stat(inst->active_count(), scaling_coeffs->sin_coeff);
+        break;
+      case FP_EXP_OP:
+        incexp_stat(inst->active_count(), scaling_coeffs->exp_coeff);
+        break;
+      case TENSOR__OP:
+        inctensor_stat(inst->active_count(), scaling_coeffs->tensor_coeff);
+        break;
+      case TEX__OP:
+        inctex_stat(inst->active_count(), scaling_coeffs->tex_coeff);
+        break;
+      default:
+        break;
     }
-    if(inst->const_cache_operand) //warp has const address space load as one operand
+    if (inst->const_cache_operand)  // warp has const address space load as one
+                                    // operand
       inc_const_accesses(1);
   }
 }
@@ -3924,7 +3932,9 @@ void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
   n_mem_to_simt += m_stats->n_mem_to_simt[m_sid];
 }
 
-kernel_info_t* shd_warp_t::get_kernel_info() const { return m_shader->get_kernel_info(); }
+kernel_info_t *shd_warp_t::get_kernel_info() const {
+  return m_shader->get_kernel_info();
+}
 
 bool shd_warp_t::functional_done() const {
   return get_n_completed() == m_warp_size;
@@ -4051,7 +4061,7 @@ void opndcoll_rfu_t::init(unsigned num_banks, shader_core_ctx *shader) {
                   sub_core_model, reg_id, m_num_banks_per_sched);
   }
   for (unsigned j = 0; j < m_dispatch_units.size(); j++) {
-    m_dispatch_units[j].init(sub_core_model,m_num_warp_scheds);
+    m_dispatch_units[j].init(sub_core_model, m_num_warp_scheds);
   }
   m_initialized = true;
 }
@@ -4445,8 +4455,10 @@ bool simt_core_cluster::icnt_injection_buffer_full(unsigned size, bool write) {
   return !::icnt_has_buffer(m_cluster_id, request_size);
 }
 
+// Method that pushes memory fetch request from cores to the interconnection
+// network.
 void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
-  // stats
+  // Update memory stats
   if (mf->get_is_write())
     m_stats->made_write_mfs++;
   else
@@ -4503,6 +4515,8 @@ void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
   unsigned destination = mf->get_sub_partition_id();
   mf->set_status(IN_ICNT_TO_MEM,
                  m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+
+  //  Push Memory fetch request to interconnection network.
   if (!mf->get_is_write() && !mf->isatomic())
     ::icnt_push(m_cluster_id, m_config->mem2device(destination), (void *)mf,
                 mf->get_ctrl_size());
@@ -4512,6 +4526,8 @@ void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
 }
 
 void simt_core_cluster::icnt_cycle() {
+  // If response FIFO has responses from interconnect, pop them
+  // and forward them to the destination SIMT core.
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
     unsigned cid = m_config->sid_to_cid(mf->get_sid());
@@ -4530,6 +4546,8 @@ void simt_core_cluster::icnt_cycle() {
       }
     }
   }
+  // If response fifo is not full, try to get responses from interconnect, if
+  // any.
   if (m_response_fifo.size() < m_config->n_simt_ejection_buffer_size) {
     mem_fetch *mf = (mem_fetch *)::icnt_pop(m_cluster_id);
     if (!mf) return;

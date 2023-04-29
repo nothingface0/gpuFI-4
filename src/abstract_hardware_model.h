@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah,
+// Nikos Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -64,24 +65,24 @@ enum _memory_space_t {
 #ifndef COEFF_STRUCT
 #define COEFF_STRUCT
 
-struct PowerscalingCoefficients{
-    double int_coeff;
-    double int_mul_coeff;
-    double int_mul24_coeff;
-    double int_mul32_coeff;
-    double int_div_coeff;
-    double fp_coeff;
-    double dp_coeff;
-    double fp_mul_coeff;
-    double fp_div_coeff;
-    double dp_mul_coeff;
-    double dp_div_coeff;
-    double sqrt_coeff;
-    double log_coeff;
-    double sin_coeff;
-    double exp_coeff;
-    double tensor_coeff;
-    double tex_coeff;
+struct PowerscalingCoefficients {
+  double int_coeff;
+  double int_mul_coeff;
+  double int_mul24_coeff;
+  double int_mul32_coeff;
+  double int_div_coeff;
+  double fp_coeff;
+  double dp_coeff;
+  double fp_mul_coeff;
+  double fp_div_coeff;
+  double dp_mul_coeff;
+  double dp_div_coeff;
+  double sqrt_coeff;
+  double log_coeff;
+  double sin_coeff;
+  double exp_coeff;
+  double tensor_coeff;
+  double tex_coeff;
 };
 #endif
 
@@ -246,9 +247,7 @@ class kernel_info_t {
   }
   bool running() const { return m_num_cores_running > 0; }
   bool done() const { return no_more_ctas_to_run() && !running(); }
-  class function_info *entry() {
-    return m_kernel_entry;
-  }
+  class function_info *entry() { return m_kernel_entry; }
   const class function_info *entry() const { return m_kernel_entry; }
 
   size_t num_blocks() const {
@@ -297,9 +296,7 @@ class kernel_info_t {
   std::list<class ptx_thread_info *> &active_threads() {
     return m_active_threads;
   }
-  class memory_space *get_param_memory() {
-    return m_param_mem;
-  }
+  class memory_space *get_param_memory() { return m_param_mem; }
 
   // The following functions access texture bindings present at the kernel's
   // launch
@@ -605,15 +602,9 @@ class gpgpu_t {
   void memcpy_from_gpu(void *dst, size_t src_start_addr, size_t count);
   void memcpy_gpu_to_gpu(size_t dst, size_t src, size_t count);
 
-  class memory_space *get_global_memory() {
-    return m_global_mem;
-  }
-  class memory_space *get_tex_memory() {
-    return m_tex_mem;
-  }
-  class memory_space *get_surf_memory() {
-    return m_surf_mem;
-  }
+  class memory_space *get_global_memory() { return m_global_mem; }
+  class memory_space *get_tex_memory() { return m_tex_mem; }
+  class memory_space *get_surf_memory() { return m_surf_mem; }
 
   void gpgpu_ptx_sim_bindTextureToArray(const struct textureReference *texref,
                                         const struct cudaArray *array);
@@ -974,18 +965,22 @@ class inst_t {
             memory_op == memory_store);
   }
 
-  bool is_fp() const { return ((sp_op == FP__OP));}    //VIJAY
-  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP));} 
-  bool is_fpmul() const { return ((sp_op == FP_MUL_OP));} 
-  bool is_dp() const { return ((sp_op == DP___OP));}    
-  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP));} 
-  bool is_dpmul() const { return ((sp_op == DP_MUL_OP));}
-  bool is_imul() const { return ((sp_op == INT_MUL_OP));} 
-  bool is_imul24() const { return ((sp_op == INT_MUL24_OP));} 
-  bool is_imul32() const { return ((sp_op == INT_MUL32_OP));} 
-  bool is_idiv() const { return ((sp_op == INT_DIV_OP));}   
-  bool is_sfu() const {return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP)  || (sp_op == FP_SIN_OP)  || (sp_op == FP_EXP_OP) || (sp_op == TENSOR__OP));}
-  bool is_alu() const {return (sp_op == INT__OP);}
+  bool is_fp() const { return ((sp_op == FP__OP)); }  // VIJAY
+  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP)); }
+  bool is_fpmul() const { return ((sp_op == FP_MUL_OP)); }
+  bool is_dp() const { return ((sp_op == DP___OP)); }
+  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP)); }
+  bool is_dpmul() const { return ((sp_op == DP_MUL_OP)); }
+  bool is_imul() const { return ((sp_op == INT_MUL_OP)); }
+  bool is_imul24() const { return ((sp_op == INT_MUL24_OP)); }
+  bool is_imul32() const { return ((sp_op == INT_MUL32_OP)); }
+  bool is_idiv() const { return ((sp_op == INT_DIV_OP)); }
+  bool is_sfu() const {
+    return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP) ||
+            (sp_op == FP_SIN_OP) || (sp_op == FP_EXP_OP) ||
+            (sp_op == TENSOR__OP));
+  }
+  bool is_alu() const { return (sp_op == INT__OP); }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1010,7 +1005,7 @@ class inst_t {
   operation_pipeline op_pipe;  // code (uarch visible) identify the pipeline of
                                // the operation (SP, SFU or MEM)
   mem_operation mem_op;        // code (uarch visible) identify memory type
-  bool const_cache_operand;   // has a load from constant memory as an operand
+  bool const_cache_operand;    // has a load from constant memory as an operand
   _memory_op_t memory_op;      // memory_op used by ptxplus
   unsigned num_operands;
   unsigned num_regs;  // count vector operand as one register operand
@@ -1301,9 +1296,7 @@ class core_t {
   virtual bool warp_waiting_at_barrier(unsigned warp_id) const = 0;
   virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t,
                                              unsigned tid) = 0;
-  class gpgpu_sim *get_gpu() {
-    return m_gpu;
-  }
+  class gpgpu_sim *get_gpu() { return m_gpu; }
   void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId = (unsigned)-1);
   bool ptx_thread_done(unsigned hw_thread_id) const;
   virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst);
@@ -1313,9 +1306,7 @@ class core_t {
   void get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                unsigned *rpc) const;
   kernel_info_t *get_kernel_info() { return m_kernel; }
-  class ptx_thread_info **get_thread_info() {
-    return m_thread;
-  }
+  class ptx_thread_info **get_thread_info() { return m_thread; }
   unsigned get_warp_size() const { return m_warp_size; }
   void and_reduction(unsigned ctaid, unsigned barid, bool value) {
     reduction_storage[ctaid][barid] &= value;

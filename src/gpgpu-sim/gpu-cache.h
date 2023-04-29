@@ -827,8 +827,6 @@ class cache_config {
   char *m_config_stringPrefL1;
   char *m_config_stringPrefShared;
   FuncCache cache_status;
-  enum cache_type m_cache_type;  // gpuFI
-  unsigned m_assoc;              // gpuFI
 
   // gpuFI
   union {
@@ -855,7 +853,7 @@ class cache_config {
   unsigned m_line_sz_log2;
   unsigned m_nset;
   unsigned m_nset_log2;
-  // unsigned m_assoc;
+  unsigned m_assoc;
   unsigned m_atom_sz;
   unsigned m_sector_sz_log2;
   unsigned original_m_assoc;
@@ -867,7 +865,7 @@ class cache_config {
   enum allocation_policy_t
       m_alloc_policy;  // 'm' = allocate on miss, 'f' = allocate on fill
   enum mshr_config_t m_mshr_type;
-  // enum cache_type m_cache_type;
+  enum cache_type m_cache_type;
 
   write_allocate_policy_t
       m_write_alloc_policy;  // 'W' = Write allocate, 'N' = No write allocate
@@ -1351,12 +1349,12 @@ class baseline_cache : public cache_t {
     mem_access_byte_mask_t byte_mask;
     m_tag_array->fill(addr, time, mask, byte_mask, true);
   }
-	// gpuFI
+  // gpuFI
   cache_config &m_config;
   tag_array *m_tag_array;
   std::string m_name;
   mshr_table m_mshrs;
-  std::list<mem_fetch *> m_miss_queue;	
+  std::list<mem_fetch *> m_miss_queue;
 
  protected:
   // Constructor that can be used by derived classes with custom tag arrays
@@ -1781,11 +1779,10 @@ class tex_cache : public cache_t {
     m_stats.get_sub_stats(css);
   }
 
-
   const cache_config &m_config;
-  tag_array m_tags;				// gpuFI
-  std::string m_name;			// gpuFI
- private:                               // gpuFI
+  tag_array m_tags;    // gpuFI
+  std::string m_name;  // gpuFI
+ private:              // gpuFI
   struct fragment_entry {
     fragment_entry() {}
     fragment_entry(mem_fetch *mf, unsigned idx, bool m, unsigned d) {

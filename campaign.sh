@@ -15,11 +15,13 @@ DELETE_LOGS=0 # if 1 then all logs will be deleted at the end of the script
 
 # ---------------------------------------------- START PER GPGPU CARD PARAMETERS ----------------------------------------------
 # L1 cache size per SIMT core (30 SIMT cores on RTX 2060, 30 clusters with 1 core each) - 80 for Volta QV100
-L1D_SIZE_BITS=276736  # nsets=1, line_size=128 bytes + 57 bits, assoc=256
-L1C_SIZE_BITS=582656 # nsets=128, line_size=64 bytes + 57 bits, assoc=8
-L1T_SIZE_BITS=1106944 # nsets=4, line_size=128 bytes + 57 bits, assoc=256
-# L2 cache total size from all sub partitions
-L2_SIZE_BITS=53133312 # (nsets=32, line_size=128 bytes + 57 bits, assoc=24) x 24 sub partitions (64 sub partitions in Volta QV100)
+# TODO: Calculate automatically.
+# L1D_SIZE_BITS=276736  # nsets=1, line_size=128 bytes + 57 bits, assoc=256
+# L1C_SIZE_BITS=582656 # nsets=128, line_size=64 bytes + 57 bits, assoc=8
+# L1T_SIZE_BITS=1106944 # nsets=4, line_size=128 bytes + 57 bits, assoc=256
+# # L2 cache total size from all sub partitions
+# L2_SIZE_BITS=53133312 # (nsets=32, line_size=128 bytes + 57 bits, assoc=24) x 24 sub partitions (64 sub partitions in Volta QV100)
+source calculate_cache_sizes.sh
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+profile=1) ----------------------------------------------

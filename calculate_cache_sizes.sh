@@ -1,13 +1,20 @@
 #!/bin/bash
-
+set -e
 # This file calculates the total size (in bits) of L1D, L1T, L1C and L2 cache.
 ADDRESS_WIDTH=64
+CONFIG_FILE=./gpgpusim.config
+if [[ ! -z $1 ]] 
+then
+    if test -f $1; then
+        CONFIG_FILE=$1
+    fi;
+fi;
 
 # ---------------- L1D calculations ------------------
 regex_l1d="^-gpgpu_cache:dl1[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
 
 # Find L1D config in gpgpusim.config w/ gawk
-parsed_regex=$(cat gpgpusim.config | gawk -v pat=$regex_l1d 'match($0, pat, a) {print a[1], a[2], a[3]}')
+parsed_regex=$(cat $CONFIG_FILE | gawk -v pat=$regex_l1d 'match($0, pat, a) {print a[1], a[2], a[3]}')
 parsed_arr=(${parsed_regex// / })  # Split with spaces
 
 l1d_sets=${parsed_arr[0]}
@@ -33,7 +40,7 @@ echo
 regex_l1t="^-gpgpu_tex_cache:l1[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
 
 # Find L1T config in gpgpusim.config w/ gawk
-parsed_regex=$(cat gpgpusim.config | gawk -v pat=$regex_l1t 'match($0, pat, a) {print a[1], a[2], a[3]}')
+parsed_regex=$(cat $CONFIG_FILE | gawk -v pat=$regex_l1t 'match($0, pat, a) {print a[1], a[2], a[3]}')
 parsed_arr=(${parsed_regex// / })  # Split with spaces
 
 l1t_sets=${parsed_arr[0]}
@@ -59,7 +66,7 @@ echo
 regex_l1c="^-gpgpu_const_cache:l1[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
 
 # Find L1C config in gpgpusim.config w/ gawk
-parsed_regex=$(cat gpgpusim.config | gawk -v pat=$regex_l1c 'match($0, pat, a) {print a[1], a[2], a[3]}')
+parsed_regex=$(cat $CONFIG_FILE | gawk -v pat=$regex_l1c 'match($0, pat, a) {print a[1], a[2], a[3]}')
 parsed_arr=(${parsed_regex// / })  # Split with spaces
 
 l1c_sets=${parsed_arr[0]}
@@ -87,7 +94,7 @@ regex_num_mem_controllers="^-gpgpu_n_mem[[:space:]]*([0-9]+)"
 regex_num_sub_partitions="^-gpgpu_n_sub_partition_per_mchannel[[:space:]]*([0-9]+)"
 
 # Find L2D config in gpgpusim.config w/ gawk
-parsed_regex=$(cat gpgpusim.config | gawk -v pat=$regex_l2d 'match($0, pat, a) {print a[1], a[2], a[3]}')
+parsed_regex=$(cat $CONFIG_FILE | gawk -v pat=$regex_l2d 'match($0, pat, a) {print a[1], a[2], a[3]}')
 parsed_arr=(${parsed_regex// / }) # Split with spaces
 l2d_sets=${parsed_arr[0]}
 l2d_bits_for_sets_indexing=$( printf "%.0f" $(bc -l <<< "l($l2d_sets)/l(2)") )
@@ -103,8 +110,8 @@ l2d_tag_bits=$(($ADDRESS_WIDTH-$l2d_bits_for_byte_offset-$l2d_bits_for_sets_inde
 echo "Bits for tag (L2D)="$l2d_tag_bits
 echo "Bits for tag+index (L2D)="$(($l2d_tag_bits+$l2d_bits_for_sets_indexing))
 
-l2d_num_mem_controllers=$(cat gpgpusim.config | gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}')
-l2d_num_sub_partitions=$(cat gpgpusim.config | gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}')
+l2d_num_mem_controllers=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}')
+l2d_num_sub_partitions=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}')
 
 # There's one L2D cache per memory subpartition, each one having the 
 # configuration given by the gpgpu_cache:dl2 option.

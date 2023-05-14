@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This file calculates the total size (in bits) of L1D and L2 cache.
+# This file calculates the total size (in bits) of L1D, L1T, L1C and L2 cache.
 ADDRESS_WIDTH=64
 
 # ---------------- L1D calculations ------------------
@@ -23,6 +23,7 @@ echo "L1D: sets="$l1d_sets", bytes per line="$l1d_bytes_per_line", associativity
 
 l1d_tag_bits=$(($ADDRESS_WIDTH-$l1d_bits_for_byte_offset-$l1d_bits_for_sets_indexing))
 echo "Bits for tag (L1D)="$l1d_tag_bits
+echo "Bits for tag+index (L1D)="$(($l1d_tag_bits+$l1d_bits_for_sets_indexing))
 
 l1d_total_bits=$(( ($l1d_bytes_per_line*8+$l1d_tag_bits)*$l1d_associativity*$l1d_sets ))
 echo "L1D size per SIMT core (bits)="$l1d_total_bits
@@ -44,10 +45,11 @@ l1t_bits_for_byte_offset=$( printf "%.0f" $(bc -l <<< "l($l1t_bytes_per_line)/l(
 
 l1t_associativity=${parsed_arr[2]}
 
-echo "L1T: sets="$l1d_sets", bytes per line="$l1t_bytes_per_line", associativity="$l1d_associativity
+echo "L1T: sets="$l1t_sets", bytes per line="$l1t_bytes_per_line", associativity="$l1t_associativity
 
 l1t_tag_bits=$(($ADDRESS_WIDTH-$l1t_bits_for_byte_offset-$l1t_bits_for_sets_indexing))
 echo "Bits for tag (L1T)="$l1t_tag_bits
+echo "Bits for tag+index (L1T)="$(($l1t_tag_bits+$l1t_bits_for_sets_indexing))
 
 l1t_total_bits=$(( ($l1t_bytes_per_line*8+$l1t_tag_bits)*$l1t_associativity*$l1d_sets ))
 echo "L1T size per SIMT core (bits)="$l1t_total_bits
@@ -69,16 +71,17 @@ l1c_bits_for_byte_offset=$( printf "%.0f" $(bc -l <<< "l($l1c_bytes_per_line)/l(
 
 l1c_associativity=${parsed_arr[2]}
 
-echo "L1C: sets="$l1d_sets", bytes per line="$l1c_bytes_per_line", associativity="$l1d_associativity
+echo "L1C: sets="$l1c_sets", bytes per line="$l1c_bytes_per_line", associativity="$l1c_associativity
 
 l1c_tag_bits=$(($ADDRESS_WIDTH-$l1c_bits_for_byte_offset-$l1c_bits_for_sets_indexing))
 echo "Bits for tag (L1C)="$l1c_tag_bits
+echo "Bits for tag+index (L1C)="$(($l1c_tag_bits+$l1c_bits_for_sets_indexing))
 
 l1c_total_bits=$(( ($l1c_bytes_per_line*8+$l1c_tag_bits)*$l1c_associativity*$l1c_sets ))
 echo "L1C size per SIMT core (bits)="$l1c_total_bits
 echo 
 
-# ---------------- L2D calculations ------------------
+# ---------------- L2 calculations ------------------
 regex_l2d="^-gpgpu_cache:dl2[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
 regex_num_mem_controllers="^-gpgpu_n_mem[[:space:]]*([0-9]+)"
 regex_num_sub_partitions="^-gpgpu_n_sub_partition_per_mchannel[[:space:]]*([0-9]+)"
@@ -98,6 +101,7 @@ echo "l2d: sets="$l2d_sets", bytes per line="$l2d_bytes_per_line", associativity
 
 l2d_tag_bits=$(($ADDRESS_WIDTH-$l2d_bits_for_byte_offset-$l2d_bits_for_sets_indexing))
 echo "Bits for tag (L2D)="$l2d_tag_bits
+echo "Bits for tag+index (L2D)="$(($l2d_tag_bits+$l2d_bits_for_sets_indexing))
 
 l2d_num_mem_controllers=$(cat gpgpusim.config | gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}')
 l2d_num_sub_partitions=$(cat gpgpusim.config | gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}')
@@ -109,7 +113,7 @@ l2d_num_sub_partitions=$(cat gpgpusim.config | gawk -v pat=$regex_num_sub_partit
 l2d_total_bits=$(( ($l2d_bytes_per_line*8+$l2d_tag_bits)*$l2d_associativity*$l2d_sets*$l2d_num_mem_controllers*$l2d_num_sub_partitions ))
 echo "L2D total size (bits)="$l2d_total_bits
 
-# ---------
+# --------- Aliases for the rest of campaign.sh
 L1D_SIZE_BITS=$l1d_total_bits
 L1C_SIZE_BITS=$l1c_total_bits
 L1T_SIZE_BITS=$l1t_total_bits

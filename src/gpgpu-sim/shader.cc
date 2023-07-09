@@ -984,8 +984,8 @@ void shader_core_ctx::fetch() {
           address_type pc;
           pc = m_warp[warp_id]->get_pc();
           address_type ppc = pc + PROGRAM_MEM_START;
-          unsigned nbytes = 16;
-          unsigned offset_in_block =
+          unsigned nbytes = 16;       // ???
+          unsigned offset_in_block =  // ???
               pc & (m_config->m_L1I_config.get_line_sz() - 1);
           if ((offset_in_block + nbytes) > m_config->m_L1I_config.get_line_sz())
             nbytes = (m_config->m_L1I_config.get_line_sz() - offset_in_block);
@@ -1024,7 +1024,7 @@ void shader_core_ctx::fetch() {
             delete mf;
           }
           // printf("Got else PC = %u\n", m_warp[warp_id]->get_pc());
-          break;
+          break;  // Always breaks the for loop that goes over warps (???)
         }
       }
     }

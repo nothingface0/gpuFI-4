@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug GPGPU-Sim - SM7: QV100 - test_if",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/../cuda-tests/kernels/test_if/bin/test_if",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "setupenv",
+            "externalConsole": false,
+            "MIMode": "gdb",
+        },
+    ]
+}

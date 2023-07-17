@@ -11,6 +11,32 @@ then
 fi;
 
 # ---------------- L1D calculations ------------------
+regex_l1i="^-gpgpu_cache:il1[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
+
+# Find L1D config in gpgpusim.config w/ gawk
+parsed_regex=$(cat $CONFIG_FILE | gawk -v pat=$regex_l1i 'match($0, pat, a) {print a[1], a[2], a[3]}')
+parsed_arr=(${parsed_regex// / })  # Split with spaces
+
+l1i_sets=${parsed_arr[0]}
+# Use bc to calculate log_2, then printf to remove decimals
+l1i_bits_for_sets_indexing=$( printf "%.0f" $(bc -l <<< "l($l1i_sets)/l(2)") )
+
+l1i_bytes_per_line=${parsed_arr[1]}
+l1i_bits_for_byte_offset=$( printf "%.0f" $(bc -l <<< "l($l1i_bytes_per_line)/l(2)") )
+
+l1i_associativity=${parsed_arr[2]}
+
+echo "L1I: sets="$l1i_sets", bytes per line="$l1i_bytes_per_line", associativity="$l1i_associativity
+
+l1i_tag_bits=$(($ADDRESS_WIDTH-$l1i_bits_for_byte_offset-$l1i_bits_for_sets_indexing))
+echo "Bits for tag (L1D)="$l1i_tag_bits
+echo "Bits for tag+index (L1D)="$(($l1i_tag_bits+$l1i_bits_for_sets_indexing))
+
+l1i_total_bits=$(( ($l1i_bytes_per_line*8+$l1i_tag_bits)*$l1i_associativity*$l1i_sets ))
+echo "L1I size per SIMT core (bits)="$l1i_total_bits
+echo 
+
+# ---------------- L1D calculations ------------------
 regex_l1d="^-gpgpu_cache:dl1[[:space:]]*[[:alpha:]]?:?([0-9]+):([0-9]+):([0-9]+),"
 
 # Find L1D config in gpgpusim.config w/ gawk
@@ -104,7 +130,7 @@ l2d_bits_for_byte_offset=$( printf "%.0f" $(bc -l <<< "l($l2d_bytes_per_line)/l(
 
 l2d_associativity=${parsed_arr[2]}
 
-echo "l2d: sets="$l2d_sets", bytes per line="$l2d_bytes_per_line", associativity="$l2d_associativity
+echo "L2D: sets="$l2d_sets", bytes per line="$l2d_bytes_per_line", associativity="$l2d_associativity
 
 l2d_tag_bits=$(($ADDRESS_WIDTH-$l2d_bits_for_byte_offset-$l2d_bits_for_sets_indexing))
 echo "Bits for tag (L2D)="$l2d_tag_bits

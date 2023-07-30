@@ -668,46 +668,52 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
   m_memory_config.reg_options(opp);
   power_config::reg_options(opp);
   // gpuFI start
-  option_parser_register(opp, "-run_uid", OPT_CSTR, &run_uid, "TODO", "0");
-  option_parser_register(opp, "-profile", OPT_INT32, &profile, "TODO", "0");
-  option_parser_register(opp, "-last_cycle", OPT_INT32, &last_cycle, "TODO",
+  option_parser_register(opp, "-gpufi_run_id", OPT_CSTR, &gpufi_run_id, "TODO",
                          "0");
+  option_parser_register(opp, "-gpufi_profile", OPT_INT32, &gpufi_profile,
+                         "TODO", "0");
+  option_parser_register(opp, "-gpufi_last_cycle", OPT_INT32, &gpufi_last_cycle,
+                         "TODO", "0");
   option_parser_register(opp, "-component_to_flip", OPT_INT32,
                          &component_to_flip, "TODO", "0");
-  option_parser_register(opp, "-thread_rand", OPT_INT32, &thread_rand, "TODO",
-                         "0");
-  option_parser_register(opp, "-warp_rand", OPT_INT32, &warp_rand, "TODO", "0");
-  option_parser_register(opp, "-total_cycle_rand", OPT_INT32, &total_cycle_rand,
+  option_parser_register(opp, "-gpufi_thread_rand", OPT_INT32,
+                         &gpufi_thread_rand, "TODO", "0");
+  option_parser_register(opp, "-gpufi_warp_rand", OPT_INT32, &gpufi_warp_rand,
                          "TODO", "0");
-  option_parser_register(opp, "-register_rand_n", OPT_CSTR, &register_rand_n,
+  option_parser_register(opp, "-gpufi_total_cycle_rand", OPT_INT32,
+                         &gpufi_total_cycle_rand, "TODO", "0");
+  option_parser_register(opp, "-gpufi_register_rand_n", OPT_CSTR,
+                         &gpufi_register_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_reg_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_reg_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_per_warp", OPT_BOOL, &gpufi_per_warp,
                          "TODO", "0");
-  option_parser_register(opp, "-reg_bitflip_rand_n", OPT_CSTR,
-                         &reg_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-per_warp", OPT_BOOL, &per_warp, "TODO", "0");
-  option_parser_register(opp, "-kernel_n", OPT_CSTR, &kernel_n, "TODO", "0");
-  option_parser_register(opp, "-local_mem_bitflip_rand_n", OPT_CSTR,
-                         &local_mem_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-components_to_flip", OPT_CSTR,
-                         &components_to_flip, "TODO", "0");
-  option_parser_register(opp, "-block_n", OPT_INT32, &block_n, "TODO", "0");
-  option_parser_register(opp, "-shared_mem_bitflip_rand_n", OPT_CSTR,
-                         &shared_mem_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-block_rand", OPT_INT32, &block_rand, "TODO",
-                         "0");
-  option_parser_register(opp, "-l1d_shader_rand_n", OPT_CSTR,
-                         &l1d_shader_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l1d_cache_bitflip_rand_n", OPT_CSTR,
-                         &l1d_cache_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l1c_shader_rand_n", OPT_CSTR,
-                         &l1c_shader_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l1c_cache_bitflip_rand_n", OPT_CSTR,
-                         &l1c_cache_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l1t_shader_rand_n", OPT_CSTR,
-                         &l1t_shader_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l1t_cache_bitflip_rand_n", OPT_CSTR,
-                         &l1t_cache_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-l2_cache_bitflip_rand_n", OPT_CSTR,
-                         &l2_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_kernel_n", OPT_CSTR, &gpufi_kernel_n,
+                         "TODO", "0");
+  option_parser_register(opp, "-gpufi_local_mem_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_local_mem_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_components_to_flip", OPT_CSTR,
+                         &gpufi_components_to_flip, "TODO", "0");
+  option_parser_register(opp, "-gpufi_block_n", OPT_INT32, &gpufi_block_n,
+                         "TODO", "0");
+  option_parser_register(opp, "-gpufi_shared_mem_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_shared_mem_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_block_rand", OPT_INT32, &gpufi_block_rand,
+                         "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1d_shader_rand_n", OPT_CSTR,
+                         &gpufi_l1d_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1d_cache_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_l1d_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1c_shader_rand_n", OPT_CSTR,
+                         &gpufi_l1c_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1c_cache_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_l1c_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1t_shader_rand_n", OPT_CSTR,
+                         &gpufi_l1t_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1t_cache_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_l1t_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l2_cache_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_l2_cache_bitflip_rand_n, "TODO", "0");
   // gpuFI end
 
   option_parser_register(opp, "-gpgpu_max_cycle", OPT_INT64, &gpu_max_cycle_opt,
@@ -2119,12 +2125,14 @@ void find_active_shared_memories(
 }
 
 // Perform bitflips in registers, given a vector of threads.
-// register_rand_n and reg_bitflip_rand_n are read from gpgpusim.config
+// gpufi_register_rand_n and gpufi_reg_bitflip_rand_n are read from
+// gpgpusim.config
 void bitflip_n_nregs(std::vector<ptx_thread_info *> &threads_vector,
-                     char *register_rand_n, char *reg_bitflip_rand_n) {
+                     char *gpufi_register_rand_n,
+                     char *gpufi_reg_bitflip_rand_n) {
   std::vector<unsigned> reg_bitflip_vector, register_rand_n_vector;
-  read_colon_option(reg_bitflip_vector, reg_bitflip_rand_n);
-  read_colon_option(register_rand_n_vector, register_rand_n);
+  read_colon_option(reg_bitflip_vector, gpufi_reg_bitflip_rand_n);
+  read_colon_option(register_rand_n_vector, gpufi_register_rand_n);
 
   // For each thread
   for (std::vector<ptx_thread_info *>::iterator threads_it =
@@ -2172,9 +2180,9 @@ void bitflip_n_nregs(std::vector<ptx_thread_info *> &threads_vector,
 }
 
 void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
-                         char *local_mem_bitflip_rand_n) {
+                         char *gpufi_local_mem_bitflip_rand_n) {
   std::vector<unsigned> local_mem_bitflip_vector;
-  read_colon_option(local_mem_bitflip_vector, local_mem_bitflip_rand_n);
+  read_colon_option(local_mem_bitflip_vector, gpufi_local_mem_bitflip_rand_n);
 
   const unsigned bsize = 32U;  // BSIZE=32 for local memory
   for (std::vector<ptx_thread_info *>::iterator threads_it =
@@ -2213,15 +2221,16 @@ void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
 }
 
 void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
-                                  unsigned block_rand, unsigned block_n,
-                                  char *shared_mem_bitflip_rand_n) {
+                                  unsigned gpufi_block_rand,
+                                  unsigned gpufi_block_n,
+                                  char *gpufi_shared_mem_bitflip_rand_n) {
   std::vector<unsigned> shared_mem_bitflip_vector;
-  read_colon_option(shared_mem_bitflip_vector, shared_mem_bitflip_rand_n);
+  read_colon_option(shared_mem_bitflip_vector, gpufi_shared_mem_bitflip_rand_n);
 
   const unsigned bsize = 16 * 1024;  // BSIZE=16*1024 for shared memory
-  unsigned blk_n = block_n;
+  unsigned blk_n = gpufi_block_n;
   while (blk_n > 0 && !shared_memories.empty()) {
-    int block_idx = block_rand % shared_memories.size();
+    int block_idx = gpufi_block_rand % shared_memories.size();
     memory_space_impl<bsize> *shared_mem_to_bitflip =
         (memory_space_impl<bsize> *)shared_memories[block_idx];
     mem_map<mem_addr_t, mem_storage<bsize>> &memory_data =
@@ -2261,13 +2270,13 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
 void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
   std::vector<unsigned> l1_bitflip_vector, l1_shader_vector;
   char *l1_cache_bitflip_rand_n =
-      cache_type == L1D_CACHE   ? m_config.l1d_cache_bitflip_rand_n
-      : cache_type == L1C_CACHE ? m_config.l1c_cache_bitflip_rand_n
-                                : m_config.l1t_cache_bitflip_rand_n;
-  char *l1_shader_rand_n = cache_type == L1D_CACHE ? m_config.l1d_shader_rand_n
-                           : cache_type == L1C_CACHE
-                               ? m_config.l1c_shader_rand_n
-                               : m_config.l1t_shader_rand_n;
+      cache_type == L1D_CACHE   ? m_config.gpufi_l1d_cache_bitflip_rand_n
+      : cache_type == L1C_CACHE ? m_config.gpufi_l1c_cache_bitflip_rand_n
+                                : m_config.gpufi_l1t_cache_bitflip_rand_n;
+  char *l1_shader_rand_n =
+      cache_type == L1D_CACHE   ? m_config.gpufi_l1d_shader_rand_n
+      : cache_type == L1C_CACHE ? m_config.gpufi_l1c_shader_rand_n
+                                : m_config.gpufi_l1t_shader_rand_n;
   read_colon_option(l1_bitflip_vector, l1_cache_bitflip_rand_n);
   read_colon_option(l1_shader_vector, l1_shader_rand_n);
 
@@ -2333,7 +2342,8 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
 
     std::ofstream outfile;
     std::string file = "cache_logs/" + m_name.substr(0, m_name.size() - 4) +
-                       std::string("_") + std::string(this->m_config.run_uid);
+                       std::string("_") +
+                       std::string(this->m_config.gpufi_run_id);
     outfile.open(file, std::ios::app);  // append instead of overwrite
 
     unsigned tag_array_size_bits = 57;
@@ -2541,9 +2551,9 @@ void gpgpu_sim::cycle() {
     // gpuFI start
     unsigned long long current_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
     if (current_cycle == 1) {
-      read_colon_option(kernel_vector, m_config.kernel_n);
+      read_colon_option(kernel_vector, m_config.gpufi_kernel_n);
 
-      if (m_config.profile == 2) {
+      if (m_config.gpufi_profile == 2) {
         active_threads_sum = 0;
         FILE *file = fopen("./cycles.txt", "r");
         cycles_txt_lines = 0;
@@ -2556,7 +2566,7 @@ void gpgpu_sim::cycle() {
       }
     }
 
-    if (m_config.profile == 2) {
+    if (m_config.gpufi_profile == 2) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
           active_kernels_warps;
@@ -2571,7 +2581,7 @@ void gpgpu_sim::cycle() {
         active_threads_sum += active_threads.size();
       }
 
-    } else if (m_config.profile == 1) {
+    } else if (m_config.gpufi_profile == 1) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
           active_kernels_warps;
@@ -2635,7 +2645,7 @@ void gpgpu_sim::cycle() {
         }
       }
     } else {
-      if (current_cycle == m_config.total_cycle_rand) {
+      if (current_cycle == m_config.gpufi_total_cycle_rand) {
         printf("#### gpu_sim_cycle=%llu and gpu_tot_sim_cycle=%llu\n",
                gpu_sim_cycle, gpu_tot_sim_cycle);
         // Start measuring time
@@ -2648,7 +2658,7 @@ void gpgpu_sim::cycle() {
 
         std::vector<unsigned> components_to_flip_vector;
         read_colon_option(components_to_flip_vector,
-                          m_config.components_to_flip);
+                          m_config.gpufi_components_to_flip);
 
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
@@ -2700,12 +2710,12 @@ void gpgpu_sim::cycle() {
         std::vector<ptx_thread_info *> threads_bitflip;
 
         if (register_file || local_memory) {
-          if (m_config.per_warp) {
+          if (m_config.gpufi_per_warp) {
             find_active_warps(active_warps, active_kernels_warps,
                               kernel_vector);
             if (active_warps.size() > 0) {
               threads_bitflip =
-                  active_warps[m_config.warp_rand % active_warps.size()];
+                  active_warps[m_config.gpufi_warp_rand % active_warps.size()];
             }
           } else {
             find_active_threads(active_threads, active_kernels_warps,
@@ -2715,25 +2725,26 @@ void gpgpu_sim::cycle() {
               //              active_threads.size());
               //              g_print_memory_space(this->get_global_memory());
               threads_bitflip.push_back(
-                  active_threads[m_config.thread_rand % active_threads.size()]);
+                  active_threads[m_config.gpufi_thread_rand %
+                                 active_threads.size()]);
             }
           }
         }
 
         if (register_file) {
-          bitflip_n_nregs(threads_bitflip, m_config.register_rand_n,
-                          m_config.reg_bitflip_rand_n);
+          bitflip_n_nregs(threads_bitflip, m_config.gpufi_register_rand_n,
+                          m_config.gpufi_reg_bitflip_rand_n);
         }
         if (local_memory) {
           bitflip_n_local_mem(threads_bitflip,
-                              m_config.local_mem_bitflip_rand_n);
+                              m_config.gpufi_local_mem_bitflip_rand_n);
         }
         if (shared_memory) {
           find_active_shared_memories(shared_memories, active_kernels_warps,
                                       kernel_vector);
-          bitflip_n_shared_mem_nblocks(shared_memories, m_config.block_rand,
-                                       m_config.block_n,
-                                       m_config.shared_mem_bitflip_rand_n);
+          bitflip_n_shared_mem_nblocks(
+              shared_memories, m_config.gpufi_block_rand,
+              m_config.gpufi_block_n, m_config.gpufi_shared_mem_bitflip_rand_n);
         }
         if (l1d_cache) {
           bitflip_l1_cache(L1D_CACHE);
@@ -2747,11 +2758,11 @@ void gpgpu_sim::cycle() {
         if (l2_cache_comp) {
           std::ofstream outfile;
           std::string file =
-              "cache_logs/L2_" + std::string(this->m_config.run_uid);
+              "cache_logs/L2_" + std::string(this->m_config.gpufi_run_id);
           outfile.open(file, std::ios::app);  // append instead of overwrite
           std::vector<unsigned> l2_bitflip_vector;
           read_colon_option(l2_bitflip_vector,
-                            m_config.l2_cache_bitflip_rand_n);
+                            m_config.gpufi_l2_cache_bitflip_rand_n);
           for (int j = 0; j < l2_bitflip_vector.size(); j++) {
             // get_total_size_inKB() -> total size of L2 cache per bank
             unsigned bf_l2 = l2_bitflip_vector[j] - 1;
@@ -2815,13 +2826,13 @@ void gpgpu_sim::cycle() {
     }
 
     // print profiling information on last cycle
-    if (current_cycle == m_config.last_cycle - 1) {
-      if (m_config.profile == 2) {
+    if (current_cycle == m_config.gpufi_last_cycle - 1) {
+      if (m_config.gpufi_profile == 2) {
         if (cycles_txt_lines > 0) {
           printf("Mean active threads = %d\n",
                  active_threads_sum / cycles_txt_lines);
         }
-      } else if (m_config.profile == 1) {
+      } else if (m_config.gpufi_profile == 1) {
         for (std::map<char *, unsigned>::iterator itREG =
                  max_active_regs.begin();
              itREG != max_active_regs.end(); ++itREG) {

@@ -430,30 +430,30 @@ class gpgpu_sim_config : public power_config,
 
   // gpuFI start
   // GPGPU custom options
-  char *run_uid;
-  unsigned profile;
-  unsigned last_cycle;
+  char *gpufi_run_id;
+  unsigned gpufi_profile;
+  unsigned gpufi_last_cycle;
 
   unsigned component_to_flip;
-  unsigned thread_rand;
-  unsigned warp_rand;
-  unsigned total_cycle_rand;
-  char *register_rand_n;
-  char *reg_bitflip_rand_n;
-  bool per_warp;
-  char *kernel_n;
-  char *local_mem_bitflip_rand_n;
-  char *components_to_flip;
-  unsigned block_rand;
-  unsigned block_n;
-  char *shared_mem_bitflip_rand_n;
-  char *l1d_shader_rand_n;
-  char *l1d_cache_bitflip_rand_n;
-  char *l1c_shader_rand_n;
-  char *l1c_cache_bitflip_rand_n;
-  char *l1t_shader_rand_n;
-  char *l1t_cache_bitflip_rand_n;
-  char *l2_cache_bitflip_rand_n;
+  unsigned gpufi_thread_rand;
+  unsigned gpufi_warp_rand;
+  unsigned gpufi_total_cycle_rand;
+  char *gpufi_register_rand_n;
+  char *gpufi_reg_bitflip_rand_n;
+  bool gpufi_per_warp;
+  char *gpufi_kernel_n;
+  char *gpufi_local_mem_bitflip_rand_n;
+  char *gpufi_components_to_flip;
+  unsigned gpufi_block_rand;
+  unsigned gpufi_block_n;
+  char *gpufi_shared_mem_bitflip_rand_n;
+  char *gpufi_l1d_shader_rand_n;
+  char *gpufi_l1d_cache_bitflip_rand_n;
+  char *gpufi_l1c_shader_rand_n;
+  char *gpufi_l1c_cache_bitflip_rand_n;
+  char *gpufi_l1t_shader_rand_n;
+  char *gpufi_l1t_cache_bitflip_rand_n;
+  char *gpufi_l2_cache_bitflip_rand_n;
   // gpuFI end
 
   // GPGPU-Sim timing model options

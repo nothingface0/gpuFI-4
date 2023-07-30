@@ -24,11 +24,11 @@ DELETE_LOGS=0 # if 1 then all logs will be deleted at the end of the script
 source calculate_cache_sizes.sh
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
-# ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+profile=1) ----------------------------------------------
+# ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ----------------------------------------------
 CUDA_UUT="./srad 2 0.5 128 128"
 # total cycles for all kernels
 CYCLES=49799
-# Get the exact cycles, max registers and SIMT cores used for each kernel with profile=1 
+# Get the exact cycles, max registers and SIMT cores used for each kernel with gpufi_profile=1 
 # fix cycles.txt with kernel execution cycles
 # (e.g. seq 1 10 >> cycles.txt, or multiple seq commands if a kernel has multiple executions)
 # use the following command from profiling execution for easier creation of cycles.txt file
@@ -45,7 +45,7 @@ DATATYPE_SIZE=32
 # if 0 put a random value > 0
 LMEM_SIZE_BITS=10
 SMEM_SIZE_BITS=1024
-# ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+profile=1) ------------------------------------------------
+# ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ------------------------------------------------
 
 FAULT_INJECTION_OCCURRED="Fault injection"
 CYCLES_MSG="gpu_tot_sim_cycle ="
@@ -55,77 +55,77 @@ performance=0
 SDC=0
 crashes=0
 
-# ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (profile=0) ----------------------------------------------
+# ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ----------------------------------------------
 # 0: perform injection campaign, 1: get cycles of each kernel, 2: get mean value of active threads, during all cycles in CYCLES_FILE, per SM,
 # 3: single fault-free execution
-profile=0
-# 0:RF, 1:local_mem, 2:shared_mem, 3:L1D_cache, 4:L1C_cache, 5:L1T_cache, 6:L2_cache (e.g. components_to_flip=0:1 for both RF and local_mem)
-components_to_flip=0
+gpufi_profile=0
+# 0:RF, 1:local_mem, 2:shared_mem, 3:L1D_cache, 4:L1C_cache, 5:L1T_cache, 6:L2_cache (e.g. gpufi_components_to_flip=0:1 for both RF and local_mem)
+gpufi_components_to_flip=0
 # 1: per warp bit flip, 0: per thread bit flip
-per_warp=0
+gpufi_per_warp=0
 # in which kernels to inject the fault. e.g. 0: for all running kernels, 1: for kernel 1, 1:2 for kernel 1 & 2 
-kernel_n=0
+gpufi_kernel_n=0
 # in how many blocks (smems) to inject the bit flip
 blocks=1
 
 initialize_config() {
-    # random number for choosing a random thread after thread_rand % #threads operation in gpgpu-sim
-    thread_rand=$(shuf -i 0-6000 -n 1)
-    # random number for choosing a random warp after warp_rand % #warp operation in gpgpu-sim
-    warp_rand=$(shuf -i 0-6000 -n 1)
+    # random number for choosing a random thread after gpufi_thread_rand % #threads operation in gpgpu-sim
+    gpufi_thread_rand=$(shuf -i 0-6000 -n 1)
+    # random number for choosing a random warp after gpufi_warp_rand % #warp operation in gpgpu-sim
+    gpufi_warp_rand=$(shuf -i 0-6000 -n 1)
     # random cycle for fault injection
-    total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
-    if [[ "$profile" -eq 3 ]]; then
-        total_cycle_rand=-1
+    gpufi_total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
+    if [[ "$gpufi_profile" -eq 3 ]]; then
+        gpufi_total_cycle_rand=-1
     fi
     # in which registers to inject the bit flip
-    register_rand_n="$(shuf -i 1-${MAX_REGISTERS_USED} -n 1)"; register_rand_n="${register_rand_n//$'\n'/:}"
+    gpufi_register_rand_n="$(shuf -i 1-${MAX_REGISTERS_USED} -n 1)"; gpufi_register_rand_n="${gpufi_register_rand_n//$'\n'/:}"
     # example: if -i 1-32 -n 2 then the two commands below will create a value with 2 random numbers, between [1,32] like 3:21. Meaning it will flip 3 and 21 bits.
-    reg_bitflip_rand_n="$(shuf -i 1-${DATATYPE_SIZE} -n 1)"; reg_bitflip_rand_n="${reg_bitflip_rand_n//$'\n'/:}"
-    # same format like reg_bitflip_rand_n but for local memory bit flips
-    local_mem_bitflip_rand_n="$(shuf -i 1-${LMEM_SIZE_BITS} -n 3)"; local_mem_bitflip_rand_n="${local_mem_bitflip_rand_n//$'\n'/:}"
-    # random number for choosing a random block after block_rand % #smems operation in gpgpu-sim
-    block_rand=$(shuf -i 0-6000 -n 1)
-    # same format like reg_bitflip_rand_n but for shared memory bit flips
-    shared_mem_bitflip_rand_n="$(shuf -i 1-${SMEM_SIZE_BITS} -n 1)"; shared_mem_bitflip_rand_n="${shared_mem_bitflip_rand_n//$'\n'/:}"
+    gpufi_reg_bitflip_rand_n="$(shuf -i 1-${DATATYPE_SIZE} -n 1)"; gpufi_reg_bitflip_rand_n="${gpufi_reg_bitflip_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for local memory bit flips
+    gpufi_local_mem_bitflip_rand_n="$(shuf -i 1-${LMEM_SIZE_BITS} -n 3)"; gpufi_local_mem_bitflip_rand_n="${gpufi_local_mem_bitflip_rand_n//$'\n'/:}"
+    # random number for choosing a random block after gpufi_block_rand % #smems operation in gpgpu-sim
+    gpufi_block_rand=$(shuf -i 0-6000 -n 1)
+    # same format like gpufi_reg_bitflip_rand_n but for shared memory bit flips
+    gpufi_shared_mem_bitflip_rand_n="$(shuf -i 1-${SMEM_SIZE_BITS} -n 1)"; gpufi_shared_mem_bitflip_rand_n="${gpufi_shared_mem_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 data cache fault injections 
-    l1d_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; l1d_shader_rand_n="${l1d_shader_rand_n//$'\n'/:}"
-    # same format like reg_bitflip_rand_n but for L1 data cache bit flips
-    l1d_cache_bitflip_rand_n="$(shuf -i 1-${L1D_SIZE_BITS} -n 1)"; l1d_cache_bitflip_rand_n="${l1d_cache_bitflip_rand_n//$'\n'/:}"
+    gpufi_l1d_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; gpufi_l1d_shader_rand_n="${gpufi_l1d_shader_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for L1 data cache bit flips
+    gpufi_l1d_cache_bitflip_rand_n="$(shuf -i 1-${L1D_SIZE_BITS} -n 1)"; gpufi_l1d_cache_bitflip_rand_n="${gpufi_l1d_cache_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 constant cache fault injections 
-    l1c_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; l1c_shader_rand_n="${l1c_shader_rand_n//$'\n'/:}"
-    # same format like reg_bitflip_rand_n but for L1 constant cache bit flips
-    l1c_cache_bitflip_rand_n="$(shuf -i 1-${L1C_SIZE_BITS} -n 1)"; l1c_cache_bitflip_rand_n="${l1c_cache_bitflip_rand_n//$'\n'/:}"
+    gpufi_l1c_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; gpufi_l1c_shader_rand_n="${gpufi_l1c_shader_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for L1 constant cache bit flips
+    gpufi_l1c_cache_bitflip_rand_n="$(shuf -i 1-${L1C_SIZE_BITS} -n 1)"; gpufi_l1c_cache_bitflip_rand_n="${gpufi_l1c_cache_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 texture cache fault injections 
-    l1t_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; l1t_shader_rand_n="${l1t_shader_rand_n//$'\n'/:}"
-    # same format like reg_bitflip_rand_n but for L1 texture cache bit flips
-    l1t_cache_bitflip_rand_n="$(shuf -i 1-${L1T_SIZE_BITS} -n 1)"; l1t_cache_bitflip_rand_n="${l1t_cache_bitflip_rand_n//$'\n'/:}"
-    # same format like reg_bitflip_rand_n but for L2 cache bit flips
-    l2_cache_bitflip_rand_n="$(shuf -i 1-${L2_SIZE_BITS} -n 1)"; l2_cache_bitflip_rand_n="${l2_cache_bitflip_rand_n//$'\n'/:}"
-# ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (profile=0) ------------------------------------------------
+    gpufi_l1t_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; gpufi_l1t_shader_rand_n="${gpufi_l1t_shader_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for L1 texture cache bit flips
+    gpufi_l1t_cache_bitflip_rand_n="$(shuf -i 1-${L1T_SIZE_BITS} -n 1)"; gpufi_l1t_cache_bitflip_rand_n="${gpufi_l1t_cache_bitflip_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for L2 cache bit flips
+    gpufi_l2_cache_bitflip_rand_n="$(shuf -i 1-${L2_SIZE_BITS} -n 1)"; gpufi_l2_cache_bitflip_rand_n="${gpufi_l2_cache_bitflip_rand_n//$'\n'/:}"
+# ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ------------------------------------------------
 
-    sed -i -e "s/^-components_to_flip.*$/-components_to_flip ${components_to_flip}/" ${CONFIG_FILE}
-    sed -i -e "s/^-profile.*$/-profile ${profile}/" ${CONFIG_FILE}
-    sed -i -e "s/^-last_cycle.*$/-last_cycle ${CYCLES}/" ${CONFIG_FILE}
-    sed -i -e "s/^-thread_rand.*$/-thread_rand ${thread_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-warp_rand.*$/-warp_rand ${warp_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-total_cycle_rand.*$/-total_cycle_rand ${total_cycle_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-register_rand_n.*$/-register_rand_n ${register_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-reg_bitflip_rand_n.*$/-reg_bitflip_rand_n ${reg_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-per_warp.*$/-per_warp ${per_warp}/" ${CONFIG_FILE}
-    sed -i -e "s/^-kernel_n.*$/-kernel_n ${kernel_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-local_mem_bitflip_rand_n.*$/-local_mem_bitflip_rand_n ${local_mem_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-block_rand.*$/-block_rand ${block_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-block_n.*$/-block_n ${blocks}/" ${CONFIG_FILE}
-    sed -i -e "s/^-shared_mem_bitflip_rand_n.*$/-shared_mem_bitflip_rand_n ${shared_mem_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${gpufi_components_to_flip}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${gpufi_profile}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${CYCLES}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${gpufi_per_warp}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${gpufi_kernel_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${blocks}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-shader_rand_n.*$/-shader_rand_n ${shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1d_shader_rand_n.*$/-l1d_shader_rand_n ${l1d_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1d_cache_bitflip_rand_n.*$/-l1d_cache_bitflip_rand_n ${l1d_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1c_shader_rand_n.*$/-l1c_shader_rand_n ${l1c_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1c_cache_bitflip_rand_n.*$/-l1c_cache_bitflip_rand_n ${l1c_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1t_shader_rand_n.*$/-l1t_shader_rand_n ${l1t_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l1t_cache_bitflip_rand_n.*$/-l1t_cache_bitflip_rand_n ${l1t_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-l2_cache_bitflip_rand_n.*$/-l2_cache_bitflip_rand_n ${l2_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${CONFIG_FILE}
 }
 
 gather_results() {
@@ -164,7 +164,7 @@ parallel_execution() {
     for i in $( seq 1 $batch ); do
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
-        sed -i -e "s/^-run_uid.*$/-run_uid r${2}b${i}/" ${CONFIG_FILE}
+        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${CONFIG_FILE}
         cp ${CONFIG_FILE} ${TMP_DIR}${2}/${CONFIG_FILE}${i} # save state
         timeout ${TIMEOUT_VAL} $CUDA_UUT > ${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
     done
@@ -174,14 +174,14 @@ parallel_execution() {
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt > /dev/null 2>&1
         rm -r ${TMP_DIR}${2} > /dev/null 2>&1 # comment out to debug output
     fi
-    if [[ "$profile" -ne 1 ]]; then
-        # clean intermediate logs anyway if profile != 1
+    if [[ "$gpufi_profile" -ne 1 ]]; then
+        # clean intermediate logs anyway if gpufi_profile != 1
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt > /dev/null 2>&1
     fi
 }
 
 main() {
-    if [[ "$profile" -eq 1 ]] || [[ "$profile" -eq 2 ]] || [[ "$profile" -eq 3 ]]; then
+    if [[ "$gpufi_profile" -eq 1 ]] || [[ "$gpufi_profile" -eq 2 ]] || [[ "$gpufi_profile" -eq 3 ]]; then
         RUNS=1
     fi
     # MAX_RETRIES to avoid flooding the system storage with logs infinitely if the user

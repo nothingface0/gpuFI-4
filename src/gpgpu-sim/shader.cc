@@ -985,8 +985,22 @@ void shader_core_ctx::fetch() {
           pc = m_warp[warp_id]->get_pc();
           address_type ppc = pc + PROGRAM_MEM_START;
           unsigned nbytes = 16;       // ???
-          unsigned offset_in_block =  // ???
+          unsigned offset_in_block =  // TODO: See how this calculation works
               pc & (m_config->m_L1I_config.get_line_sz() - 1);
+
+          // Make sure that the bytes we ask to be stored at offset, do not
+          // exceed the max size of the line.
+          // E.g. for offset = 120, we cannot as for for 16 bytes, as they could
+          // not be stored in the same line. Asking for 16 bytes on index 120
+          // end up outside the 128 byte line size. In this case, we are
+          // requesting the max possible, i.e. 8
+
+          // +-----------+------+-----+-----+-----+-----+---+
+          // | Line idx  | ...  | 120 | ... | 126 | 127 | x |
+          // +-----------+------+-----+-----+-----+-----+---+
+          // | Bytes req | ...  |   1 | ... |   7 |   8 | 9 |
+          // +-----------+------+-----+-----+-----+-----+---+
+
           if ((offset_in_block + nbytes) > m_config->m_L1I_config.get_line_sz())
             nbytes = (m_config->m_L1I_config.get_line_sz() - offset_in_block);
 

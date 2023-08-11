@@ -2346,32 +2346,42 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
                        std::string(this->m_config.gpufi_run_id);
     outfile.open(file, std::ios::app);  // append instead of overwrite
 
+    // Bit size of tag + offset, per cache line
     unsigned tag_array_size_bits = 57;
 
     // For each position in the L1 cache to bitflip (read from config)
     for (int j = 0; j < l1_bitflip_vector.size(); j++) {
-      unsigned bf_l1 = l1_bitflip_vector[j] - 1;  // Position in L1
+      // Absolute bit position in linear address space of L1 (incl. tag +
+      // index bits)
+      unsigned bf_l1 = l1_bitflip_vector[j] - 1;
+
+      // Total size of cache line (incl. tag + index)
       unsigned l1_line_sz_extra_bits =
           m_config.get_line_sz() * 8 + tag_array_size_bits;
+
+      // find which line the bitflip should be done in
       unsigned bf_line_idx = bf_l1 / l1_line_sz_extra_bits;
+
+      // Bit offset of bit to flip in cache line, incl. tag bits
       unsigned bf_line_sz_bits_extra_idx =
           bf_l1 - bf_line_idx * l1_line_sz_extra_bits;
 
       // L1D: sector cache block, L1C & L1T: line cache block
-      // ????
       cache_block_t *line = m_tag_array->m_lines[bf_line_idx];
       outfile << m_name.c_str() << ", line " << bf_line_idx << ", bf "
               << bf_l1 + 1 << std::endl;
 
-      // bf on tag array
+      // If bit position falls in tag/index area
       if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
+        // Find bit position in variable storing the tag (unsigned long long ->
+        // 64 bits). TODO: Shouldn't 63 be 56?
         unsigned bf_tag = 63 - bf_line_sz_bits_extra_idx;
         printf("Tag before = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
         line->m_tag ^= 1UL << bf_tag;
         printf("Tag after = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
         continue;
       }
-
+      // L1D is sectored (4*32 bytes), check each sector if valid data
       bool is_valid_line = false;
       if (cache_type == L1D_CACHE) {
         for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
@@ -2383,7 +2393,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       } else {
         is_valid_line = line->is_valid_line();
       }
-
+      // Bit offset of bit to flip in cache line, excl. tag bits
       unsigned l1_line_sz_data_bits_idx =
           bf_line_sz_bits_extra_idx - tag_array_size_bits;
       if (is_valid_line) {

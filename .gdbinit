@@ -7,8 +7,32 @@ set print pretty
 set print array-indexes
 set unwindonsignal on
 
+# Get current GPU cycle
+define get_current_cycle
+	print GPGPU_Context()->the_gpgpusim->g_the_gpu->gpu_sim_cycle + GPGPU_Context()->the_gpgpusim->g_the_gpu->gpu_tot_sim_cycle
+end
+
+# Given a cluster-core, returns the current PC it's at
+define get_next_pc_and_inst_decode
+	if GPGPU_Context()->the_gpgpusim->g_the_gpu->m_cluster[$arg0]->m_core[$arg1].m_inst_fetch_buffer.m_valid
+		print GPGPU_Context()->the_gpgpusim->g_the_gpu->m_cluster[$arg0]->m_core[$arg1].m_inst_fetch_buffer.m_pc
+	else
+		print -1
+	end
+end
+
+# Given a cluster-core-warp and the slot, returns the current inst
+define get_current_inst_issue
+	if GPGPU_Context()->the_gpgpusim->g_the_gpu->m_cluster[$arg0]->m_core[$arg1]->m_warp[$arg2].m_ibuffer[$arg3].m_valid
+		call GPGPU_Context()->the_gpgpusim->g_the_gpu->m_cluster[$arg0]->m_core[$arg1]->m_warp[$arg2].ibuffer_next_inst()
+	else
+		print -1
+	end
+end
+
+
 define dp
-        call GPGPU_Context()->the_gpgpusim->g_the_gpu->dump_pipeline((0x40|0x4|0x1),$arg0,0)
+    call GPGPU_Context()->the_gpgpusim->g_the_gpu->dump_pipeline((0x40|0x4|0x1),$arg0,0)
 end
 
 document dp

@@ -1,0 +1,283 @@
+[
+  {
+    "location": "/src/cuda-sim/cuda-sim.cc",
+    "line": [
+      {
+        "line": 271,
+        "character": 0
+      },
+      {
+        "line": 271,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/cuda-sim/cuda-sim.cc",
+    "line": [
+      {
+        "line": 1763,
+        "character": 0
+      },
+      {
+        "line": 1763,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-cache.cc",
+    "line": [
+      {
+        "line": 317,
+        "character": 0
+      },
+      {
+        "line": 317,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-cache.cc",
+    "line": [
+      {
+        "line": 565,
+        "character": 0
+      },
+      {
+        "line": 565,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-sim.cc",
+    "line": [
+      {
+        "line": 2352,
+        "character": 0
+      },
+      {
+        "line": 2352,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-sim.cc",
+    "line": [
+      {
+        "line": 2519,
+        "character": 0
+      },
+      {
+        "line": 2519,
+        "character": 0
+      }
+    ],
+    "enabled": false,
+    "condition": "m_cluster->m_core[0]->m_L1I->access_ready() == true"
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-sim.cc",
+    "line": [
+      {
+        "line": 2658,
+        "character": 0
+      },
+      {
+        "line": 2658,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/cuda-sim/instructions.cc",
+    "line": [
+      {
+        "line": 4085,
+        "character": 0
+      },
+      {
+        "line": 4085,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/cuda-sim/instructions.cc",
+    "line": [
+      {
+        "line": 4909,
+        "character": 0
+      },
+      {
+        "line": 4909,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader_trace.h",
+    "line": [
+      {
+        "line": 46,
+        "character": 0
+      },
+      {
+        "line": 46,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 888,
+        "character": 0
+      },
+      {
+        "line": 888,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 984,
+        "character": 0
+      },
+      {
+        "line": 984,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 1266,
+        "character": 0
+      },
+      {
+        "line": 1266,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 4564,
+        "character": 0
+      },
+      {
+        "line": 4564,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/cuda-sim/cuda-sim.cc",
+    "line": [
+      {
+        "line": 341,
+        "character": 0
+      },
+      {
+        "line": 341,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-sim.cc",
+    "line": [
+      {
+        "line": 2456,
+        "character": 0
+      },
+      {
+        "line": 2456,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 4545,
+        "character": 0
+      },
+      {
+        "line": 4545,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 4567,
+        "character": 0
+      },
+      {
+        "line": 4567,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/l2cache.cc",
+    "line": [
+      {
+        "line": 255,
+        "character": 0
+      },
+      {
+        "line": 255,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/l2cache.cc",
+    "line": [
+      {
+        "line": 250,
+        "character": 0
+      },
+      {
+        "line": 250,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  }
+]

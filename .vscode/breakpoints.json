@@ -17,6 +17,20 @@
     "location": "/src/cuda-sim/cuda-sim.cc",
     "line": [
       {
+        "line": 341,
+        "character": 0
+      },
+      {
+        "line": 341,
+        "character": 0
+      }
+    ],
+    "enabled": false
+  },
+  {
+    "location": "/src/cuda-sim/cuda-sim.cc",
+    "line": [
+      {
         "line": 1763,
         "character": 0
       },
@@ -68,6 +82,20 @@
       }
     ],
     "enabled": false
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-sim.cc",
+    "line": [
+      {
+        "line": 2456,
+        "character": 0
+      },
+      {
+        "line": 2456,
+        "character": 0
+      }
+    ],
+    "enabled": true
   },
   {
     "location": "/src/gpgpu-sim/gpu-sim.cc",
@@ -127,14 +155,28 @@
     "enabled": true
   },
   {
-    "location": "/src/gpgpu-sim/shader_trace.h",
+    "location": "/src/gpgpu-sim/l2cache.cc",
     "line": [
       {
-        "line": 46,
+        "line": 250,
         "character": 0
       },
       {
-        "line": 46,
+        "line": 250,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/l2cache.cc",
+    "line": [
+      {
+        "line": 255,
+        "character": 0
+      },
+      {
+        "line": 255,
         "character": 0
       }
     ],
@@ -152,7 +194,7 @@
         "character": 0
       }
     ],
-    "enabled": false
+    "enabled": true
   },
   {
     "location": "/src/gpgpu-sim/shader.cc",
@@ -186,95 +228,95 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 4564,
+        "line": 4545,
         "character": 0
       },
       {
-        "line": 4564,
+        "line": 4545,
         "character": 0
       }
     ],
-    "enabled": false
+    "enabled": true
   },
   {
-    "location": "/src/cuda-sim/cuda-sim.cc",
+    "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 341,
+        "line": 4567,
         "character": 0
       },
       {
-        "line": 341,
+        "line": 4567,
         "character": 0
       }
     ],
-    "enabled": false
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 925,
+        "character": 0
+      },
+      {
+        "line": 925,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 941,
+        "character": 0
+      },
+      {
+        "line": 941,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/gpu-cache.cc",
+    "line": [
+      {
+        "line": 1061,
+        "character": 0
+      },
+      {
+        "line": 1061,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 4473,
+        "character": 0
+      },
+      {
+        "line": 4473,
+        "character": 0
+      }
+    ],
+    "enabled": true
   },
   {
     "location": "/src/gpgpu-sim/gpu-sim.cc",
     "line": [
       {
-        "line": 2456,
+        "line": 2510,
         "character": 0
       },
       {
-        "line": 2456,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 4545,
-        "character": 0
-      },
-      {
-        "line": 4545,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 4567,
-        "character": 0
-      },
-      {
-        "line": 4567,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/l2cache.cc",
-    "line": [
-      {
-        "line": 255,
-        "character": 0
-      },
-      {
-        "line": 255,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/l2cache.cc",
-    "line": [
-      {
-        "line": 250,
-        "character": 0
-      },
-      {
-        "line": 250,
+        "line": 2510,
         "character": 0
       }
     ],

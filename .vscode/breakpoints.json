@@ -70,6 +70,20 @@
     "enabled": false
   },
   {
+    "location": "/src/gpgpu-sim/gpu-cache.cc",
+    "line": [
+      {
+        "line": 1061,
+        "character": 0
+      },
+      {
+        "line": 1061,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
     "location": "/src/gpgpu-sim/gpu-sim.cc",
     "line": [
       {
@@ -158,11 +172,11 @@
     "location": "/src/gpgpu-sim/l2cache.cc",
     "line": [
       {
-        "line": 250,
+        "line": 251,
         "character": 0
       },
       {
-        "line": 250,
+        "line": 251,
         "character": 0
       }
     ],
@@ -172,11 +186,39 @@
     "location": "/src/gpgpu-sim/l2cache.cc",
     "line": [
       {
-        "line": 255,
+        "line": 257,
         "character": 0
       },
       {
-        "line": 255,
+        "line": 257,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/l2cache.cc",
+    "line": [
+      {
+        "line": 785,
+        "character": 0
+      },
+      {
+        "line": 785,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/l2cache.cc",
+    "line": [
+      {
+        "line": 791,
+        "character": 0
+      },
+      {
+        "line": 791,
         "character": 0
       }
     ],
@@ -191,6 +233,34 @@
       },
       {
         "line": 888,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 925,
+        "character": 0
+      },
+      {
+        "line": 925,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
+        "line": 941,
+        "character": 0
+      },
+      {
+        "line": 941,
         "character": 0
       }
     ],
@@ -228,6 +298,20 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
+        "line": 4473,
+        "character": 0
+      },
+      {
+        "line": 4473,
+        "character": 0
+      }
+    ],
+    "enabled": true
+  },
+  {
+    "location": "/src/gpgpu-sim/shader.cc",
+    "line": [
+      {
         "line": 4545,
         "character": 0
       },
@@ -247,76 +331,6 @@
       },
       {
         "line": 4567,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 925,
-        "character": 0
-      },
-      {
-        "line": 925,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 941,
-        "character": 0
-      },
-      {
-        "line": 941,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-cache.cc",
-    "line": [
-      {
-        "line": 1061,
-        "character": 0
-      },
-      {
-        "line": 1061,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 4473,
-        "character": 0
-      },
-      {
-        "line": 4473,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-sim.cc",
-    "line": [
-      {
-        "line": 2510,
-        "character": 0
-      },
-      {
-        "line": 2510,
         "character": 0
       }
     ],

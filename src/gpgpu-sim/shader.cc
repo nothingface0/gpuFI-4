@@ -922,7 +922,7 @@ void shader_core_ctx::fetch() {
   // Make sure that the register between fetch & decode contains
   // no valid fetched instructions already, i.e. decode stage is not stalled.
   if (!m_inst_fetch_buffer.m_valid) {
-    if (m_L1I->access_ready()) {
+    if (m_L1I->access_ready()) {  // Data has arrived to L1I
       mem_fetch *mf = m_L1I->next_access();
       m_warp[mf->get_wid()]->clear_imiss_pending();
       m_inst_fetch_buffer =
@@ -938,7 +938,7 @@ void shader_core_ctx::fetch() {
       m_inst_fetch_buffer.m_valid = true;
       m_warp[mf->get_wid()]->set_last_fetch(m_gpu->gpu_sim_cycle);
       delete mf;
-    } else {
+    } else {  // Generate requests to L1I
       // find an active warp with space in instruction buffer that is not
       // already waiting on a cache miss and get next 1-2 instructions from
       // i-cache...

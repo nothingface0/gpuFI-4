@@ -1970,44 +1970,52 @@ unsigned active_threads_sum;
 unsigned cycles_txt_lines;
 std::vector<unsigned> cycles_txt;
 
+/*
+gpuFI: Function that checks all warps on all SIMT cores for active threads,
+storing them in the active_threads_map, where the key is the kernel id, and the
+value is a 2D vector indexed by core and thread id.
+*/
 void find_active_kernels_warps(
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
         &active_threads_map,
     const shader_core_config *m_shader_config,
     class simt_core_cluster **m_cluster) {
+  // Iterate over all clusters
   for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
        cluster_idx++) {
     simt_core_cluster *simt_core_cluster = m_cluster[cluster_idx];
+    // Iterate over all of the cluster's SIMT cores
     for (unsigned shd_core_idx = 0;
          shd_core_idx <
          simt_core_cluster->get_config()->n_simt_cores_per_cluster;
          shd_core_idx++) {
       shader_core_ctx *shader_core_ctx =
           (simt_core_cluster->get_core())[shd_core_idx];
+      // We're only interested in cores that are currently active.
       if (shader_core_ctx->get_not_completed()) {
-        //        printf("shader idx=%u on cluster=%u with warp size=%u\n",
-        //        shd_core_idx, cluster_idx, shader_core_ctx->get_warp_size());
+        //  printf("shader idx=%u on cluster=%u with warp size=%u\n",
+        //  shd_core_idx, cluster_idx, shader_core_ctx->get_warp_size());
         kernel_info_t *k = shader_core_ctx->get_kernel();
         if (kernel_name.find(k->get_uid()) == kernel_name.end()) {
           char *kernel_name_cpy = new char[strlen(k->name().c_str()) + 1];
           strcpy(kernel_name_cpy, k->name().c_str());
           kernel_name[k->get_uid()] = kernel_name_cpy;
         }
-        //        printf("HMMMMM Shader %u bind to kernel %u \'%s\'\n",
-        //        shader_core_ctx->get_sid(), k->get_uid(), k->name().c_str());
-        //        std::vector<std::vector<ptx_thread_info*>>
-        //        warp_threads_vector;
+        //  printf("HMMMMM Shader %u bind to kernel %u \'%s\'\n",
+        //  shader_core_ctx->get_sid(), k->get_uid(), k->name().c_str());
+        //  std::vector<std::vector<ptx_thread_info*>>
+        //  warp_threads_vector;
         for (unsigned warp_idx = 0;
              warp_idx < simt_core_cluster->get_config()->max_warps_per_shader;
              warp_idx++) {
           shd_warp_t *shd_warp = (shader_core_ctx->get_warp())[warp_idx];
           if (!shd_warp->done_exit()) {
-            //              printf("warp id =%u\n", shd_warp->get_warp_id());
+            //  printf("warp id =%u\n", shd_warp->get_warp_id());
             unsigned m_warp_id = shd_warp->get_warp_id();
             unsigned m_warp_size = shd_warp->get_warp_size();
-            //            printf("shader idx=%u on cluster=%u with warp
-            //            size=%u\n", shd_core_idx, cluster_idx,
-            //            shd_warp->get_warp_size());
+            //  printf("shader idx=%u on cluster=%u with warp
+            //  size=%u\n", shd_core_idx, cluster_idx,
+            //  shd_warp->get_warp_size());
             std::vector<ptx_thread_info *> threads_vector;
             for (unsigned thread_shd_idx = m_warp_id * m_warp_size;
                  thread_shd_idx < (m_warp_id + 1) * m_warp_size;
@@ -2015,11 +2023,11 @@ void find_active_kernels_warps(
               ptx_thread_info *ptx_thread_info =
                   (shader_core_ctx->get_thread_info())[thread_shd_idx];
               if (ptx_thread_info != NULL && !ptx_thread_info->is_done()) {
-                //                printf("m_warp_id=%u\n",m_warp_id);
+                //  printf("m_warp_id=%u\n",m_warp_id);
                 threads_vector.push_back(ptx_thread_info);
               }
             }
-            //            warp_threads_vector.push_back(threads_vector);
+            //  warp_threads_vector.push_back(threads_vector);
             if (threads_vector.size() > 0) {
               std::vector<std::vector<ptx_thread_info *>> &temp =
                   active_threads_map[k->get_uid()];
@@ -2027,7 +2035,7 @@ void find_active_kernels_warps(
             }
           }
         }
-        //        active_threads_map[k->get_uid()] = warp_threads_vector;
+        //  active_threads_map[k->get_uid()] = warp_threads_vector;
       }
     }
   }
@@ -2662,9 +2670,11 @@ void gpgpu_sim::cycle() {
         struct timeval begin, end;
         gettimeofday(&begin, 0);
 
-        bool register_file = false, local_memory = false, shared_memory = false,
-             l1d_cache = false, l1c_cache = false, l1t_cache = false,
-             l2_cache_comp = false;
+        // Flags that control which component we are going to flip
+        bool inject_register_file = false, inject_local_memory = false,
+             inject_shared_memory = false, inject_l1d_cache = false,
+             inject_l1c_cache = false, inject_l1t_cache = false,
+             inject_l2_cache_comp = false, inject_l1i_cache = false;
 
         std::vector<unsigned> components_to_flip_vector;
         read_colon_option(components_to_flip_vector,
@@ -2673,37 +2683,42 @@ void gpgpu_sim::cycle() {
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       0) != components_to_flip_vector.end()) {
-          register_file = true;
+          inject_register_file = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       1) != components_to_flip_vector.end()) {
-          local_memory = true;
+          inject_local_memory = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       2) != components_to_flip_vector.end()) {
-          shared_memory = true;
+          inject_shared_memory = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       3) != components_to_flip_vector.end()) {
-          l1d_cache = true;
+          inject_l1d_cache = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       4) != components_to_flip_vector.end()) {
-          l1c_cache = true;
+          inject_l1c_cache = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       5) != components_to_flip_vector.end()) {
-          l1t_cache = true;
+          inject_l1t_cache = true;
         }
         if (std::find(components_to_flip_vector.begin(),
                       components_to_flip_vector.end(),
                       6) != components_to_flip_vector.end()) {
-          l2_cache_comp = true;
+          inject_l2_cache_comp = true;
+        }
+        if (std::find(components_to_flip_vector.begin(),
+                      components_to_flip_vector.end(),
+                      7) != components_to_flip_vector.end()) {
+          inject_l1i_cache = true;
         }
 
         // key: kernel_id (index starts from 1)
@@ -2719,7 +2734,7 @@ void gpgpu_sim::cycle() {
 
         std::vector<ptx_thread_info *> threads_bitflip;
 
-        if (register_file || local_memory) {
+        if (inject_register_file || inject_local_memory) {
           if (m_config.gpufi_per_warp) {
             find_active_warps(active_warps, active_kernels_warps,
                               kernel_vector);
@@ -2741,31 +2756,31 @@ void gpgpu_sim::cycle() {
           }
         }
 
-        if (register_file) {
+        if (inject_register_file) {
           bitflip_n_nregs(threads_bitflip, m_config.gpufi_register_rand_n,
                           m_config.gpufi_reg_bitflip_rand_n);
         }
-        if (local_memory) {
+        if (inject_local_memory) {
           bitflip_n_local_mem(threads_bitflip,
                               m_config.gpufi_local_mem_bitflip_rand_n);
         }
-        if (shared_memory) {
+        if (inject_shared_memory) {
           find_active_shared_memories(shared_memories, active_kernels_warps,
                                       kernel_vector);
           bitflip_n_shared_mem_nblocks(
               shared_memories, m_config.gpufi_block_rand,
               m_config.gpufi_block_n, m_config.gpufi_shared_mem_bitflip_rand_n);
         }
-        if (l1d_cache) {
+        if (inject_l1d_cache) {
           bitflip_l1_cache(L1D_CACHE);
         }
-        if (l1c_cache) {
+        if (inject_l1c_cache) {
           bitflip_l1_cache(L1C_CACHE);
         }
-        if (l1t_cache) {
+        if (inject_l1t_cache) {
           bitflip_l1_cache(L1T_CACHE);
         }
-        if (l2_cache_comp) {
+        if (inject_l2_cache_comp) {
           std::ofstream outfile;
           std::string file =
               "cache_logs/L2_" + std::string(this->m_config.gpufi_run_id);

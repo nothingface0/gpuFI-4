@@ -16,7 +16,7 @@ DELETE_LOGS=0 # if 1 then all logs will be deleted at the end of the script
 # ---------------------------------------------- START PER GPGPU CARD PARAMETERS ----------------------------------------------
 # L1 cache size per SIMT core (30 SIMT cores on RTX 2060, 30 clusters with 1 core each) - 80 for Volta QV100
 # TODO: Calculate automatically.
-# L1D_SIZE_BITS=276736  # nsets=1, line_size=128 bytes + 57 bits, assoc=256
+# L1D_SIZE_BITS=276736 # nsets=1, line_size=128 bytes + 57 bits, assoc=256
 # L1C_SIZE_BITS=582656 # nsets=128, line_size=64 bytes + 57 bits, assoc=8
 # L1T_SIZE_BITS=1106944 # nsets=4, line_size=128 bytes + 57 bits, assoc=256
 # # L2 cache total size from all sub partitions
@@ -25,9 +25,12 @@ source calculate_cache_sizes.sh
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ----------------------------------------------
+# Complete command for CUDA executable 
 CUDA_UUT="./srad 2 0.5 128 128"
+
 # total cycles for all kernels
 CYCLES=49799
+
 # Get the exact cycles, max registers and SIMT cores used for each kernel with gpufi_profile=1 
 # fix cycles.txt with kernel execution cycles
 # (e.g. seq 1 10 >> cycles.txt, or multiple seq commands if a kernel has multiple executions)
@@ -39,7 +42,10 @@ SHADER_USED="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25
 SUCCESS_MSG='Test PASSED'
 FAILED_MSG='Test FAILED'
 TIMEOUT_VAL=400s
+
+# Register size
 DATATYPE_SIZE=32
+
 # lmem and smem values are taken from gpgpu-sim ptx output per kernel
 # e.g. GPGPU-Sim PTX: Kernel '_Z9vectorAddPKdS0_Pdi' : regs=8, lmem=0, smem=0, cmem=380
 # if 0 put a random value > 0
@@ -56,18 +62,36 @@ SDC=0
 crashes=0
 
 # ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ----------------------------------------------
-# 0: perform injection campaign, 1: get cycles of each kernel, 2: get mean value of active threads, during all cycles in CYCLES_FILE, per SM,
+# gpuFI profile to run. Possible values:
+# 0: perform injection campaign
+# 1: get cycles of each kernel
+# 2: get mean value of active threads, during all cycles in CYCLES_FILE, per SM,
 # 3: single fault-free execution
 gpufi_profile=0
-# 0:RF, 1:local_mem, 2:shared_mem, 3:L1D_cache, 4:L1C_cache, 5:L1T_cache, 6:L2_cache (e.g. gpufi_components_to_flip=0:1 for both RF and local_mem)
+
+# Which components to apply a bif flip to. Multiple ones can be
+# specified with a colon, e.g. gpufi_components_to_flip=0:1 for both RF and local_mem). Possible values:
+# 0: RF
+# 1: local_mem
+# 2: shared_mem 
+# 3: L1D_cache
+# 4: L1C_cache
+# 5: L1T_cache
+# 6: L2_cache 
+# 7: L1I 
 gpufi_components_to_flip=0
+
 # 1: per warp bit flip, 0: per thread bit flip
 gpufi_per_warp=0
+
 # in which kernels to inject the fault. e.g. 0: for all running kernels, 1: for kernel 1, 1:2 for kernel 1 & 2 
 gpufi_kernel_n=0
+
 # in how many blocks (smems) to inject the bit flip
 blocks=1
 
+
+# Function which initializes variables based on user config and edits the gpgpusim.config file.
 initialize_config() {
     # random number for choosing a random thread after gpufi_thread_rand % #threads operation in gpgpu-sim
     gpufi_thread_rand=$(shuf -i 0-6000 -n 1)
@@ -180,6 +204,7 @@ parallel_execution() {
     fi
 }
 
+# Main script entrypoint. Gets passed all the parameters that are passed to the script itself.
 main() {
     if [[ "$gpufi_profile" -eq 1 ]] || [[ "$gpufi_profile" -eq 2 ]] || [[ "$gpufi_profile" -eq 3 ]]; then
         RUNS=1

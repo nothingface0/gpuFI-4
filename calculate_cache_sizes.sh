@@ -11,6 +11,9 @@ then
     fi;
 fi;
 
+# Calculates total size for L1 caches. 
+# $1: The cache name (e.g. L1D). Will also be used to export the appropriate var, i.e. L1D_SIZE_BITS
+# $2: The name of the variable to read from the gpgpusim.config file. E.g. for L1D it's "-gpgpu_cache:il1".
 l1_cache_bits_and_size_calculations () {
     cache_name=$1
     cache_config_id=$2
@@ -42,8 +45,12 @@ l1_cache_bits_and_size_calculations () {
     total_bits=$(( ($bytes_per_line*8+$tag_bits)*$associativity*$sets ))
     echo "Total size per SIMT core (bits)="$total_bits
     echo 
+    export $1"_SIZE_BITS"=$total_bits
 }
 
+# Calculates total size for L2 cache. 
+# $1: The cache name (for L2 it's "L2"). Will also be used to export the appropriate var, i.e. L2_SIZE_BITS
+# $2: The name of the variable to read from the gpgpusim.config file. E.g. for L1D it's "-gpgpu_cache:dl2".
 l2_cache_bits_and_size_calculations () {
     cache_name=$1
     cache_config_id=$2
@@ -82,11 +89,13 @@ l2_cache_bits_and_size_calculations () {
     total_bits=$(( ($bytes_per_line*8+$tag_bits)*$associativity*$sets*$num_mem_controllers*$num_sub_partitions ))
     echo "Total size (bits)="$total_bits
     echo
+    export $1"_SIZE_BITS"=$total_bits
+
 }
 
 l1_cache_bits_and_size_calculations "L1I" "-gpgpu_cache:il1" 
 l1_cache_bits_and_size_calculations "L1D" "-gpgpu_cache:dl1" 
-l1_cache_bits_and_size_calculations "L1T" "-gpgpu_tex_cache:l1" 
-l1_cache_bits_and_size_calculations "L1C" "-gpgpu_const_cache:l1" 
-l2_cache_bits_and_size_calculations "L2D" "-gpgpu_cache:dl2" 
+l1_cache_bits_and_size_calculations "L1T" "-gpgpu_tex_cache:l1"
+l1_cache_bits_and_size_calculations "L1C" "-gpgpu_const_cache:l1"
+l2_cache_bits_and_size_calculations "L2" "-gpgpu_cache:dl2"
 

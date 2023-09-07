@@ -95,6 +95,17 @@ enum hw_perf_t {
   HW_TOTAL_STATS
 };
 
+// Enumerator for making gpufi_profile values
+// more explicit.
+enum gpufi_profile_t {
+  GPUFI_INJECTION_CAMPAIGN = 0,  // Fault injection campaign.
+  GPUFI_OBSERVATION_RUN,  // Do a single, fault-free run and extract useful
+                          // info.
+  GPUFI_MEAN_VALUES_PER_SM_RUN,  // Single run, for measuring mean values per
+                                 // SM.
+  GPUFI_FAULT_FREE_RUN           // Do a single, fault-free run.
+};
+
 struct power_config {
   power_config() { m_valid = true; }
   void init() {

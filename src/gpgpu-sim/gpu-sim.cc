@@ -2563,7 +2563,7 @@ void gpgpu_sim::cycle() {
     if (current_cycle == 1) {
       read_colon_option(kernel_vector, m_config.gpufi_kernel_n);
 
-      if (m_config.gpufi_profile == 2) {
+      if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
         active_threads_sum = 0;
         FILE *file = fopen("./cycles.txt", "r");
         cycles_txt_lines = 0;
@@ -2576,7 +2576,7 @@ void gpgpu_sim::cycle() {
       }
     }
 
-    if (m_config.gpufi_profile == 2) {
+    if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
           active_kernels_warps;
@@ -2591,7 +2591,7 @@ void gpgpu_sim::cycle() {
         active_threads_sum += active_threads.size();
       }
 
-    } else if (m_config.gpufi_profile == 1) {
+    } else if (m_config.gpufi_profile == GPUFI_OBSERVATION_RUN) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
           active_kernels_warps;
@@ -2654,7 +2654,7 @@ void gpgpu_sim::cycle() {
           }
         }
       }
-    } else {
+    } else if (m_config.gpufi_profile == GPUFI_INJECTION_CAMPAIGN) {
       if (current_cycle == m_config.gpufi_total_cycle_rand) {
         printf("#### gpu_sim_cycle=%llu and gpu_tot_sim_cycle=%llu\n",
                gpu_sim_cycle, gpu_tot_sim_cycle);
@@ -2816,8 +2816,10 @@ void gpgpu_sim::cycle() {
               this->l2_index.push_back(bf_line_idx);
 
               printf(
-                  "L2 %s ENABLED: bf_l2_cache_bank = %u, l2_line_sz_bits = %u, "
-                  "bf_line_idx = %u, bf_line_sz_bits_idx = %u and tag = llu%\n",
+                  "L2 %s ENABLED: bf_l2_cache_bank = %u, l2_line_sz_bits = "
+                  "%u, "
+                  "bf_line_idx = %u, bf_line_sz_bits_idx = %u and tag = "
+                  "llu%\n",
                   l2_cache_bank->m_name.c_str(), bf_l2_cache_bank,
                   l2_line_sz_extra_bits, bf_line_idx,
                   l2_line_sz_data_bits_idx + 1, line->m_tag);
@@ -2837,12 +2839,12 @@ void gpgpu_sim::cycle() {
 
     // print profiling information on last cycle
     if (current_cycle == m_config.gpufi_last_cycle - 1) {
-      if (m_config.gpufi_profile == 2) {
+      if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
         if (cycles_txt_lines > 0) {
           printf("Mean active threads = %d\n",
                  active_threads_sum / cycles_txt_lines);
         }
-      } else if (m_config.gpufi_profile == 1) {
+      } else if (m_config.gpufi_profile == GPUFI_OBSERVATION_RUN) {
         for (std::map<char *, unsigned>::iterator itREG =
                  max_active_regs.begin();
              itREG != max_active_regs.end(); ++itREG) {

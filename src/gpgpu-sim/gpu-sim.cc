@@ -1952,7 +1952,7 @@ struct cmp_str {
 };
 
 // Hash map, mapping ids to kernel names. Starts from 1.
-tr1_hash_map<unsigned, char *> kernel_name;
+tr1_hash_map<unsigned, char *> active_kernels_names;
 
 // Hash map, mapping kernel ids to a vector, which holds the start and end cycle
 // of the kernel.
@@ -1974,8 +1974,10 @@ std::vector<unsigned> cycles_txt;
 gpuFI: Function that checks all warps on all SIMT cores for active threads,
 storing them in the active_threads_map, where the key is the kernel id, and the
 value is a 2D vector indexed by core and thread id.
+
+Populates active_kernels_names in the process.
 */
-void find_active_kernels_warps(
+void find_active_kernels_and_threads(
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
         &active_threads_map,
     const shader_core_config *m_shader_config,
@@ -1991,42 +1993,61 @@ void find_active_kernels_warps(
          shd_core_idx++) {
       shader_core_ctx *shader_core_ctx =
           (simt_core_cluster->get_core())[shd_core_idx];
+
       // We're only interested in cores that are currently active.
       if (shader_core_ctx->get_not_completed()) {
         //  printf("shader idx=%u on cluster=%u with warp size=%u\n",
         //  shd_core_idx, cluster_idx, shader_core_ctx->get_warp_size());
         kernel_info_t *k = shader_core_ctx->get_kernel();
-        if (kernel_name.find(k->get_uid()) == kernel_name.end()) {
+
+        // Populate the active_kernels_names map, with all unique kernels
+        // currently running.
+        if (active_kernels_names.find(k->get_uid()) ==
+            active_kernels_names.end()) {
           char *kernel_name_cpy = new char[strlen(k->name().c_str()) + 1];
           strcpy(kernel_name_cpy, k->name().c_str());
-          kernel_name[k->get_uid()] = kernel_name_cpy;
+          active_kernels_names[k->get_uid()] = kernel_name_cpy;
         }
+
         //  printf("HMMMMM Shader %u bind to kernel %u \'%s\'\n",
         //  shader_core_ctx->get_sid(), k->get_uid(), k->name().c_str());
         //  std::vector<std::vector<ptx_thread_info*>>
         //  warp_threads_vector;
+
+        // Iterate over all warps of the SIMT core.
         for (unsigned warp_idx = 0;
              warp_idx < simt_core_cluster->get_config()->max_warps_per_shader;
              warp_idx++) {
           shd_warp_t *shd_warp = (shader_core_ctx->get_warp())[warp_idx];
+
+          // We're interested in those who are still running.
           if (!shd_warp->done_exit()) {
             //  printf("warp id =%u\n", shd_warp->get_warp_id());
             unsigned m_warp_id = shd_warp->get_warp_id();
             unsigned m_warp_size = shd_warp->get_warp_size();
+
             //  printf("shader idx=%u on cluster=%u with warp
             //  size=%u\n", shd_core_idx, cluster_idx,
             //  shd_warp->get_warp_size());
+
+            // Vector to keep all threads in a warp.
             std::vector<ptx_thread_info *> threads_vector;
+            // Iterate over all threads of the warp.
             for (unsigned thread_shd_idx = m_warp_id * m_warp_size;
                  thread_shd_idx < (m_warp_id + 1) * m_warp_size;
                  thread_shd_idx++) {
               ptx_thread_info *ptx_thread_info =
                   (shader_core_ctx->get_thread_info())[thread_shd_idx];
+
+              // If there is an active thread in the warp, push it to the
+              // threads_vector.
               if (ptx_thread_info != NULL && !ptx_thread_info->is_done()) {
                 //  printf("m_warp_id=%u\n",m_warp_id);
                 threads_vector.push_back(ptx_thread_info);
               }
             }
+
+            // If active threads were found, add them to the vector.
             //  warp_threads_vector.push_back(threads_vector);
             if (threads_vector.size() > 0) {
               std::vector<std::vector<ptx_thread_info *>> &temp =
@@ -2035,63 +2056,87 @@ void find_active_kernels_warps(
             }
           }
         }
-        //  active_threads_map[k->get_uid()] = warp_threads_vector;
       }
     }
   }
 }
 
-// ??????
-void find_active_threads(
+/*
+  Filters threads in active_threads_map, keeping only those which
+  belong to the kernels that have been specified by the user (gpufi_kernel_n).
+
+  Updates the active_threads vector, which is a 1D vector of ALL the threads
+  that will be affected by the bitflip, regardless of the kernel they belong to.
+
+  Put more simply, it concatenates all active threads that belong to the kernels
+  of interest into a single 1D vector.
+*/
+void get_all_active_threads(
     std::vector<ptx_thread_info *> &active_threads,
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-        &active_kernels_warps,
-    std::vector<unsigned> &kernel_vector) {
+        &active_threads_map,
+    std::vector<unsigned> &kernels_to_bitflip) {
+  // For each kernel in active_threads_map
   for (tr1_hash_map<unsigned,
-                    std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
-           active_kernels_warps.begin();
-       itK != active_kernels_warps.end(); ++itK) {
-    //  printf("Kernel: %u\n", itK->first);
-    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
-      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
-          kernel_vector.end()) {
-        continue;
-      }
+                    std::vector<std::vector<ptx_thread_info *>>>::iterator
+           kernel_iterator = active_threads_map.begin();
+       kernel_iterator != active_threads_map.end(); ++kernel_iterator) {
+    //  printf("Kernel: %u\n", kernel_iterator->first);
+
+    // Kernels have been specified for injection, and the first entry is *not*
+    // "0", "0" meaning "inject all running kernels". Check if current kernel is
+    // targeted for bitflip, else skip to the next.
+    if (kernels_to_bitflip.size() > 0 && kernels_to_bitflip[0] != 0 &&
+        std::find(kernels_to_bitflip.begin(), kernels_to_bitflip.end(),
+                  kernel_iterator->first) == kernels_to_bitflip.end()) {
+      continue;
     }
-    for (std::vector<std::vector<ptx_thread_info *>>::iterator itW =
-             itK->second.begin();
-         itW != itK->second.end(); ++itW) {
-      for (std::vector<ptx_thread_info *>::iterator itT = itW->begin();
-           itT != itW->end(); ++itT) {
-        active_threads.push_back(*itT);
+
+    // Iterate over the 1st dimension of the 2D vector (warps)
+    for (std::vector<std::vector<ptx_thread_info *>>::iterator warp_iterator =
+             kernel_iterator->second.begin();
+         warp_iterator != kernel_iterator->second.end(); ++warp_iterator) {
+      // Iterate over the 2nd dimension of the vector (threads)
+      for (std::vector<ptx_thread_info *>::iterator thread_iterator =
+               warp_iterator->begin();
+           thread_iterator != warp_iterator->end(); ++thread_iterator) {
+        active_threads.push_back(*thread_iterator);
       }
     }
   }
 }
-
-// ????????
-void find_active_warps(
+/*
+  Similar to get_all_active_threads, but returns a 2D vector of ptx_thread_info,
+  retaining the grouping of threads per warp.
+*/
+void get_all_active_threads_by_warps(
     std::vector<std::vector<ptx_thread_info *>> &active_warps,
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-        &active_kernels_warps,
-    std::vector<unsigned> &kernel_vector) {
+        &active_threads_map,
+    std::vector<unsigned> &kernels_to_bitflip) {
+  // For each currently active kernel
   for (tr1_hash_map<unsigned,
-                    std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
-           active_kernels_warps.begin();
-       itK != active_kernels_warps.end(); ++itK) {
-    //  printf("Kernel: %u\n", itK->first);
-    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
-      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
-          kernel_vector.end()) {
+                    std::vector<std::vector<ptx_thread_info *>>>::iterator
+           kernel_iterator = active_threads_map.begin();
+       kernel_iterator != active_threads_map.end(); ++kernel_iterator) {
+    //  printf("Kernel: %u\n", kernel_iterator->first);
+
+    // Kernels have been specified for injection, and the first entry is *not*
+    // "0", "0" meaning "inject all running kernels". Check if current kernel is
+    // targeted for bitflip, else skip to the next.
+    if (kernels_to_bitflip.size() > 0 && kernels_to_bitflip[0] != 0) {
+      if (std::find(kernels_to_bitflip.begin(), kernels_to_bitflip.end(),
+                    kernel_iterator->first) == kernels_to_bitflip.end()) {
         continue;
       }
     }
-    for (std::vector<std::vector<ptx_thread_info *>>::iterator itW =
-             itK->second.begin();
-         itW != itK->second.end(); ++itW) {
-      //    printf("Warp size: %u\n", itW->size());
-      active_warps.push_back(*itW);
-      //    printf("warp size=%u\n",(*itW).size());
+    // Iterate over the 1st dimension of the 2D vector (warps)
+    for (std::vector<std::vector<ptx_thread_info *>>::iterator warp_iterator =
+             kernel_iterator->second.begin();
+         warp_iterator != kernel_iterator->second.end(); ++warp_iterator) {
+      //  printf("Warp size: %u\n", warp_iterator->size());
+      active_warps.push_back(*warp_iterator);
+      //  printf("warp size=%u\n",(*warp_iterator).size());
     }
   }
 }
@@ -2100,15 +2145,15 @@ void find_active_warps(
 void find_active_shared_memories(
     std::vector<memory_space *> &shared_memories,
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-        &active_kernels_warps,
-    std::vector<unsigned> &kernel_vector) {
+        &active_threads_map,
+    std::vector<unsigned> &kernels_to_bitflip) {
   for (tr1_hash_map<unsigned,
                     std::vector<std::vector<ptx_thread_info *>>>::iterator itK =
-           active_kernels_warps.begin();
-       itK != active_kernels_warps.end(); ++itK) {
-    if (kernel_vector.size() > 0 && kernel_vector[0] != 0) {
-      if (std::find(kernel_vector.begin(), kernel_vector.end(), itK->first) ==
-          kernel_vector.end()) {
+           active_threads_map.begin();
+       itK != active_threads_map.end(); ++itK) {
+    if (kernels_to_bitflip.size() > 0 && kernels_to_bitflip[0] != 0) {
+      if (std::find(kernels_to_bitflip.begin(), kernels_to_bitflip.end(),
+                    itK->first) == kernels_to_bitflip.end()) {
         continue;
       }
     }
@@ -2174,16 +2219,16 @@ void bitflip_n_nregs(std::vector<ptx_thread_info *> &threads_vector,
         unsigned long *reg_64b = (unsigned long *)reg_to_bitflip;  // 8 bytes
         for (std::vector<unsigned>::iterator bf_it = reg_bitflip_vector.begin();
              bf_it != reg_bitflip_vector.end(); ++bf_it) {
-          //          printf("Before bit flip of reg=%s, value = %lu\n",
-          //          reg_symbols[reg_idx]->name().c_str(), *reg_to_bitflip);
+          //  printf("Before bit flip of reg=%s, value = %lu\n",
+          //  reg_symbols[reg_idx]->name().c_str(), *reg_to_bitflip);
           *reg_64b ^= 1UL << (*bf_it - 1);
-          //          printf("After bit %u flip of reg=%s, value = %lu\n",
-          //          *bf_it, reg_symbols[reg_idx]->name().c_str(),
-          //          *reg_to_bitflip);
+          //  printf("After bit %u flip of reg=%s, value = %lu\n",
+          //  *bf_it, reg_symbols[reg_idx]->name().c_str(),
+          //  *reg_to_bitflip);
         }
       }
     }
-    //    (*threads_it)->dump_regs(stdout);
+    //  (*threads_it)->dump_regs(stdout);
   }
 }
 
@@ -2196,8 +2241,8 @@ void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
   for (std::vector<ptx_thread_info *>::iterator threads_it =
            threads_vector.begin();
        threads_it != threads_vector.end(); ++threads_it) {
-    //    unsigned block_size = 1U <<
-    //    (*threads_it)->m_local_mem->get_log2_block_size();
+    //  unsigned block_size = 1U <<
+    //  (*threads_it)->m_local_mem->get_log2_block_size();
     memory_space_impl<bsize> *local_mem =
         (memory_space_impl<bsize> *)(*threads_it)->m_local_mem;
     mem_map<mem_addr_t, mem_storage<bsize>> &memory_data =
@@ -2215,11 +2260,11 @@ void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
       if (memory_data.find(block_idx) != memory_data.end()) {
         unsigned long long *i_data =
             (unsigned long long *)memory_data[block_idx].get_m_data();
-        //        printf("BEFORE BIT FLIP: address=%p\n", i_data);
-        //        (*threads_it)->m_local_mem->print("%d", stdout);
+        //  printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //  (*threads_it)->m_local_mem->print("%d", stdout);
         i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
-        //        printf("AFTER BIT FLIP: address=%p\n", i_data);
-        //        g_print_memory_space((*threads_it)->m_local_mem, "%d");
+        //  printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //  g_print_memory_space((*threads_it)->m_local_mem, "%d");
       }
       printf(
           "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
@@ -2257,11 +2302,11 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
       if (memory_data.find(block_idx) != memory_data.end()) {
         unsigned long long *i_data =
             (unsigned long long *)memory_data[block_idx].get_m_data();
-        //        printf("BEFORE BIT FLIP: address=%p\n", i_data);
-        //        shared_mem_to_bitflip->print("%d", stdout);
+        //  printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //  shared_mem_to_bitflip->print("%d", stdout);
         i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
-        //        printf("AFTER BIT FLIP: address=%p\n", i_data);
-        //        shared_mem_to_bitflip->print("%08x", stdout);
+        //  printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //  shared_mem_to_bitflip->print("%08x", stdout);
       }
       printf(
           "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
@@ -2273,18 +2318,22 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
   }
 }
 
-// Executed during cycle(), on a specific kernel cycle.
-// cache_type <= 0: L1D, 1: L1C, 2: L1T
-void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
+/*
+
+
+*/
+void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   std::vector<unsigned> l1_bitflip_vector, l1_shader_vector;
+  // Read which cache bits to flip from config.
   char *l1_cache_bitflip_rand_n =
-      cache_type == L1D_CACHE   ? m_config.gpufi_l1d_cache_bitflip_rand_n
-      : cache_type == L1C_CACHE ? m_config.gpufi_l1c_cache_bitflip_rand_n
-                                : m_config.gpufi_l1t_cache_bitflip_rand_n;
+      l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_cache_bitflip_rand_n
+      : l1_cache_type == L1C_CACHE ? m_config.gpufi_l1c_cache_bitflip_rand_n
+                                   : m_config.gpufi_l1t_cache_bitflip_rand_n;
+  // Read which SIMT cores to flip from config.
   char *l1_shader_rand_n =
-      cache_type == L1D_CACHE   ? m_config.gpufi_l1d_shader_rand_n
-      : cache_type == L1C_CACHE ? m_config.gpufi_l1c_shader_rand_n
-                                : m_config.gpufi_l1t_shader_rand_n;
+      l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_shader_rand_n
+      : l1_cache_type == L1C_CACHE ? m_config.gpufi_l1c_shader_rand_n
+                                   : m_config.gpufi_l1t_shader_rand_n;
   read_colon_option(l1_bitflip_vector, l1_cache_bitflip_rand_n);
   read_colon_option(l1_shader_vector, l1_shader_rand_n);
 
@@ -2300,6 +2349,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
   std::vector<unsigned> l1_cluster_to_bitflip;
   std::vector<unsigned> l1_shader_to_bitflip;
 
+  // Populate the cache, cluster and shader vectors
   // Loop over clusters
   for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
        cluster_idx++) {
@@ -2317,8 +2367,8 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       if (std::find(l1_shader_vector.begin(), l1_shader_vector.end(),
                     shader_core_ctx->get_sid()) != l1_shader_vector.end()) {
         cache_t *cache_temp =
-            cache_type == L1D_CACHE ? shader_core_ctx->m_ldst_unit->m_L1D
-            : cache_type == L1C_CACHE
+            l1_cache_type == L1D_CACHE ? shader_core_ctx->m_ldst_unit->m_L1D
+            : l1_cache_type == L1C_CACHE
                 ? (cache_t *)shader_core_ctx->m_ldst_unit->m_L1C
                 : (cache_t *)shader_core_ctx->m_ldst_unit->m_L1T;
         l1_to_bitflip.push_back(cache_temp);
@@ -2327,28 +2377,32 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       }
     }
   }
-
-  // For each L1 cache in the l1_to_bitflip vector
+  // For each L1 cache in the l1_to_bitflip vector,
+  // perform the bitflip on the actual data of the cache (tag_array).
   for (int i = 0; i < l1_to_bitflip.size(); i++) {
     cache_t *l1 = l1_to_bitflip[i];
 
-    std::string m_name = (cache_type == L1D_CACHE || cache_type == L1C_CACHE)
-                             ? ((baseline_cache *)l1)->m_name.c_str()
-                             : ((tex_cache *)l1)->m_name.c_str();
     std::vector<bool> l1_bf_enabled;
     std::vector<unsigned> l1_line_bitflip_bits_idx;
     std::vector<new_addr_type> l1_tag;
     std::vector<unsigned> l1_index;
+
     const cache_config &m_config =
-        (cache_type == L1D_CACHE || cache_type == L1C_CACHE)
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
             ? ((baseline_cache *)l1)->m_config
             : ((tex_cache *)l1)->m_config;
+
     tag_array *m_tag_array =
-        (cache_type == L1D_CACHE || cache_type == L1C_CACHE)
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
             ? ((baseline_cache *)l1)->m_tag_array
             : &(((tex_cache *)l1)->m_tags);
 
+    // Create a log file to track injections
     std::ofstream outfile;
+    std::string m_name =
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
+            ? ((baseline_cache *)l1)->m_name.c_str()
+            : ((tex_cache *)l1)->m_name.c_str();
     std::string file = "cache_logs/" + m_name.substr(0, m_name.size() - 4) +
                        std::string("_") +
                        std::string(this->m_config.gpufi_run_id);
@@ -2391,7 +2445,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       }
       // L1D is sectored (4*32 bytes), check each sector if valid data
       bool is_valid_line = false;
-      if (cache_type == L1D_CACHE) {
+      if (l1_cache_type == L1D_CACHE) {
         for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
           if (((sector_cache_block *)line)->m_status[i] != INVALID) {
             is_valid_line = true;
@@ -2417,9 +2471,11 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
             l1_line_sz_data_bits_idx + 1, line->m_tag);
       }
     }
-    // different variables because we might run bit flips on more than one cache
-    // type
-    if (cache_type == L1D_CACHE) {
+
+    // Update global gpuFI tracking variables.
+    // We're using separate variables for each cache type,
+    // because we might run bit flips on more than one types.
+    if (l1_cache_type == L1D_CACHE) {
       l1d_enabled.push_back(l1_bf_enabled.size() > 0);
       l1d_bf_enabled.push_back(l1_bf_enabled);
       l1d_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
@@ -2427,7 +2483,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       l1d_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
       l1d_tag.push_back(l1_tag);
       l1d_index.push_back(l1_index);
-    } else if (cache_type == L1C_CACHE) {
+    } else if (l1_cache_type == L1C_CACHE) {
       l1c_enabled.push_back(l1_bf_enabled.size() > 0);
       l1c_bf_enabled.push_back(l1_bf_enabled);
       l1c_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
@@ -2435,7 +2491,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_type cache_type) {
       l1c_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
       l1c_tag.push_back(l1_tag);
       l1c_index.push_back(l1_index);
-    } else {
+    } else if (l1_cache_type == L1T_CACHE) {
       l1t_enabled.push_back(l1_bf_enabled.size() > 0);
       l1t_bf_enabled.push_back(l1_bf_enabled);
       l1t_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
@@ -2569,7 +2625,8 @@ void gpgpu_sim::cycle() {
     // gpuFI start
     unsigned long long current_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
     if (current_cycle == 1) {
-      read_colon_option(kernel_vector, m_config.gpufi_kernel_n);
+      // Populate the ids of the kernels to apply the bitflip to.
+      read_colon_option(kernels_to_bitflip, m_config.gpufi_kernel_n);
 
       if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
         active_threads_sum = 0;
@@ -2587,12 +2644,13 @@ void gpgpu_sim::cycle() {
     if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-          active_kernels_warps;
-      find_active_kernels_warps(active_kernels_warps, m_shader_config,
-                                m_cluster);
+          active_threads_map;
+      find_active_kernels_and_threads(active_threads_map, m_shader_config,
+                                      m_cluster);
       std::vector<ptx_thread_info *> active_threads;
 
-      find_active_threads(active_threads, active_kernels_warps, kernel_vector);
+      get_all_active_threads(active_threads, active_threads_map,
+                             kernels_to_bitflip);
 
       if (std::find(cycles_txt.begin(), cycles_txt.end(), current_cycle) !=
           cycles_txt.end()) {
@@ -2602,17 +2660,17 @@ void gpgpu_sim::cycle() {
     } else if (m_config.gpufi_profile == GPUFI_OBSERVATION_RUN) {
       // key: kernel_id (index starts from 1)
       tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-          active_kernels_warps;
-      find_active_kernels_warps(active_kernels_warps, m_shader_config,
-                                m_cluster);
+          active_threads_map;
+      find_active_kernels_and_threads(active_threads_map, m_shader_config,
+                                      m_cluster);
 
       for (tr1_hash_map<unsigned,
                         std::vector<std::vector<ptx_thread_info *>>>::iterator
-               itK = active_kernels_warps.begin();
-           itK != active_kernels_warps.end(); ++itK) {
+               itK = active_threads_map.begin();
+           itK != active_threads_map.end(); ++itK) {
         std::vector<ptx_thread_info *> active_threads;
         std::vector<unsigned> kernel_uid = {itK->first};
-        char *kernel_cstr = kernel_name[itK->first];
+        char *kernel_cstr = active_kernels_names[itK->first];
         unsigned max_regs_size = 0;
 
         // find start and last cycle of a kernel
@@ -2624,7 +2682,7 @@ void gpgpu_sim::cycle() {
         }
 
         // find maximum number of registers used by each kernel
-        find_active_threads(active_threads, active_kernels_warps, kernel_uid);
+        get_all_active_threads(active_threads, active_threads_map, kernel_uid);
         for (std::vector<ptx_thread_info *>::iterator itT =
                  active_threads.begin();
              itT != active_threads.end(); ++itT) {
@@ -2652,7 +2710,7 @@ void gpgpu_sim::cycle() {
                 (simt_core_cluster->get_core())[shd_core_idx];
             if (shader_core_ctx->isactive()) {
               unsigned kernel_uid = shader_core_ctx->get_kernel()->get_uid();
-              char *kernel_sh = kernel_name[kernel_uid];
+              char *kernel_sh = active_kernels_names[kernel_uid];
               if (shaders_used.find(kernel_sh) == shaders_used.end()) {
                 shaders_used[kernel_sh] = {shader_core_ctx->get_sid()};
               } else {
@@ -2723,33 +2781,40 @@ void gpgpu_sim::cycle() {
 
         // key: kernel_id (index starts from 1)
         tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
-            active_kernels_warps;
-        find_active_kernels_warps(active_kernels_warps, m_shader_config,
-                                  m_cluster);
+            active_threads_map;
+        // Populate active_threads_map with all active threads, grouped
+        // by warp, and mapped per kernel id.
+        find_active_kernels_and_threads(active_threads_map, m_shader_config,
+                                        m_cluster);
 
         std::vector<ptx_thread_info *> active_threads;
         std::vector<std::vector<ptx_thread_info *>> active_warps;
         std::vector<memory_space *> shared_memories;
         std::vector<memory_space *> l1d_caches;
 
-        std::vector<ptx_thread_info *> threads_bitflip;
+        std::vector<ptx_thread_info *> threads_to_bitflip;
 
         if (inject_register_file || inject_local_memory) {
           if (m_config.gpufi_per_warp) {
-            find_active_warps(active_warps, active_kernels_warps,
-                              kernel_vector);
+            // Injection in threads of a whole warp
+            get_all_active_threads_by_warps(active_warps, active_threads_map,
+                                            kernels_to_bitflip);
             if (active_warps.size() > 0) {
-              threads_bitflip =
+              // Select the whole 1D vector of threads running on
+              // the selected warp and store it to the threads_to_bitflip.
+              threads_to_bitflip =
                   active_warps[m_config.gpufi_warp_rand % active_warps.size()];
             }
           } else {
-            find_active_threads(active_threads, active_kernels_warps,
-                                kernel_vector);
+            // Injection on a specific thread
+            get_all_active_threads(active_threads, active_threads_map,
+                                   kernels_to_bitflip);
             if (active_threads.size() > 0) {
-              //              printf("ACTIVE THREADS %u\n",
-              //              active_threads.size());
-              //              g_print_memory_space(this->get_global_memory());
-              threads_bitflip.push_back(
+              // printf("ACTIVE THREADS %u\n", active_threads.size());
+              // g_print_memory_space(this->get_global_memory());
+
+              // Push the single selected thread to threads_to_bitflip
+              threads_to_bitflip.push_back(
                   active_threads[m_config.gpufi_thread_rand %
                                  active_threads.size()]);
             }
@@ -2757,16 +2822,16 @@ void gpgpu_sim::cycle() {
         }
 
         if (inject_register_file) {
-          bitflip_n_nregs(threads_bitflip, m_config.gpufi_register_rand_n,
+          bitflip_n_nregs(threads_to_bitflip, m_config.gpufi_register_rand_n,
                           m_config.gpufi_reg_bitflip_rand_n);
         }
         if (inject_local_memory) {
-          bitflip_n_local_mem(threads_bitflip,
+          bitflip_n_local_mem(threads_to_bitflip,
                               m_config.gpufi_local_mem_bitflip_rand_n);
         }
         if (inject_shared_memory) {
-          find_active_shared_memories(shared_memories, active_kernels_warps,
-                                      kernel_vector);
+          find_active_shared_memories(shared_memories, active_threads_map,
+                                      kernels_to_bitflip);
           bitflip_n_shared_mem_nblocks(
               shared_memories, m_config.gpufi_block_rand,
               m_config.gpufi_block_n, m_config.gpufi_shared_mem_bitflip_rand_n);
@@ -2780,6 +2845,10 @@ void gpgpu_sim::cycle() {
         if (inject_l1t_cache) {
           bitflip_l1_cache(L1T_CACHE);
         }
+        // TODO
+        // if (inject_l1i_cache) {
+        //   bitflip_l1_cache(L1I_CACHE);
+        // }
         if (inject_l2_cache_comp) {
           std::ofstream outfile;
           std::string file =
@@ -2883,9 +2952,9 @@ void gpgpu_sim::cycle() {
           printf(
               "Kernel = %u with name = %s, started on cycle = %llu and "
               "finished on cycle = %llu\n",
-              itK->first, kernel_name[itK->first], (itK->second)[0],
+              itK->first, active_kernels_names[itK->first], (itK->second)[0],
               (itK->second)[1]);
-          delete kernel_name[itK->first];
+          delete active_kernels_names[itK->first];
         }
       }
     }

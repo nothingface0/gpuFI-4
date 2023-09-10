@@ -3056,6 +3056,8 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     fprintf(fout, "\tL1T_total_cache_reservation_fails = %llu\n",
             total_css.res_fails);
   }
+
+  // TODO: L1I
 }
 
 void gpgpu_sim::shader_print_l1_miss_stat(FILE *fout) const {

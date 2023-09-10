@@ -70,7 +70,7 @@ class gpgpu_context;
 extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
-enum l1_cache_type { L1D_CACHE = 0, L1C_CACHE, L1T_CACHE };
+enum l1_cache_t { L1D_CACHE = 0, L1C_CACHE, L1T_CACHE, L1I_CACHE };
 
 enum hw_perf_t {
   HW_BENCH_NAME = 0,
@@ -565,7 +565,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned finished_kernel();
   void set_kernel_done(kernel_info_t *kernel);
   void stop_all_running_kernels();
-  void bitflip_l1_cache(l1_cache_type cache_type);  // gpuFI
+  void bitflip_l1_cache(l1_cache_t cache_type);  // gpuFI
 
   void init();
   void cycle();
@@ -644,7 +644,8 @@ class gpgpu_sim : public gpgpu_t {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   // gpuFI start
-  std::vector<unsigned> kernel_vector;
+  std::vector<unsigned>
+      kernels_to_bitflip;  // Which kernels the bitflip will affect
   class simt_core_cluster **m_cluster;
   class memory_sub_partition **m_memory_sub_partition;
   const memory_config *m_memory_config;

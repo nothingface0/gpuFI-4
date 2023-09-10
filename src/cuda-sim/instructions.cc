@@ -99,19 +99,19 @@ bool thread_in_shader(ptx_thread_info *thread, shader_core_ctx *shader_core,
 
 //
 void find_l1_used(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
-                  int &l1_used_index, unsigned l1_cache) {
+                  int &l1_used_index, l1_cache_t l1_cache_type) {
   std::vector<bool> *l1_enabled;
   std::vector<unsigned> *l1_cluster_idx;
   std::vector<unsigned> *l1_shader_core_ctx;
-  if (l1_cache == 0) {  // Data cache
+  if (l1_cache_type == L1D_CACHE) {  // Data cache
     l1_enabled = &gpu_sim->l1d_enabled;
     l1_cluster_idx = &gpu_sim->l1d_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1d_shader_core_ctx;
-  } else if (l1_cache == 1) {  // Constant cache
+  } else if (l1_cache_type == L1C_CACHE) {  // Constant cache
     l1_enabled = &gpu_sim->l1c_enabled;
     l1_cluster_idx = &gpu_sim->l1c_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1c_shader_core_ctx;
-  } else {  // Texture cache
+  } else if (l1_cache_type == L1T_CACHE) {  // Texture cache
     l1_enabled = &gpu_sim->l1t_enabled;
     l1_cluster_idx = &gpu_sim->l1t_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1t_shader_core_ctx;
@@ -131,7 +131,8 @@ void find_l1_used(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
   }
 }
 
-void *find_l1(ptx_thread_info *thread, gpgpu_sim *gpu_sim, unsigned l1_cache) {
+void *find_l1(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
+              l1_cache_t l1_cache_type) {
   for (unsigned cluster_idx = 0;
        cluster_idx < gpu_sim->m_shader_config->n_simt_clusters; cluster_idx++) {
     simt_core_cluster *simt_core_cluster = gpu_sim->m_cluster[cluster_idx];
@@ -142,11 +143,11 @@ void *find_l1(ptx_thread_info *thread, gpgpu_sim *gpu_sim, unsigned l1_cache) {
       shader_core_ctx *shader_core_ctx =
           (simt_core_cluster->get_core())[shd_core_idx];
       if (thread_in_shader(thread, shader_core_ctx, simt_core_cluster)) {
-        if (l1_cache == 0) {
+        if (l1_cache_type == L1D_CACHE) {
           return (void *)shader_core_ctx->m_ldst_unit->m_L1D;
-        } else if (l1_cache == 1) {
+        } else if (l1_cache_type == L1C_CACHE) {
           return (void *)shader_core_ctx->m_ldst_unit->m_L1C;
-        } else {
+        } else if (l1_cache_type == L1T_CACHE) {
           return (void *)shader_core_ctx->m_ldst_unit->m_L1T;
         }
       }
@@ -349,7 +350,7 @@ void l2_wrapper_L1T(ptx_thread_info *thread, unsigned data_tex_array_index,
                     unsigned long data_size, ptx_reg_t &data_bf) {
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
-  tex_cache *L1T = (tex_cache *)find_l1(thread, gpu_sim, 2);
+  tex_cache *L1T = (tex_cache *)find_l1(thread, gpu_sim, L1T_CACHE);
   if (L1T != NULL && gpu_sim->l2_enabled) {
     // line cache block so we don't care about masking
     mem_access_sector_mask_t mask = mem_access_sector_mask_t();
@@ -382,7 +383,7 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
   // st_impl for L1D find if the thread belongs to a shader that we want to
   // inject its L1D cache
   int l1d_used_index = -1;
-  find_l1_used(thread, gpu_sim, l1d_used_index, 0);
+  find_l1_used(thread, gpu_sim, l1d_used_index, L1D_CACHE);
 
   if (l1d_used_index != -1) {
     simt_core_cluster *simt_cluster =
@@ -390,9 +391,9 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
     shader_core_ctx *shader_core =
         simt_cluster->get_core()[gpu_sim->l1d_shader_core_ctx[l1d_used_index]];
 
-    //      printf("GLOBAL/LOCAL READ OEOEOEO FROM ld_exec from thread uid=%u on
-    //      address=%x with instruction type=%u\n", thread->get_uid(), addr,
-    //      type);
+    //  printf("GLOBAL/LOCAL READ OEOEOEO FROM ld_exec from thread uid=%u on
+    //  address=%x with instruction type=%u\n", thread->get_uid(), addr,
+    //  type);
 
     l1_cache *L1D = shader_core->m_ldst_unit->m_L1D;
     new_addr_type block_addr = L1D->m_config.block_addr(addr);
@@ -425,14 +426,18 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
             L1D->m_tag_array->probe(addr, index, mask, false, NULL);
 
         if (l1d_index_vector[j] == index) {
-          //            printf("Thread = %u, bf_chunk_idx = %u, index = %u,
-          //            l1d_idx = %u, tag = %u, l1d_tag=%u, probe_status =
-          //            %u\n", thread->get_uid(), bf_chunk_idx, index,
-          //            l1d_index_vector[j], tag, l1d_tag_vector[j],
-          //            probe_status); printf("l1d_line_bitflip_bits_idx=%u,
-          //            bit_start=%u, bit_end=%u\n",
-          //            l1d_line_bitflip_bits_idx_vector[j], bit_start,
-          //            bit_end);
+          // printf("Thread = %u, bf_chunk_idx = %u, index = %u,
+          //        l1d_idx = % u,
+          //        tag = % u, l1d_tag = % u,
+          //        probe_status = % u\n ", thread->get_uid(), bf_chunk_idx,
+          //        index,
+          //                       l1d_index_vector[j],
+          //        tag, l1d_tag_vector[j], probe_status);
+          // printf("l1d_line_bitflip_bits_idx=%u,
+          //        bit_start = % u,
+          //        bit_end = % u\n ",
+          //                  l1d_line_bitflip_bits_idx_vector[j],
+          //        bit_start, bit_end);
           if (l1d_tag_vector[j] == tag &&
               (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
             // Inject the error to the specific value of a thread that the bit
@@ -460,18 +465,22 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
                 bf_size_bits_idx = l1d_line_bitflip_bits_idx_vector[j] % size;
               }
 
-              //                printf("Thread on chunk %u, bit_start=%u,
-              //                bit_end=%u, bf_line_sz_bits_idx=%u,
-              //                bf_size_bits_idx=%u\n", chunk_idx, bit_start,
-              //                bit_end, l1d_line_bitflip_bits_idx_vector[j]+1,
-              //                bf_size_bits_idx+1); printf("Before bit flip of
-              //                thread=%u, value = %llu, reg_bf=%u\n",
-              //                thread->get_uid(), data.u64,
-              //                bf_size_bits_idx+1);
+              // printf("Thread on chunk %u, bit_start=%u,
+              //        bit_end = % u,
+              //        bf_line_sz_bits_idx = % u,
+              //        bf_size_bits_idx = % u\n ", chunk_idx, bit_start,
+              //                           bit_end,
+              //        l1d_line_bitflip_bits_idx_vector[j] + 1,
+              //        bf_size_bits_idx + 1);
+              // printf("Before bit flip of
+              //        thread = % u,
+              //        value = % llu,
+              //        reg_bf = % u\n ",
+              //                   thread->get_uid(),
+              //        data.u64, bf_size_bits_idx + 1);
               *reg_bf ^= 1UL << bf_size_bits_idx;
-              //                printf("After bit flip value = %llu\n",
-              //                data.u64); printf("DATA INSIDE= %f\n",
-              //                data.f32);
+              // printf("After bit flip value = %llu\n", data.u64);
+              // printf("DATA INSIDE= %f\n", data.f32);
             }
           } else if (l1d_tag_vector[j] == tag &&
                      probe_status != RESERVATION_FAIL) {  // miss
@@ -492,7 +501,7 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
   // find if the thread belongs to a shader that we want to inject its L1C cache
   int l1c_used_index = -1;
-  find_l1_used(thread, gpu_sim, l1c_used_index, 1);
+  find_l1_used(thread, gpu_sim, l1c_used_index, L1C_CACHE);
 
   if (l1c_used_index != -1) {
     simt_core_cluster *simt_cluster =
@@ -524,12 +533,15 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
       enum cache_request_status probe_status = L1C->m_tag_array->probe(
           addr, index, mask, false, false, NULL, 666U);  // TODO: check is_write
       if (l1c_index_vector[j] == index) {
-        //        printf("Thread = %u, index = %u, l1c_idx = %u, tag = %u,
-        //        l1c_tag=%u, probe_status = %u\n", thread->get_uid(), index,
-        //        l1c_index_vector[j], tag, l1c_tag_vector[j], probe_status);
-        //        printf("l1c_line_bitflip_bits_idx=%u, bit_start=%u,
-        //        bit_end=%u\n", l1c_line_bitflip_bits_idx_vector[j], bit_start,
-        //        bit_end);
+        // printf("Thread = %u, index = %u, l1c_idx = %u, tag = %u,
+        //        l1c_tag = % u,
+        //        probe_status = % u\n ", thread->get_uid(), index,
+        //                       l1c_index_vector[j],
+        //        tag, l1c_tag_vector[j], probe_status);
+        // printf("l1c_line_bitflip_bits_idx=%u, bit_start=%u,
+        //        bit_end =
+        //            % u\n ", l1c_line_bitflip_bits_idx_vector[j], bit_start,
+        //            bit_end);
         if (l1c_tag_vector[j] == tag && probe_status == HIT) {  // hit
           // Inject the error to the specific value of a thread that the bit
           // flip belongs to
@@ -556,16 +568,21 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
               bf_size_bits_idx = l1c_line_bitflip_bits_idx_vector[j] % size;
             }
 
-            //            printf("bit_start=%u, bit_end=%u,
-            //            bf_line_sz_bits_idx=%u, bf_size_bits_idx=%u\n",
-            //            bit_start, bit_end,
-            //            l1c_line_bitflip_bits_idx_vector[j]+1,
-            //            bf_size_bits_idx+1); printf("Before bit flip of
-            //            thread=%u, value = %llu, reg_bf=%u\n",
-            //            thread->get_uid(), data.u64, bf_size_bits_idx+1);
+            // printf("bit_start=%u, bit_end=%u,
+            //        bf_line_sz_bits_idx = % u,
+            //        bf_size_bits_idx = % u\n ",
+            //                           bit_start,
+            //        bit_end, l1c_line_bitflip_bits_idx_vector[j] + 1,
+            //        bf_size_bits_idx + 1);
+            // printf("Before bit flip of
+            //        thread = % u,
+            //        value = % llu,
+            //        reg_bf = % u\n ",
+            //                   thread->get_uid(),
+            //        data.u64, bf_size_bits_idx + 1);
             *reg_bf ^= 1UL << bf_size_bits_idx;
-            //            printf("After bit flip value = %llu\n", data.u64);
-            //            printf("DATA INSIDE= %f\n", data.f64);
+            // printf("After bit flip value = %llu\n", data.u64);
+            // printf("DATA INSIDE= %f\n", data.f64);
           }
         } else if (l1c_tag_vector[j] == tag &&
                    probe_status != RESERVATION_FAIL) {
@@ -594,7 +611,7 @@ void local_global_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
   if (gpu_sim->l2_enabled) {
-    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, 0);
+    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, L1D_CACHE);
     if (L1D != NULL) {
       unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
                            (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
@@ -624,7 +641,8 @@ void constant_read_l2_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
   if (gpu_sim->l2_enabled) {
-    read_only_cache *L1C = (read_only_cache *)find_l1(thread, gpu_sim, 1);
+    read_only_cache *L1C =
+        (read_only_cache *)find_l1(thread, gpu_sim, L1C_CACHE);
     if (L1C != NULL) {
       unsigned index;
       mem_access_sector_mask_t mask = mem_access_sector_mask_t();
@@ -657,7 +675,7 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
 
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
   int l1d_used_index = -1;
-  find_l1_used(thread, gpu_sim, l1d_used_index, 0);
+  find_l1_used(thread, gpu_sim, l1d_used_index, L1D_CACHE);
 
   if (l1d_used_index != -1) {
     simt_core_cluster *simt_cluster =
@@ -699,14 +717,18 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
             L1D->m_tag_array->probe(addr, index, mask, false, NULL);
 
         if (l1d_index_vector[j] == index) {
-          //            printf("Thread = %u, bf_chunk_idx = %u, index = %u,
-          //            l1d_idx = %u, tag = %u, l1d_tag=%u, probe_status =
-          //            %u\n", thread->get_uid(), bf_chunk_idx, index,
-          //            l1d_index_vector[j], tag, l1d_tag_vector[j],
-          //            probe_status); printf("l1d_line_bitflip_bits_idx=%u,
-          //            bit_start=%u, bit_end=%u\n",
-          //            l1d_line_bitflip_bits_idx_vector[j], bit_start,
-          //            bit_end);
+          // printf("Thread = %u, bf_chunk_idx = %u, index = %u,
+          //        l1d_idx = % u,
+          //        tag = % u, l1d_tag = % u,
+          //        probe_status = % u\n ", thread->get_uid(), bf_chunk_idx,
+          //        index,
+          //                       l1d_index_vector[j],
+          //        tag, l1d_tag_vector[j], probe_status);
+          // printf("l1d_line_bitflip_bits_idx=%u,
+          //        bit_start = % u,
+          //        bit_end = % u\n ",
+          //                  l1d_line_bitflip_bits_idx_vector[j],
+          //        bit_start, bit_end);
           // Write no-allocate policy so we don't care about miss or reservation
           // fail statuses
           if (l1d_tag_vector[j] == tag &&
@@ -728,7 +750,7 @@ void local_global_write_l2_bf(ptx_thread_info *thread, ptx_reg_t &data,
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
   if (gpu_sim->l2_enabled) {
-    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, 0);
+    l1_cache *L1D = (l1_cache *)find_l1(thread, gpu_sim, L1D_CACHE);
     if (L1D != NULL) {
       unsigned chunk_idx = (addr % L1D->m_config.get_line_sz()) /
                            (L1D->m_config.get_line_sz() / SECTOR_CHUNCK_SIZE);
@@ -4107,8 +4129,8 @@ void ld_exec(const ptx_instruction *pI, ptx_thread_info *thread) {
     mem->read(addr, size / 8, &data.s64);
     local_global_read_l1D_bf(thread, data, size, addr, space);  // gpuFI
     local_global_read_l2_bf(thread, data, size, addr, space);   // gpuFI
-    //    constant_read_l1C_bf(thread, data, size, addr, space);// gpuFI
-    //    constant_read_l2_bf(thread, data, size, addr, space);	// gpuFI
+    // constant_read_l1C_bf(thread, data, size, addr, space);      // gpuFI
+    // constant_read_l2_bf(thread, data, size, addr, space);       // gpuFI
     if (type == S16_TYPE || type == S32_TYPE) sign_extend(data, size, dst);
     thread->set_operand_value(dst, data, type, thread, pI);
   } else {
@@ -4134,8 +4156,7 @@ void ld_exec(const ptx_instruction *pI, ptx_thread_info *thread) {
                               space);  // gpuFI
                                        // gpuFI
       // constant_read_l1C_bf(thread, data3, size, addr + 2 * size / 8, space);
-      // constant_read_l2_bf(thread, data3, size, addr + 2 * size / 8,
-      //                     space);
+      // constant_read_l2_bf(thread, data3, size, addr + 2 * size / 8, space);
       if (vector_spec != V3_TYPE) {  // v4
         mem->read(addr + 3 * size / 8, size / 8, &data4.s64);
         local_global_read_l1D_bf(thread, data4, size, addr + 3 * size / 8,
@@ -6801,7 +6822,7 @@ float tex_linf_sampling(memory_space *mem, unsigned tex_array_base, int x,
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
   int l1t_used_index = -1;
-  find_l1_used(thread, gpu_sim, l1t_used_index, 2);
+  find_l1_used(thread, gpu_sim, l1t_used_index, L1T_CACHE);
   ptx_reg_t reg_bf = ptx_reg_t();
 
   mem_addr_t addr = tex_array_base + b_lim(x, y, width, height, elem_size);
@@ -7256,7 +7277,7 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
 
   // find if the thread belongs to a shader that we want to inject its L1T cache
   int l1t_used_index = -1;
-  find_l1_used(thread, gpu_sim, l1t_used_index, 2);
+  find_l1_used(thread, gpu_sim, l1t_used_index, L1T_CACHE);
 
   if (l1t_used_index != -1) {
     if (data1_en)

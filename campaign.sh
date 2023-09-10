@@ -90,10 +90,10 @@ initialize_config() {
     gpufi_thread_rand=$(shuf -i 0-6000 -n 1)
     # random number for choosing a random warp after gpufi_warp_rand % #warp operation in gpgpu-sim
     gpufi_warp_rand=$(shuf -i 0-6000 -n 1)
+    gpufi_total_cycle_rand=-1
+    if [[ "$gpufi_profile" -eq 0 ]]; then
     # random cycle for fault injection
     gpufi_total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
-    if [[ "$gpufi_profile" -eq 3 ]]; then
-        gpufi_total_cycle_rand=-1
     fi
     # in which registers to inject the bit flip
     gpufi_register_rand_n="$(shuf -i 1-${MAX_REGISTERS_USED} -n 1)"; gpufi_register_rand_n="${gpufi_register_rand_n//$'\n'/:}"
@@ -145,8 +145,15 @@ initialize_config() {
     sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${CONFIG_FILE}
 }
 
+# Parses resulting logs and determines successful execution.
 gather_results() {
     for file in ${TMP_DIR}${1}/${TMP_FILE}*; do
+        if [[ "$gpufi_profile" -eq 1 ]]; then
+            # Find start and end cycles for each kernel  
+            grep -E "Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g > ${TMP_DIR}${1}/cycles.in
+            # TODO: parse Kernel = %s, max active regs = %u
+            # TODO: parse Kernel = %s used shaders
+        fi
         grep -iq "${SUCCESS_MSG}" $file; success_msg_grep=$(echo $?)
 	grep -i "${CYCLES_MSG}" $file | tail -1 | grep -q "${CYCLES}"; cycles_grep=$(echo $?)
         grep -iq "${FAILED_MSG}" $file; failed_msg_grep=$(echo $?)
@@ -177,7 +184,7 @@ gather_results() {
 
 parallel_execution() {
     batch=$1
-    mkdir ${TMP_DIR}${2} > /dev/null 2>&1
+    mkdir -p ${TMP_DIR}${2} > /dev/null 2>&1
     for i in $( seq 1 $batch ); do
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
@@ -206,7 +213,7 @@ main() {
     # has wrong configuration and only Unclassified errors are returned
     MAX_RETRIES=3
     LOOP=1
-    mkdir ${CACHE_LOGS_DIR} > /dev/null 2>&1
+    mkdir -p ${CACHE_LOGS_DIR} > /dev/null 2>&1
     while [[ $RUNS -gt 0 ]] && [[ $MAX_RETRIES -gt 0 ]]
     do
         echo "runs left ${RUNS}" # DEBUG

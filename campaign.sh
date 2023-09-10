@@ -1,8 +1,8 @@
 #!/bin/bash
-
+# set -x
 # ---------------------------------------------- START ONE-TIME PARAMETERS ----------------------------------------------
 # needed by gpgpu-sim for real register usage on PTXPlus mode
-export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.2
+export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.0
 
 CONFIG_FILE=./gpgpusim.config
 TMP_DIR=./logs
@@ -19,19 +19,19 @@ source calculate_cache_sizes.sh
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ----------------------------------------------
 # Complete command for CUDA executable 
-CUDA_UUT="./srad 2 0.5 128 128"
+CUDA_UUT="../cuda-tests/kernels/test_if/bin/test_if"
 
 # total cycles for all kernels
-CYCLES=49799
+CYCLES=120866
 
 # Get the exact cycles, max registers and SIMT cores used for each kernel with gpufi_profile=1 
 # fix cycles.txt with kernel execution cycles
 # (e.g. seq 1 10 >> cycles.txt, or multiple seq commands if a kernel has multiple executions)
 # use the following command from profiling execution for easier creation of cycles.txt file
-# e.g. grep "_Z12lud_diagonalPfii" cycles.in | awk  '{ system("seq " $12 " " $18 ">> cycles.txt")}'
+# e.g. grep "_Z12lud_diagonalPfii" cycles.in | awk '{ system("seq " $12 " " $18 ">> cycles.txt")}'
 CYCLES_FILE=./cycles.txt
-MAX_REGISTERS_USED=24
-SHADER_USED="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 66 67 68 69 70 71 72 73 74 75 76 77 78 79"
+MAX_REGISTERS_USED=7
+SHADER_USED="0 1"
 SUCCESS_MSG='Test PASSED'
 FAILED_MSG='Test FAILED'
 TIMEOUT_VAL=400s
@@ -42,8 +42,8 @@ DATATYPE_SIZE=32
 # lmem and smem values are taken from gpgpu-sim ptx output per kernel
 # e.g. GPGPU-Sim PTX: Kernel '_Z9vectorAddPKdS0_Pdi' : regs=8, lmem=0, smem=0, cmem=380
 # if 0 put a random value > 0
-LMEM_SIZE_BITS=10
-SMEM_SIZE_BITS=1024
+LMEM_SIZE_BITS=1
+SMEM_SIZE_BITS=1
 # ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ------------------------------------------------
 
 FAULT_INJECTION_OCCURRED="Fault injection"
@@ -72,9 +72,9 @@ gpufi_profile=0
 # 5: L1T_cache
 # 6: L2_cache 
 # 7: L1I 
-gpufi_components_to_flip=0
+gpufi_components_to_flip=3
 
-# 1: per warp bit flip, 0: per thread bit flip
+# 0: per thread bit flip, 1: per warp bit flip
 gpufi_per_warp=0
 
 # in which kernels to inject the fault. e.g. 0: for all running kernels, 1: for kernel 1, 1:2 for kernel 1 & 2 
@@ -92,8 +92,8 @@ initialize_config() {
     gpufi_warp_rand=$(shuf -i 0-6000 -n 1)
     gpufi_total_cycle_rand=-1
     if [[ "$gpufi_profile" -eq 0 ]]; then
-    # random cycle for fault injection
-    gpufi_total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
+        # random cycle for fault injection
+        gpufi_total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
     fi
     # in which registers to inject the bit flip
     gpufi_register_rand_n="$(shuf -i 1-${MAX_REGISTERS_USED} -n 1)"; gpufi_register_rand_n="${gpufi_register_rand_n//$'\n'/:}"
@@ -135,7 +135,6 @@ initialize_config() {
     sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${blocks}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-shader_rand_n.*$/-shader_rand_n ${shader_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${CONFIG_FILE}
@@ -155,7 +154,7 @@ gather_results() {
             # TODO: parse Kernel = %s used shaders
         fi
         grep -iq "${SUCCESS_MSG}" $file; success_msg_grep=$(echo $?)
-	grep -i "${CYCLES_MSG}" $file | tail -1 | grep -q "${CYCLES}"; cycles_grep=$(echo $?)
+	    grep -i "${CYCLES_MSG}" $file | tail -1 | grep -q "${CYCLES}"; cycles_grep=$(echo $?)
         grep -iq "${FAILED_MSG}" $file; failed_msg_grep=$(echo $?)
         result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
         case $result in

@@ -2434,7 +2434,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // find which line the bitflip should be done in
       unsigned bf_line_idx = bf_l1 / l1_line_sz_extra_bits;
-
+      // TODO: replace with bf_l1 % l1_line_sz_extra_bits;
       // Bit offset of bit to flip in cache line, incl. tag bits
       unsigned bf_line_sz_bits_extra_idx =
           bf_l1 - bf_line_idx * l1_line_sz_extra_bits;
@@ -2867,10 +2867,9 @@ void gpgpu_sim::cycle() {
         if (inject_l1t_cache) {
           bitflip_l1_cache(L1T_CACHE);
         }
-        // TODO
-        // if (inject_l1i_cache) {
-        //   bitflip_l1_cache(L1I_CACHE);
-        // }
+        if (inject_l1i_cache) {
+          bitflip_l1_cache(L1I_CACHE);
+        }
         if (inject_l2_cache_comp) {
           std::ofstream outfile;
           std::string file =

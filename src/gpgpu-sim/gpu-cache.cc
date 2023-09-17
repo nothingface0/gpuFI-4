@@ -1661,8 +1661,10 @@ enum cache_request_status data_cache::rd_miss_base(
   return RESERVATION_FAIL;
 }
 
-/// Access cache for read_only_cache: returns RESERVATION_FAIL if
-// request could not be accepted (for any reason)
+/*
+  Access cache for read_only_cache: returns RESERVATION_FAIL if
+  request could not be accepted (for any reason)
+*/
 enum cache_request_status read_only_cache::access(
     new_addr_type addr, mem_fetch *mf, unsigned time,
     std::list<cache_event> &events) {

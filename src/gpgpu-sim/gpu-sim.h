@@ -464,6 +464,8 @@ class gpgpu_sim_config : public power_config,
   char *gpufi_l1c_cache_bitflip_rand_n;
   char *gpufi_l1t_shader_rand_n;
   char *gpufi_l1t_cache_bitflip_rand_n;
+  char *gpufi_l1i_shader_rand_n;
+  char *gpufi_l1i_cache_bitflip_rand_n;
   char *gpufi_l2_cache_bitflip_rand_n;
   // gpuFI end
 
@@ -761,6 +763,15 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<std::vector<unsigned>> l1t_line_bitflip_bits_idx;
   std::vector<std::vector<new_addr_type>> l1t_tag;
   std::vector<std::vector<unsigned>> l1t_index;
+
+  // L1 instruction cache fault injection
+  std::vector<bool> l1i_enabled;
+  std::vector<std::vector<bool>> l1i_bf_enabled;
+  std::vector<unsigned> l1i_cluster_idx;
+  std::vector<unsigned> l1i_shader_core_ctx;
+  std::vector<std::vector<unsigned>> l1i_line_bitflip_bits_idx;
+  std::vector<std::vector<new_addr_type>> l1i_tag;
+  std::vector<std::vector<unsigned>> l1i_index;
 
   // L2 cache
   bool l2_enabled;

@@ -1044,7 +1044,7 @@ void shader_core_ctx::fetch() {
     }
   }
 
-  m_L1I->cycle();
+  m_L1I->cycle();  // Propagate mfs to lower caches
 }
 
 void exec_shader_core_ctx::func_exec_inst(warp_inst_t &inst) {

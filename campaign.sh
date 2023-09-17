@@ -72,7 +72,7 @@ gpufi_profile=0
 # 5: L1T_cache
 # 6: L2_cache 
 # 7: L1I 
-gpufi_components_to_flip=3
+gpufi_components_to_flip=7
 
 # 0: per thread bit flip, 1: per warp bit flip
 gpufi_per_warp=0
@@ -117,6 +117,10 @@ initialize_config() {
     gpufi_l1t_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; gpufi_l1t_shader_rand_n="${gpufi_l1t_shader_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L1 texture cache bit flips
     gpufi_l1t_cache_bitflip_rand_n="$(shuf -i 1-${L1T_SIZE_BITS} -n 1)"; gpufi_l1t_cache_bitflip_rand_n="${gpufi_l1t_cache_bitflip_rand_n//$'\n'/:}"
+    # randomly select one or more shaders for L1 instruction cache fault injections 
+    gpufi_l1i_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"; gpufi_l1i_shader_rand_n="${gpufi_l1i_shader_rand_n//$'\n'/:}"
+    # same format like gpufi_reg_bitflip_rand_n but for L1 instruction cache bit flips
+    gpufi_l1i_cache_bitflip_rand_n="$(shuf -i 1-${L1I_SIZE_BITS} -n 1)"; gpufi_l1i_cache_bitflip_rand_n="${gpufi_l1i_cache_bitflip_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L2 cache bit flips
     gpufi_l2_cache_bitflip_rand_n="$(shuf -i 1-${L2_SIZE_BITS} -n 1)"; gpufi_l2_cache_bitflip_rand_n="${gpufi_l2_cache_bitflip_rand_n//$'\n'/:}"
 # ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ------------------------------------------------
@@ -141,6 +145,8 @@ initialize_config() {
     sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${CONFIG_FILE}
 }
 

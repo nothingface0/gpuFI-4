@@ -712,6 +712,10 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          &gpufi_l1t_shader_rand_n, "TODO", "0");
   option_parser_register(opp, "-gpufi_l1t_cache_bitflip_rand_n", OPT_CSTR,
                          &gpufi_l1t_cache_bitflip_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1i_shader_rand_n", OPT_CSTR,
+                         &gpufi_l1i_shader_rand_n, "TODO", "0");
+  option_parser_register(opp, "-gpufi_l1i_cache_bitflip_rand_n", OPT_CSTR,
+                         &gpufi_l1i_cache_bitflip_rand_n, "TODO", "0");
   option_parser_register(opp, "-gpufi_l2_cache_bitflip_rand_n", OPT_CSTR,
                          &gpufi_l2_cache_bitflip_rand_n, "TODO", "0");
   // gpuFI end
@@ -2328,12 +2332,14 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   char *l1_cache_bitflip_rand_n =
       l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_cache_bitflip_rand_n
       : l1_cache_type == L1C_CACHE ? m_config.gpufi_l1c_cache_bitflip_rand_n
-                                   : m_config.gpufi_l1t_cache_bitflip_rand_n;
+      : l1_cache_type == L1T_CACHE ? m_config.gpufi_l1t_cache_bitflip_rand_n
+                                   : m_config.gpufi_l1i_cache_bitflip_rand_n;
   // Read which SIMT cores to flip from config.
   char *l1_shader_rand_n =
       l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_shader_rand_n
       : l1_cache_type == L1C_CACHE ? m_config.gpufi_l1c_shader_rand_n
-                                   : m_config.gpufi_l1t_shader_rand_n;
+      : l1_cache_type == L1T_CACHE ? m_config.gpufi_l1t_shader_rand_n
+                                   : m_config.gpufi_l1i_shader_rand_n;
   read_colon_option(l1_bitflip_vector, l1_cache_bitflip_rand_n);
   read_colon_option(l1_shader_vector, l1_shader_rand_n);
 
@@ -2370,7 +2376,9 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
             l1_cache_type == L1D_CACHE ? shader_core_ctx->m_ldst_unit->m_L1D
             : l1_cache_type == L1C_CACHE
                 ? (cache_t *)shader_core_ctx->m_ldst_unit->m_L1C
-                : (cache_t *)shader_core_ctx->m_ldst_unit->m_L1T;
+            : l1_cache_type == L1T_CACHE
+                ? (cache_t *)shader_core_ctx->m_ldst_unit->m_L1T
+                : (cache_t *)shader_core_ctx->m_L1I;
         l1_to_bitflip.push_back(cache_temp);
         l1_cluster_to_bitflip.push_back(cluster_idx);
         l1_shader_to_bitflip.push_back(shd_core_idx);
@@ -2388,19 +2396,22 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
     std::vector<unsigned> l1_index;
 
     const cache_config &m_config =
-        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE ||
+         l1_cache_type == L1I_CACHE)
             ? ((baseline_cache *)l1)->m_config
             : ((tex_cache *)l1)->m_config;
 
     tag_array *m_tag_array =
-        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE ||
+         l1_cache_type == L1I_CACHE)
             ? ((baseline_cache *)l1)->m_tag_array
             : &(((tex_cache *)l1)->m_tags);
 
     // Create a log file to track injections
     std::ofstream outfile;
     std::string m_name =
-        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE)
+        (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE ||
+         l1_cache_type == L1I_CACHE)
             ? ((baseline_cache *)l1)->m_name.c_str()
             : ((tex_cache *)l1)->m_name.c_str();
     std::string file = "cache_logs/" + m_name.substr(0, m_name.size() - 4) +
@@ -2443,6 +2454,9 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
         printf("Tag after = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
         continue;
       }
+
+      // TODO: Could this be checked directly somehow, using
+      // baseline_cache::m_config->m_cache_type ?
       // L1D is sectored (4*32 bytes), check each sector if valid data
       bool is_valid_line = false;
       if (l1_cache_type == L1D_CACHE) {
@@ -2499,6 +2513,14 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       l1t_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
       l1t_tag.push_back(l1_tag);
       l1t_index.push_back(l1_index);
+    } else if (l1_cache_type == L1I_CACHE) {
+      l1i_enabled.push_back(l1_bf_enabled.size() > 0);
+      l1i_bf_enabled.push_back(l1_bf_enabled);
+      l1i_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
+      l1i_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
+      l1i_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
+      l1i_tag.push_back(l1_tag);
+      l1i_index.push_back(l1_index);
     }
   }
 }

@@ -42,7 +42,7 @@ l1_cache_bits_and_size_calculations () {
     echo "Bits for word offset="$bits_for_word_offset
     echo "Bits for tag+index="$(($tag_bits+$bits_for_sets_indexing))
 
-    total_bits=$(( ($bytes_per_line*8+$tag_bits)*$associativity*$sets ))
+    total_bits=$(( ($bytes_per_line*8+$tag_bits+$bits_for_sets_indexing)*$associativity*$sets ))
     echo "Total size per SIMT core (bits)="$total_bits
     echo 
     export $1"_SIZE_BITS"=$total_bits
@@ -82,11 +82,13 @@ l2_cache_bits_and_size_calculations () {
     num_mem_controllers=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}')
     num_sub_partitions=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}')
 
+    echo "Number of mem controllers="$num_mem_controllers
+    echo "Number of partitions per controller="$num_sub_partitions
     # There's one L2D cache per memory subpartition, each one having the 
     # configuration given by the gpgpu_cache:dl2 option.
     # Having calculated the tag bits, we can calculate the total L2 cache
     # size in bits as follows:
-    total_bits=$(( ($bytes_per_line*8+$tag_bits)*$associativity*$sets*$num_mem_controllers*$num_sub_partitions ))
+    total_bits=$(( ($bytes_per_line*8+$tag_bits+$bits_for_sets_indexing)*$associativity*$sets*$num_mem_controllers*$num_sub_partitions ))
     echo "Total size (bits)="$total_bits
     echo
     export $1"_SIZE_BITS"=$total_bits

@@ -867,6 +867,9 @@ void shader_core_stats::visualizer_print(gzFile visualizer_file) {
 
 const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                                                        address_type pc) {
+  if (m_gpu->l1i_enabled.size() > 0) {
+    std::cout << "L1I injection enabled: " << std::endl;
+  }
   // read the inst from the functional model
   return m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
 }

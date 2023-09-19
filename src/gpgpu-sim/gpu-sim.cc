@@ -2420,6 +2420,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
     outfile.open(file, std::ios::app);  // append instead of overwrite
 
     // Bit size of tag + offset, per cache line
+    // TODO: calculate dynamically.
     unsigned tag_array_size_bits = 57;
 
     // For each position in the L1 cache to bitflip (read from config)
@@ -2446,11 +2447,14 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // If bit position falls in tag/index area
       if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
-        // Find bit position in variable storing the tag (unsigned long long ->
-        // 64 bits). TODO: Shouldn't 63 be 56?
-        unsigned bf_tag = 63 - bf_line_sz_bits_extra_idx;
+        // Find bit position in variable storing the tag. NVIDIA cards are
+        // little-endian:
+        // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#hardware-implementation
+        // Which means that, since bf_line_sz_bits_extra_idx is calculated from
+        // "left" to "right", it can be used as-is to bitflip the m_tag
+        // variable.
         printf("Tag before = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
-        line->m_tag ^= 1UL << bf_tag;
+        line->m_tag ^= 1UL << bf_line_sz_bits_extra_idx;
         printf("Tag after = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
         continue;
       }

@@ -864,11 +864,39 @@ void shader_core_stats::visualizer_print(gzFile visualizer_file) {
   0xF0000000 /* should be distinct from other memory spaces... \
                 check ptx_ir.h to verify this does not overlap \
                 other memory spaces */
-
+/*
+Is called during the decode stage, once the m_inst_fetch_buffer has been filled
+during the fetch stage. This means that this function only works after the L1I
+has been filled (i.e. after a HIT).
+*/
 const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                                                        address_type pc) {
-  if (m_gpu->l1i_enabled.size() > 0) {
-    std::cout << "L1I injection enabled: " << std::endl;
+  for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
+    // Find the next L1I with a data bitflip
+    if (m_gpu->l1i_enabled[i] == false) continue;
+    // Check if it belongs to the current cluster & core
+    if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
+        m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
+      // TODO: Check if PC asked falls in injected line.
+      // Absolute address in DRAM
+      address_type absolute_pc = pc + PROGRAM_MEM_START;
+      // Find the tag that should be found in the cache
+      new_addr_type cache_tag = m_L1I->m_config.tag(absolute_pc);
+
+      // Find which block line this address corresponds to. TODO: Wrong
+      unsigned long cache_block_line = m_L1I->m_config.block_addr(absolute_pc) /
+                                       (m_L1I->m_config.get_line_sz() * 8);
+      for (int blocks_inj_idx = 0; blocks_inj_idx < m_gpu->l1i_index[i].size();
+           blocks_inj_idx++) {
+        if (m_gpu->l1i_index[i][blocks_inj_idx] == cache_block_line) {
+          std::cout << "Cycle "
+                    << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
+                    << ", Shader " << m_sid << ", getting instruction " << pc
+                    << ", block=" << cache_block_line << ", injected block="
+                    << m_gpu->l1i_index[i][blocks_inj_idx] << std::endl;
+        }
+      }
+    }
   }
   // read the inst from the functional model
   return m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
@@ -4359,7 +4387,6 @@ simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
   m_memory_stats = mstats;
   m_mem_config = mem_config;
 }
-
 void simt_core_cluster::core_cycle() {
   for (std::list<unsigned>::iterator it = m_core_sim_order.begin();
        it != m_core_sim_order.end(); ++it) {

@@ -2323,8 +2323,18 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
 }
 
 /*
+  Function that handles bitflips on a single type of cache.
 
+  Only accepts cache type as an argument. The rest of the options
+  are read from the simulator config, i.e. gpgpusim.config.
 
+  Reads the shaders ids to inject, and the bits to inject, updating
+  the vectors holding the per-L1-type injection configuration,
+  e.g. l1x_enabled, l1x_bf_enabled.
+
+  Bitflips that fall on the cache line's tag are done directly in this function,
+  while those that fall on the cache line's data are handled during the
+  functional execution step, using the vectors aforementioned.
 */
 void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   std::vector<unsigned> l1_bitflip_vector, l1_shader_vector;
@@ -2348,7 +2358,6 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   // - tex_cache
   // - read_only_cache (i.e. instruction cache)
   // - l1_cache
-  // - l2_cache
   std::vector<cache_t *> l1_to_bitflip;
 
   // Vectors of cluster and shader ids, to be fault-injected.
@@ -2453,9 +2462,11 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
         // Which means that, since bf_line_sz_bits_extra_idx is calculated from
         // "left" to "right", it can be used as-is to bitflip the m_tag
         // variable.
-        printf("Tag before = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
+        printf("Tag before = %llu, bf_tag=%u\n", line->m_tag,
+               bf_line_sz_bits_extra_idx + 1);
         line->m_tag ^= 1UL << bf_line_sz_bits_extra_idx;
-        printf("Tag after = %llu, bf_tag=%u\n", line->m_tag, bf_tag + 1);
+        printf("Tag after = %llu, bf_tag=%u\n", line->m_tag,
+               bf_line_sz_bits_extra_idx + 1);
         continue;
       }
 

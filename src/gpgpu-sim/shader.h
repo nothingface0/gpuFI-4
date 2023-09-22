@@ -2594,7 +2594,7 @@ class simt_core_cluster {
   void push_response_fifo(class mem_fetch *mf) {
     m_response_fifo.push_back(mf);
   }
-
+  unsigned int get_cluster_id() { return m_cluster_id; };
   void get_pdom_stack_top_info(unsigned sid, unsigned tid, unsigned *pc,
                                unsigned *rpc) const;
   unsigned max_cta(const kernel_info_t &kernel);

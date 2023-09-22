@@ -233,11 +233,11 @@
     "location": "/src/gpgpu-sim/gpu-sim.cc",
     "line": [
       {
-        "line": 2425,
+        "line": 2464,
         "character": 0
       },
       {
-        "line": 2425,
+        "line": 2464,
         "character": 0
       }
     ],
@@ -247,67 +247,11 @@
     "location": "/src/gpgpu-sim/gpu-sim.cc",
     "line": [
       {
-        "line": 2442,
+        "line": 3124,
         "character": 0
       },
       {
-        "line": 2442,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-sim.cc",
-    "line": [
-      {
-        "line": 2450,
-        "character": 0
-      },
-      {
-        "line": 2450,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-sim.cc",
-    "line": [
-      {
-        "line": 2746,
-        "character": 0
-      },
-      {
-        "line": 2746,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-sim.cc",
-    "line": [
-      {
-        "line": 2909,
-        "character": 0
-      },
-      {
-        "line": 2909,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/gpu-sim.cc",
-    "line": [
-      {
-        "line": 3113,
-        "character": 0
-      },
-      {
-        "line": 3113,
+        "line": 3124,
         "character": 0
       }
     ],
@@ -331,11 +275,11 @@
     "location": "/src/cuda-sim/instructions.cc",
     "line": [
       {
-        "line": 135,
+        "line": 136,
         "character": 0
       },
       {
-        "line": 135,
+        "line": 136,
         "character": 0
       }
     ],
@@ -695,11 +639,11 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 870,
+        "line": 1064,
         "character": 0
       },
       {
-        "line": 870,
+        "line": 1064,
         "character": 0
       }
     ],
@@ -709,39 +653,11 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 891,
+        "line": 4596,
         "character": 0
       },
       {
-        "line": 891,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 928,
-        "character": 0
-      },
-      {
-        "line": 928,
-        "character": 0
-      }
-    ],
-    "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 944,
-        "character": 0
-      },
-      {
-        "line": 944,
+        "line": 4596,
         "character": 0
       }
     ],
@@ -751,11 +667,11 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 1033,
+        "line": 956,
         "character": 0
       },
       {
-        "line": 1033,
+        "line": 956,
         "character": 0
       }
     ],
@@ -765,28 +681,14 @@
     "location": "/src/gpgpu-sim/shader.cc",
     "line": [
       {
-        "line": 1269,
+        "line": 890,
         "character": 0
       },
       {
-        "line": 1269,
+        "line": 890,
         "character": 0
       }
     ],
     "enabled": true
-  },
-  {
-    "location": "/src/gpgpu-sim/shader.cc",
-    "line": [
-      {
-        "line": 4478,
-        "character": 0
-      },
-      {
-        "line": 4478,
-        "character": 0
-      }
-    ],
-    "enabled": false
   }
 ]

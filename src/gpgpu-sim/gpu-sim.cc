@@ -31,12 +31,12 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "gpu-sim.h"
-#include <sys/time.h>  // gpuFI
-
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>  // gpuFI
+#include <bitset>      // gpuFI
 #include "zlib.h"
 
 #include "dram.h"
@@ -2428,10 +2428,15 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
                        std::string(this->m_config.gpufi_run_id);
     outfile.open(file, std::ios::app);  // append instead of overwrite
 
-    // Bit size of tag + offset, per cache line
-    // TODO: calculate dynamically.
-    unsigned tag_array_size_bits = 57;
-
+    // Bit size of tag + offset, per cache line/sector.
+    // Take advantage of the cache's tag() method to find the largest
+    // tag that it can store, and then count the number of bits. We expect
+    // them to be 57.
+    unsigned tag_array_size_bits =
+        std::bitset<sizeof(new_addr_type) * 8>(
+            m_tag_array->m_config.tag((new_addr_type)-1))
+            .count();
+    assert(tag_array_size_bits == 57);
     // For each position in the L1 cache to bitflip (read from config)
     for (int j = 0; j < l1_bitflip_vector.size(); j++) {
       // Absolute bit position in linear address space of L1 (incl. tag +
@@ -2456,17 +2461,17 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // If bit position falls in tag/index area
       if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
-        // Find bit position in variable storing the tag. NVIDIA cards are
-        // little-endian:
-        // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#hardware-implementation
-        // Which means that, since bf_line_sz_bits_extra_idx is calculated from
-        // "left" to "right", it can be used as-is to bitflip the m_tag
-        // variable.
+        // The simulator only uses the "leftmost" 57 bits of the address
+        // as a tag. See cache_config::tag(). For this reason we calculate
+        // the position to flip by subtracting from the size in bits of the
+        // variable holding the tag value.
+        unsigned int tag_bitflip_position =
+            (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
         printf("Tag before = %llu, bf_tag=%u\n", line->m_tag,
-               bf_line_sz_bits_extra_idx + 1);
-        line->m_tag ^= 1UL << bf_line_sz_bits_extra_idx;
+               tag_bitflip_position + 1);
+        line->m_tag ^= 1UL << tag_bitflip_position;
         printf("Tag after = %llu, bf_tag=%u\n", line->m_tag,
-               bf_line_sz_bits_extra_idx + 1);
+               tag_bitflip_position + 1);
         continue;
       }
 
@@ -2894,18 +2899,24 @@ void gpgpu_sim::cycle() {
           read_colon_option(l2_bitflip_vector,
                             m_config.gpufi_l2_cache_bitflip_rand_n);
           for (int j = 0; j < l2_bitflip_vector.size(); j++) {
+            unsigned tag_array_size_bits =
+                std::bitset<sizeof(new_addr_type) * 8>(
+                    this->m_memory_config->m_L2_config.tag((new_addr_type)-1))
+                    .count();
+            assert(tag_array_size_bits == 57);
             // get_total_size_inKB() -> total size of L2 cache per bank
             unsigned bf_l2 = l2_bitflip_vector[j] - 1;
             unsigned l2_size_per_bank =
                 this->m_memory_config->m_L2_config.get_total_size_inKB() *
                     1024 * 8 +
-                this->m_memory_config->m_L2_config.get_num_lines() * 57;
+                this->m_memory_config->m_L2_config.get_num_lines() *
+                    tag_array_size_bits;
             unsigned bank_id = bf_l2 / l2_size_per_bank;
-            unsigned bf_l2_cache_bank = bf_l2 % l2_size_per_bank;
             l2_cache *l2_cache_bank =
                 this->m_memory_sub_partition[bank_id]->m_L2cache;
             unsigned l2_line_sz_extra_bits =
-                l2_cache_bank->m_config.get_line_sz() * 8 + 57;
+                l2_cache_bank->m_config.get_line_sz() * 8 + tag_array_size_bits;
+            unsigned bf_l2_cache_bank = bf_l2 % l2_size_per_bank;
             unsigned bf_line_idx = bf_l2_cache_bank / l2_line_sz_extra_bits;
             unsigned bf_line_sz_bits_extra_idx =
                 bf_l2_cache_bank - bf_line_idx * l2_line_sz_extra_bits;
@@ -2917,15 +2928,19 @@ void gpgpu_sim::cycle() {
                     << ", total l2 bf " << bf_l2 + 1 << std::endl;
 
             // bf on tag array
-            if (bf_line_sz_bits_extra_idx <= 56) {
-              unsigned bf_tag = 63 - bf_line_sz_bits_extra_idx;
-              printf("Tag before = %x, bf_tag=%u\n", line->m_tag, bf_tag);
-              line->m_tag ^= 1UL << bf_tag;
-              printf("Tag after = %x, bf_tag=%u\n", line->m_tag, bf_tag);
+            if (bf_line_sz_bits_extra_idx <= tag_array_size_bits - 1) {
+              unsigned tag_bitflip_position =
+                  (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
+              printf("Tag before = %x, bf_tag=%u\n", line->m_tag,
+                     tag_bitflip_position);
+              line->m_tag ^= 1UL << tag_bitflip_position;
+              printf("Tag after = %x, bf_tag=%u\n", line->m_tag,
+                     tag_bitflip_position);
               continue;
             }
 
-            unsigned l2_line_sz_data_bits_idx = bf_line_sz_bits_extra_idx - 57;
+            unsigned l2_line_sz_data_bits_idx =
+                bf_line_sz_bits_extra_idx - tag_array_size_bits;
             if (line->is_valid_line()) {
               this->l2_enabled = true;
               this->l2_bf_enabled.push_back(true);

@@ -4,7 +4,6 @@ set -e
 # Accepts a filepath to a gpgpusim.config file as argument. If none, 
 # it tries to find it inside the current dir.
 ADDRESS_WIDTH=64
-WORD_SIZE=64
 CONFIG_FILE=./gpgpusim.config
 if [[ ! -z $1 ]] 
 then
@@ -38,7 +37,6 @@ cache_bits_and_size_calculations () {
     bytes_per_line=${parsed_arr[2]}
     # Log2 of number of bytes per line = bits for byte indexing 
     bits_for_byte_offset=$( printf "%.0f" $(bc -l <<< "l($bytes_per_line)/l(2)") )
-    bits_for_word_offset=$( printf "%.0f" $(bc -l <<< "l($bytes_per_line/($WORD_SIZE/8))/l(2)") )
 
     associativity=${parsed_arr[3]}
 
@@ -52,7 +50,6 @@ cache_bits_and_size_calculations () {
     echo "Bits for tag="$tag_bits
     echo "Bits for index="$bits_for_sets_indexing
     echo "Bits for byte offset="$bits_for_byte_offset
-    echo "Bits for word offset="$bits_for_word_offset
     echo "Bits for tag+index="$(($tag_bits+$bits_for_sets_indexing))
     
     # Size calculation, not taking into account caches which are present in multiple

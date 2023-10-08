@@ -871,6 +871,10 @@ has been filled (i.e. after a HIT).
 */
 const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                                                        address_type pc) {
+  // read the inst from the functional model
+  const warp_inst_t *correct_instruction = m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
+  bool instr_was_injected = false;
+
   for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
     // Find the next L1I with a data bitflip
     if (m_gpu->l1i_enabled[i] == false) continue;
@@ -880,26 +884,66 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
       // TODO: Check if PC asked falls in injected line.
       // Absolute address in DRAM
       address_type absolute_pc = pc + PROGRAM_MEM_START;
-      // Find the tag that should be found in the cache
-      new_addr_type cache_tag = m_L1I->m_config.tag(absolute_pc);
-
-      // Find which block line this address corresponds to. TODO: Wrong
-      unsigned long cache_block_line = m_L1I->m_config.block_addr(absolute_pc) /
-                                       (m_L1I->m_config.get_line_sz() * 8);
-      for (int blocks_inj_idx = 0; blocks_inj_idx < m_gpu->l1i_index[i].size();
-           blocks_inj_idx++) {
-        if (m_gpu->l1i_index[i][blocks_inj_idx] == cache_block_line) {
-          std::cout << "Cycle "
-                    << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
-                    << ", Shader " << m_sid << ", getting instruction " << pc
-                    << ", block=" << cache_block_line << ", injected block="
-                    << m_gpu->l1i_index[i][blocks_inj_idx] << std::endl;
+      unsigned
+          instr_cache_line_location;  // Unique incremental cache line index
+                                      // that the instruction is cached in.
+      // Non-sectored cache, so mask does not play a role.
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
+          absolute_pc, instr_cache_line_location, mask, false);
+      // Extra check for HIT.
+      // Special case: m_inst_fetch_buffer is filled from MSHR, AND we have
+      // bitflipped the tag of the cache line that contains the current
+      // instruction --> should it lead to miss or hit?
+      if (probe_status == HIT || probe_status == HIT_RESERVED) {
+        // Check if instr_cache_line_location is injected
+        for (int blocks_inj_idx = 0;
+             blocks_inj_idx < m_gpu->l1i_index[i].size(); blocks_inj_idx++) {
+          // Make sure that the injected cache line is the same as the one where
+          // the instruction is cached
+          if (m_gpu->l1i_index[i][blocks_inj_idx] ==
+              instr_cache_line_location) {
+            // Bit offset in cache line of the starting bit of the cached
+            // instruction.
+            unsigned instr_cache_line_bit_offset_start =
+                (absolute_pc % m_L1I->m_config.get_line_sz()) * 8;
+            // Bit offset in cache line of the final bit of the cached
+            // instruction.
+            unsigned instr_cache_line_bit_offset_stop =
+                instr_cache_line_bit_offset_start +
+                (correct_instruction->isize * 8);
+            // If bitflip bit offset is within the instruction start/stop,
+            // change the instruction.
+            if (m_gpu->l1i_line_bitflip_bits_idx[i][blocks_inj_idx] >=
+                    instr_cache_line_bit_offset_start &&
+                m_gpu->l1i_line_bitflip_bits_idx[i][blocks_inj_idx] <=
+                    instr_cache_line_bit_offset_stop) {
+              std::cout
+                  << "gpuFI: Cycle "
+                  << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
+                  << ", Shader " << m_sid
+                  << ", getting instruction with pc=" << pc
+                  << "and absolute addr=" << absolute_pc
+                  << ", stored at cache block=" << instr_cache_line_location
+                  << ", injected at bit "
+                  << instr_cache_line_bit_offset_start -
+                         m_gpu->l1i_line_bitflip_bits_idx[i][blocks_inj_idx]
+                  << std::endl;
+            }
+          }
         }
       }
     }
   }
-  // read the inst from the functional model
-  return m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
+  warp_inst_t *instruction_to_return = NULL;
+  if (instr_was_injected) {
+    std::cout << "gpuFI: Injecting instruction at pc " << pc << std::endl;
+    // TODO: Inject the instruction here
+  } else {
+    instruction_to_return = correct_instruction;
+  }
+  const warp_inst_t *final_instruction = &(*instruction_to_return);
+  return final_instruction;
 }
 
 void exec_shader_core_ctx::get_pdom_stack_top_info(unsigned warp_id,

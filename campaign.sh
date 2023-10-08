@@ -46,7 +46,7 @@ LMEM_SIZE_BITS=1
 SMEM_SIZE_BITS=1
 # ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ------------------------------------------------
 
-FAULT_INJECTION_OCCURRED="Fault injection"
+FAULT_INJECTION_OCCURRED="gpuFI: Fault injection"
 CYCLES_MSG="gpu_tot_sim_cycle ="
 
 masked=0
@@ -155,7 +155,7 @@ gather_results() {
     for file in ${TMP_DIR}${1}/${TMP_FILE}*; do
         if [[ "$gpufi_profile" -eq 1 ]]; then
             # Find start and end cycles for each kernel  
-            grep -E "Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g > ${TMP_DIR}${1}/cycles.in
+            grep -E "gpuFI: Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g > ${TMP_DIR}${1}/cycles.in
             # TODO: parse Kernel = %s, max active regs = %u
             # TODO: parse Kernel = %s used shaders
         fi

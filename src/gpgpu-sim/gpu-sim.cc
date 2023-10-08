@@ -2271,7 +2271,8 @@ void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
         //  g_print_memory_space((*threads_it)->m_local_mem, "%d");
       }
       printf(
-          "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
+          "gpuFI: bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, "
+          "bit_in_64b=%u\n",
           bf, block_idx, bit_in_block, idx_64b, bit_in_64b);
     }
   }
@@ -2313,7 +2314,8 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
         //  shared_mem_to_bitflip->print("%08x", stdout);
       }
       printf(
-          "bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, bit_in_64b=%u\n",
+          "gpuFI: bf=%u, block_idx=%u, bit_in_block=%u, idx_64b=%u, "
+          "bit_in_64b=%u\n",
           bf, block_idx, bit_in_block, idx_64b, bit_in_64b);
     }
 
@@ -2467,10 +2469,10 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
         // variable holding the tag value.
         unsigned int tag_bitflip_position =
             (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
-        printf("Tag before = %llu, bf_tag=%u\n", line->m_tag,
+        printf("gpuFI: Tag before = %llu, bf_tag=%u\n", line->m_tag,
                tag_bitflip_position + 1);
         line->m_tag ^= 1UL << tag_bitflip_position;
-        printf("Tag after = %llu, bf_tag=%u\n", line->m_tag,
+        printf("gpuFI: Tag after = %llu, bf_tag=%u\n", line->m_tag,
                tag_bitflip_position + 1);
         continue;
       }
@@ -2499,7 +2501,8 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
         l1_index.push_back(bf_line_idx);
 
         printf(
-            "L1 %s ENABLED: bf_l1d = %u, l1d_line_sz_bits = %u, bf_line_idx = "
+            "gpuFI: L1 %s ENABLED: bf_l1d = %u, l1d_line_sz_bits = %u, "
+            "bf_line_idx = "
             "%u, bf_1024bits_idx = %u and tag = %x\n",
             m_name.c_str(), bf_l1, l1_line_sz_extra_bits, bf_line_idx,
             l1_line_sz_data_bits_idx + 1, line->m_tag);
@@ -2764,7 +2767,7 @@ void gpgpu_sim::cycle() {
       }
     } else if (m_config.gpufi_profile == GPUFI_INJECTION_CAMPAIGN) {
       if (current_cycle == m_config.gpufi_total_cycle_rand) {
-        printf("#### gpu_sim_cycle=%llu and gpu_tot_sim_cycle=%llu\n",
+        printf("gpuFI: gpu_sim_cycle=%llu and gpu_tot_sim_cycle=%llu\n",
                gpu_sim_cycle, gpu_tot_sim_cycle);
         // Start measuring time
         struct timeval begin, end;
@@ -2931,10 +2934,10 @@ void gpgpu_sim::cycle() {
             if (bf_line_sz_bits_extra_idx <= tag_array_size_bits - 1) {
               unsigned tag_bitflip_position =
                   (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
-              printf("Tag before = %x, bf_tag=%u\n", line->m_tag,
+              printf("gpuFI: Tag before = %x, bf_tag=%u\n", line->m_tag,
                      tag_bitflip_position);
               line->m_tag ^= 1UL << tag_bitflip_position;
-              printf("Tag after = %x, bf_tag=%u\n", line->m_tag,
+              printf("gpuFI: Tag after = %x, bf_tag=%u\n", line->m_tag,
                      tag_bitflip_position);
               continue;
             }
@@ -2951,7 +2954,8 @@ void gpgpu_sim::cycle() {
               this->l2_index.push_back(bf_line_idx);
 
               printf(
-                  "L2 %s ENABLED: bf_l2_cache_bank = %u, l2_line_sz_bits = "
+                  "gpuFI: L2 %s ENABLED: bf_l2_cache_bank = %u, "
+                  "l2_line_sz_bits = "
                   "%u, "
                   "bf_line_idx = %u, bf_line_sz_bits_idx = %u and tag = "
                   "llu%\n",
@@ -2967,8 +2971,8 @@ void gpgpu_sim::cycle() {
         long seconds = end.tv_sec - begin.tv_sec;
         long microseconds = end.tv_usec - begin.tv_usec;
         double elapsed = seconds + microseconds * 1e-6;
-        printf("Fault injection time taken=  %.6f seconds\n", elapsed);
-        printf("Fault injection on total_cycle = %llu\n", current_cycle);
+        printf("gpuFI: Fault injection time taken=  %.6f seconds\n", elapsed);
+        printf("gpuFI: Fault injection on total_cycle = %llu\n", current_cycle);
       }
     }
 
@@ -2976,21 +2980,21 @@ void gpgpu_sim::cycle() {
     if (current_cycle == m_config.gpufi_last_cycle - 1) {
       if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
         if (cycles_txt_lines > 0) {
-          printf("Mean active threads = %d\n",
+          printf("gpuFI: Mean active threads = %d\n",
                  active_threads_sum / cycles_txt_lines);
         }
       } else if (m_config.gpufi_profile == GPUFI_OBSERVATION_RUN) {
         for (std::map<char *, unsigned>::iterator itREG =
                  max_active_regs.begin();
              itREG != max_active_regs.end(); ++itREG) {
-          printf("Kernel = %s, max active regs = %u\n", itREG->first,
+          printf("gpuFI: Kernel = %s, max active regs = %u\n", itREG->first,
                  itREG->second);
         }
 
         for (std::map<char *, std::set<unsigned>>::iterator itK =
                  shaders_used.begin();
              itK != shaders_used.end(); ++itK) {
-          printf("Kernel = %s used shaders: ", itK->first);
+          printf("gpuFI: Kernel = %s used shaders: ", itK->first);
           for (std::set<unsigned>::iterator itSH = itK->second.begin();
                itSH != itK->second.end(); ++itSH) {
             printf("%u ", *itSH);
@@ -3001,7 +3005,7 @@ void gpgpu_sim::cycle() {
                  itK = kernel_start_end_cycle.begin();
              itK != kernel_start_end_cycle.end(); ++itK) {
           printf(
-              "Kernel = %u with name = %s, started on cycle = %llu and "
+              "gpuFI: Kernel = %u with name = %s, started on cycle = %llu and "
               "finished on cycle = %llu\n",
               itK->first, active_kernels_names[itK->first], (itK->second)[0],
               (itK->second)[1]);

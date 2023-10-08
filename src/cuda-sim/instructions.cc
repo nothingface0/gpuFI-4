@@ -211,7 +211,7 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
       }
 
       if (is_store && gpu_sim->l2_tag[j] == tag && probe_status_hit) {
-        printf("DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+        printf("gpuFI: DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
         gpu_sim->l2_bf_enabled[j] = false;
         continue;
       }
@@ -261,11 +261,11 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
           if ((mshr_hit && mshr_avail) ||
               (!mshr_hit && mshr_avail &&
                (L2->m_miss_queue.size() < L2->m_config.m_miss_queue_size))) {
-            printf("DEACTIVATING L2 BIT FLIP ON LOAD CONSTANT\n");
+            printf("gpuFI: DEACTIVATING L2 BIT FLIP ON LOAD CONSTANT\n");
             gpu_sim->l2_bf_enabled[j] = false;
           }
         } else {
-          printf("DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+          printf("gpuFI: DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
           // TODO disable main flag if l2_bf_enabled[*]==false
           gpu_sim->l2_bf_enabled[j] = false;
         }
@@ -337,7 +337,7 @@ void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
           //          printf("After bit flip value = %llu\n", data_bf.u64);
         }
       } else if (l1t_tag_vector[j] == tag && probe_status == MISS) {  // miss
-        printf("DEACTIVATING L1T BIT FLIP ON LOAD TEXTURE\n");
+        printf("gpuFI: DEACTIVATING L1T BIT FLIP ON LOAD TEXTURE\n");
         l1t_bf_enabled_vector[j] = false;
       }
     }
@@ -484,7 +484,7 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
             }
           } else if (l1d_tag_vector[j] == tag &&
                      probe_status != RESERVATION_FAIL) {  // miss
-            printf("DEACTIVATING L1D BIT FLIP ON LOAD GLOBAL/LOCAL\n");
+            printf("gpuFI: DEACTIVATING L1D BIT FLIP ON LOAD GLOBAL/LOCAL\n");
             l1d_bf_enabled_vector[j] = false;
           }
         }
@@ -593,7 +593,7 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
           if ((mshr_hit && mshr_avail) ||
               (!mshr_hit && mshr_avail &&
                (L1C->m_miss_queue.size() < L1C->m_config.m_miss_queue_size))) {
-            printf("DEACTIVATING L1D BIT FLIP ON LOAD CONST\n");
+            printf("gpuFI: DEACTIVATING L1D BIT FLIP ON LOAD CONST\n");
             l1c_bf_enabled_vector[j] = false;
           }
         }
@@ -733,7 +733,7 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
           // fail statuses
           if (l1d_tag_vector[j] == tag &&
               (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
-            printf("DEACTIVATING L1D BIT FLIP ON WRITE\n");
+            printf("gpuFI:  L1D BIT FLIP ON WRITE\n");
             l1d_bf_enabled_vector[j] = false;
           }
         }

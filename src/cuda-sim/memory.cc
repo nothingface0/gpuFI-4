@@ -66,7 +66,7 @@ void memory_space_impl<BSIZE>::write(mem_addr_t addr, size_t length,
 
     // gpuFI start
     if (lol == 666U) {
-      printf("GLOBALL_MEMORY index = %u\n", index);
+      printf("gpuFI: GLOBALL_MEMORY index = %u\n", index);
       typename map_t::const_iterator i_page;
 
       for (i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {

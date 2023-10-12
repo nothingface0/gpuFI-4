@@ -775,6 +775,16 @@ class cache_config {
     assert(m_valid);
     return get_max_cache_multiplier() * original_m_assoc;
   }
+  /*
+    Calcualte the number of tag bits for the specific cache. Does *not* include
+    set index bits.
+
+    We use new_addr_type to specify the total bits available for addresses.
+   */
+  unsigned get_num_tag_bits() const {
+    return (sizeof(new_addr_type) * 8) - m_line_sz_log2 - m_nset_log2;
+  };
+
   void print(FILE *fp) const {
     fprintf(fp, "Size = %d B (%d Set x %d-way x %d byte line)\n",
             m_line_sz * m_nset * m_assoc, m_nset, m_assoc, m_line_sz);

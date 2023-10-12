@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>  // gpuFI
-#include <bitset>      // gpuFI
 #include "zlib.h"
 
 #include "dram.h"
@@ -2355,19 +2354,23 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   read_colon_option(l1_bitflip_vector, l1_cache_bitflip_rand_n);
   read_colon_option(l1_shader_vector, l1_shader_rand_n);
 
-  // Vector of pointers to cache_t objects, to be fault-injected.
-  // Child classes of cache_t are:
-  // - tex_cache
-  // - read_only_cache (i.e. instruction cache)
-  // - l1_cache
+  /*
+    Vector of pointers to cache_t objects, to be fault-injected.
+    Child classes of cache_t are:
+    - tex_cache
+    - read_only_cache (i.e. instruction cache)
+    - l1_cache
+  */
   std::vector<cache_t *> l1_to_bitflip;
 
   // Vectors of cluster and shader ids, to be fault-injected.
   std::vector<unsigned> l1_cluster_to_bitflip;
   std::vector<unsigned> l1_shader_to_bitflip;
 
-  // Populate the cache, cluster and shader vectors
-  // Loop over clusters
+  /*
+    Populate the cache, cluster and shader vectors.
+    Loop over clusters.
+  */
   for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
        cluster_idx++) {
     simt_core_cluster *simt_core_cluster = m_cluster[cluster_idx];
@@ -2396,8 +2399,10 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       }
     }
   }
-  // For each L1 cache in the l1_to_bitflip vector,
-  // perform the bitflip on the actual data of the cache (tag_array).
+  /*
+    For each L1 cache in the l1_to_bitflip vector,
+    perform the bitflip on the actual data of the cache (tag_array).
+  */
   for (int i = 0; i < l1_to_bitflip.size(); i++) {
     cache_t *l1 = l1_to_bitflip[i];
 
@@ -2430,19 +2435,18 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
                        std::string(this->m_config.gpufi_run_id);
     outfile.open(file, std::ios::app);  // append instead of overwrite
 
-    // Bit size of tag + offset, per cache line/sector.
-    // Take advantage of the cache's tag() method to find the largest
-    // tag that it can store, and then count the number of bits. We expect
-    // them to be 57.
-    unsigned tag_array_size_bits =
-        std::bitset<sizeof(new_addr_type) * 8>(
-            m_tag_array->m_config.tag((new_addr_type)-1))
-            .count();
-    assert(tag_array_size_bits == 57);
+    /*
+      Unlike the simulator, we only want to account for the the actual tag
+      bits, so we calculate the number of bits based on the cache config.
+    */
+    unsigned tag_array_size_bits = m_tag_array->m_config.get_num_tag_bits();
+
     // For each position in the L1 cache to bitflip (read from config)
     for (int j = 0; j < l1_bitflip_vector.size(); j++) {
-      // Absolute bit position in linear address space of L1 (incl. tag +
-      // index bits)
+      /*
+        Absolute bit position in linear address space of L1 (incl. tag +
+        index bits)
+       */
       unsigned bf_l1 = l1_bitflip_vector[j] - 1;
 
       // Total size of cache line (incl. tag + index)
@@ -2451,7 +2455,6 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // find which line the bitflip should be done in
       unsigned bf_line_idx = bf_l1 / l1_line_sz_extra_bits;
-      // TODO: replace with bf_l1 % l1_line_sz_extra_bits;
       // Bit offset of bit to flip in cache line, incl. tag bits
       unsigned bf_line_sz_bits_extra_idx =
           bf_l1 - bf_line_idx * l1_line_sz_extra_bits;
@@ -2463,10 +2466,12 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // If bit position falls in tag/index area
       if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
-        // The simulator only uses the "leftmost" 57 bits of the address
-        // as a tag. See cache_config::tag(). For this reason we calculate
-        // the position to flip by subtracting from the size in bits of the
-        // variable holding the tag value.
+        /*
+          The simulator only uses the "leftmost" 57 bits of the address
+          as a tag. See cache_config::tag(). For this reason we calculate
+          the position to flip by subtracting from the size in bits of the
+          variable holding the tag value.
+        */
         unsigned int tag_bitflip_position =
             (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
         printf("gpuFI: Tag before = %llu, bf_tag=%u\n", line->m_tag,
@@ -2509,9 +2514,11 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       }
     }
 
-    // Update global gpuFI tracking variables.
-    // We're using separate variables for each cache type,
-    // because we might run bit flips on more than one types.
+    /*
+      Update global gpuFI tracking variables.
+      We're using separate variables for each cache type,
+      because we might run bit flips on more than one types.
+    */
     if (l1_cache_type == L1D_CACHE) {
       l1d_enabled.push_back(l1_bf_enabled.size() > 0);
       l1d_bf_enabled.push_back(l1_bf_enabled);
@@ -2903,9 +2910,7 @@ void gpgpu_sim::cycle() {
                             m_config.gpufi_l2_cache_bitflip_rand_n);
           for (int j = 0; j < l2_bitflip_vector.size(); j++) {
             unsigned tag_array_size_bits =
-                std::bitset<sizeof(new_addr_type) * 8>(
-                    this->m_memory_config->m_L2_config.tag((new_addr_type)-1))
-                    .count();
+                this->m_memory_config->m_L2_config.get_num_tag_bits();
             assert(tag_array_size_bits == 57);
             // get_total_size_inKB() -> total size of L2 cache per bank
             unsigned bf_l2 = l2_bitflip_vector[j] - 1;

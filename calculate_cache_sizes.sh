@@ -59,9 +59,9 @@ cache_bits_and_size_calculations () {
         echo "Number of sectors=$num_sectors"
         total_bits=$(( ($bytes_per_line*8)*$associativity*$sets ))
         # Assume one tag field per sector, i.e. divide total cache lines by sector size.
-        total_bits=$(( $total_bits + ($tag_bits+$bits_for_sets_indexing)*(($associativity*$sets)/$num_sectors) ))
+        total_bits=$(( $total_bits + $tag_bits*(($associativity*$sets)/$num_sectors) ))
     else # Non-sectored
-        total_bits=$(( ($bytes_per_line*8+$tag_bits+$bits_for_sets_indexing)*$associativity*$sets ))
+        total_bits=$(( ($bytes_per_line*8+$tag_bits)*$associativity*$sets ))
     fi
 
     if [[ $has_sub_partitions -ne 0 ]]; then

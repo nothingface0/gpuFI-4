@@ -733,7 +733,7 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
           // fail statuses
           if (l1d_tag_vector[j] == tag &&
               (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
-            printf("gpuFI:  L1D BIT FLIP ON WRITE\n");
+            printf("gpuFI: L1D BIT FLIP ON WRITE\n");
             l1d_bf_enabled_vector[j] = false;
           }
         }

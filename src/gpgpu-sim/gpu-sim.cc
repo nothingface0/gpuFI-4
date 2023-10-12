@@ -2479,6 +2479,14 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
         line->m_tag ^= 1UL << tag_bitflip_position;
         printf("gpuFI: Tag after = %llu, bf_tag=%u\n", line->m_tag,
                tag_bitflip_position + 1);
+
+        /*
+         TODO:
+         1. Check if the line whose tag was flipped was valid.
+           1i.  If not, log it, but it *should* be a *very* rare case.
+           1ii. If yes, keep the *previous* tag in some variable.
+         2.
+        */
         continue;
       }
 

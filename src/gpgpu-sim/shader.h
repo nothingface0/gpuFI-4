@@ -1067,14 +1067,25 @@ struct insn_latency_info {
 struct ifetch_buffer_t {
   ifetch_buffer_t() { m_valid = false; }
 
-  ifetch_buffer_t(address_type pc, unsigned nbytes, unsigned warp_id) {
+  ifetch_buffer_t(address_type pc, unsigned nbytes, unsigned warp_id,
+                  bool filled_from_mshr) {
     m_valid = true;
     m_pc = pc;
     m_nbytes = nbytes;
     m_warp_id = warp_id;
+    m_filled_from_mshr = filled_from_mshr;
   }
 
   bool m_valid;
+  /*
+    gpuFI
+    The ifetch_buffer_t is either "filled" from the MSHR (if there are pending
+    responses) or the Cache (in case of HIT).
+    Therefore, during decode(), we want to differentiate between instructions
+    coming from the MSHR (which are not injected) and those coming from the L1I
+    cache (which may be injected).
+  */
+  bool m_filled_from_mshr;
   address_type m_pc;
   unsigned m_nbytes;
   unsigned m_warp_id;
@@ -2429,8 +2440,8 @@ class shader_core_ctx : public core_t {
 
   virtual void create_shd_warp() = 0;
 
-  virtual const warp_inst_t *get_next_inst(unsigned warp_id,
-                                           address_type pc) = 0;
+  virtual const warp_inst_t *get_next_inst(unsigned warp_id, address_type pc,
+                                           bool from_mshr) = 0;
   virtual void get_pdom_stack_top_info(unsigned warp_id, const warp_inst_t *pI,
                                        unsigned *pc, unsigned *rpc) = 0;
   virtual const active_mask_t &get_active_mask(unsigned warp_id,
@@ -2561,7 +2572,8 @@ class exec_shader_core_ctx : public shader_core_ctx {
                                    unsigned hw_cta_id, unsigned hw_warp_id,
                                    gpgpu_t *gpu);
   virtual void create_shd_warp();
-  virtual const warp_inst_t *get_next_inst(unsigned warp_id, address_type pc);
+  virtual const warp_inst_t *get_next_inst(unsigned warp_id, address_type pc,
+                                           bool from_mshr);
   virtual void get_pdom_stack_top_info(unsigned warp_id, const warp_inst_t *pI,
                                        unsigned *pc, unsigned *rpc);
   virtual const active_mask_t &get_active_mask(unsigned warp_id,

@@ -865,81 +865,101 @@ void shader_core_stats::visualizer_print(gzFile visualizer_file) {
                 check ptx_ir.h to verify this does not overlap \
                 other memory spaces */
 /*
-Is called during the decode stage, once the m_inst_fetch_buffer has been filled
-during the fetch stage. This means that this function only works after the L1I
-has been filled (i.e. after a HIT).
+This function is called during the decode stage, once the m_inst_fetch_buffer
+has been filled during the fetch stage. This means that this function only works
+after the L1I has been filled either from the MSHR, or the L1I.
 */
 const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
-                                                       address_type pc) {
+                                                       address_type pc,
+                                                       bool from_mshr) {
   // read the inst from the functional model
   const warp_inst_t *correct_instruction = m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
   bool instr_was_injected = false;
-  // i represents a cache that has active bitflips. It does
-  // not represent an actual index or a pointer to a cache.
-  for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
-    // Find the next L1I with a data bitflip
-    if (m_gpu->l1i_enabled[i] == false) continue;
-    // Check if it belongs to the current cluster & core
-    if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
-        m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
-      // Absolute address in DRAM
-      address_type absolute_pc = pc + PROGRAM_MEM_START;
-      unsigned
-          instr_cache_line_location;  // Unique incremental cache line index
-                                      // that the instruction is cached in.
-      // Non-sectored cache, so mask does not play a role.
-      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
-      enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
-          absolute_pc, instr_cache_line_location, mask, false);
-      // Extra check for HIT.
-      // Special case: m_inst_fetch_buffer is filled from MSHR, AND we have
-      // bitflipped the tag of the cache line that contains the current
-      // instruction --> should it lead to miss or hit?
-      if (probe_status == HIT || probe_status == HIT_RESERVED) {
-        // Check if instr_cache_line_location is injected
-        for (int bf_enabled_idx = 0;
-             bf_enabled_idx < m_gpu->l1i_bf_enabled[i].size();
-             bf_enabled_idx++) {
-          // Skip inactive bitflips (i.e. deactivated by a cache line being
-          // replaced)
-          if (!m_gpu->l1i_bf_enabled[i][bf_enabled_idx]) {
-            continue;
-          }
-          // for (int blocks_inj_idx = 0;
-          //  blocks_inj_idx < m_gpu->l1i_index[i].size(); blocks_inj_idx++) {
-          // Make sure that the injected cache line is the same as the one
-          // where the instruction is cached
-          if (m_gpu->l1i_index[i][bf_enabled_idx] ==
-              instr_cache_line_location) {
-            // Bit offset in cache line of the starting bit of the cached
-            // instruction.
-            unsigned instr_cache_line_bit_offset_start =
-                (absolute_pc % m_L1I->m_config.get_line_sz()) * 8;
-            // Bit offset in cache line of the final bit of the cached
-            // instruction.
-            unsigned instr_cache_line_bit_offset_stop =
-                instr_cache_line_bit_offset_start +
-                (correct_instruction->isize * 8);
-            // If bitflip bit offset is within the instruction start/stop,
-            // change the instruction.
-            if (m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] >=
-                    instr_cache_line_bit_offset_start &&
-                m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] <=
-                    instr_cache_line_bit_offset_stop) {
-              std::cout
-                  << "gpuFI: Cycle "
-                  << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
-                  << ", Shader " << m_sid << ", warp " << warp_id
-                  << ", getting instruction with pc=" << pc
-                  << " and absolute addr=" << absolute_pc
-                  << ", stored at cache block=" << instr_cache_line_location
-                  << ", injected at bit "
-                  << instr_cache_line_bit_offset_start -
-                         m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx]
-                  << std::endl;
+
+  /*
+    Check if any of the active data bitflips apply for the currently decoded
+    instruction.
+    Only check those *not* coming from the MSHR, i.e. check only in the case of
+    a cache HIT.
+  */
+  if (!from_mshr) {
+    /*
+      i represents the index of a cache that has active bitflips. It does
+      not represent an actual index or a pointer to a cache.
+    */
+    for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
+      // Find the next L1I with a data bitflip
+      if (m_gpu->l1i_enabled[i] == false) continue;
+      // Check if it belongs to the current cluster & core
+      if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
+          m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
+        // Absolute address in DRAM
+        address_type absolute_pc = pc + PROGRAM_MEM_START;
+        /*
+          Unique incremental cache line index that the instruction is cached in.
+        */
+        unsigned instr_cache_line_location;
+        // Non-sectored cache, so mask does not play a role.
+        mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+        enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
+            absolute_pc, instr_cache_line_location, mask, false);
+        /*
+          Extra check for HIT. Probably unnecessary, considering we've only
+          allowed this to run for cases of HIT.
+        */
+        if (probe_status == HIT || probe_status == HIT_RESERVED) {
+          // Check if instr_cache_line_location is injected
+          for (int bf_enabled_idx = 0;
+               bf_enabled_idx < m_gpu->l1i_bf_enabled[i].size();
+               bf_enabled_idx++) {
+            /*
+              Skip inactive bitflips (i.e. deactivated by a cache line being
+              replaced)
+            */
+            if (!m_gpu->l1i_bf_enabled[i][bf_enabled_idx]) {
+              continue;
+            }
+            /*
+              Make sure that the injected cache line is the same as the one
+              where the instruction is cached
+            */
+            if (m_gpu->l1i_index[i][bf_enabled_idx] ==
+                instr_cache_line_location) {
+              /*
+                Bit offset in cache line of the starting bit of the cached
+                instruction.
+              */
+              unsigned instr_cache_line_bit_offset_start =
+                  (absolute_pc % m_L1I->m_config.get_line_sz()) * 8;
+              /*
+                Bit offset in cache line of the final bit of the cached
+                instruction.
+              */
+              unsigned instr_cache_line_bit_offset_stop =
+                  instr_cache_line_bit_offset_start +
+                  (correct_instruction->isize * 8);
+              /*
+                If bitflip bit offset is within the instruction start/stop,
+                change the instruction.
+              */
+              if (m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] >=
+                      instr_cache_line_bit_offset_start &&
+                  m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] <=
+                      instr_cache_line_bit_offset_stop) {
+                std::cout
+                    << "gpuFI: Cycle "
+                    << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
+                    << ", Shader " << m_sid << ", warp " << warp_id
+                    << ", getting instruction with pc=" << pc
+                    << " and absolute addr=" << absolute_pc
+                    << ", stored at cache block=" << instr_cache_line_location
+                    << ", injected at bit "
+                    << instr_cache_line_bit_offset_start -
+                           m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx]
+                    << std::endl;
+              }
             }
           }
-          //  }
         }
       }
     }
@@ -947,7 +967,17 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   warp_inst_t *instruction_to_return = NULL;
   if (instr_was_injected) {
     std::cout << "gpuFI: Injecting instruction at pc " << pc << std::endl;
-    // TODO: Track bits flipped and inject the instruction here
+    /*
+      TODO: Track bits flipped and inject the instruction here
+      1. Modify (a copy of) the currently running executable at the appropriate
+      place.
+      2. Run cudaobjdump on it, the same way that the simulator does it.
+        2i. If cudaobjdump crashes, exit with error.
+        2ii. We will probably need to consider more weird corner cases here.
+      3. Parse the resulting ptxplus file the same way that the simulator does
+      it.
+      4. Get the modified warp_isnt_t.
+    */
   } else {
     return correct_instruction;
   }
@@ -972,7 +1002,9 @@ void shader_core_ctx::decode() {
   if (m_inst_fetch_buffer.m_valid) {
     // decode 1 or 2 instructions and place them into ibuffer
     address_type pc = m_inst_fetch_buffer.m_pc;
-    const warp_inst_t *pI1 = get_next_inst(m_inst_fetch_buffer.m_warp_id, pc);
+    const warp_inst_t *pI1 =
+        get_next_inst(m_inst_fetch_buffer.m_warp_id, pc,
+                      m_inst_fetch_buffer.m_filled_from_mshr);
     m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(0, pI1);
     m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
     if (pI1) {
@@ -985,7 +1017,8 @@ void shader_core_ctx::decode() {
         m_stats->m_num_FPdecoded_insn[m_sid]++;
       }
       const warp_inst_t *pI2 =
-          get_next_inst(m_inst_fetch_buffer.m_warp_id, pc + pI1->isize);
+          get_next_inst(m_inst_fetch_buffer.m_warp_id, pc + pI1->isize,
+                        m_inst_fetch_buffer.m_filled_from_mshr);
       if (pI2) {
         m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(1, pI2);
         m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
@@ -1007,12 +1040,13 @@ void shader_core_ctx::fetch() {
   // Make sure that the register between fetch & decode contains
   // no valid fetched instructions already, i.e. decode stage is not stalled.
   if (!m_inst_fetch_buffer.m_valid) {
-    if (m_L1I->access_ready()) {  // Data has arrived to L1I
+    // Data has arrived to L1I, waiting at the MSHR
+    if (m_L1I->access_ready()) {
       mem_fetch *mf = m_L1I->next_access();
       m_warp[mf->get_wid()]->clear_imiss_pending();
       m_inst_fetch_buffer =
           ifetch_buffer_t(m_warp[mf->get_wid()]->get_pc(),
-                          mf->get_access_size(), mf->get_wid());
+                          mf->get_access_size(), mf->get_wid(), true);
       // gpuFI
       // assert(m_warp[mf->get_wid()]->get_pc() ==
       //        (mf->get_addr() -
@@ -1114,7 +1148,7 @@ void shader_core_ctx::fetch() {
             m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
           } else if (status == HIT) {
             m_last_warp_fetched = warp_id;
-            m_inst_fetch_buffer = ifetch_buffer_t(pc, nbytes, warp_id);
+            m_inst_fetch_buffer = ifetch_buffer_t(pc, nbytes, warp_id, false);
             m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
             delete mf;
           } else {

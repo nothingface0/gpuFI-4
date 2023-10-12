@@ -927,10 +927,10 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                 instr_cache_line_location) {
               /*
                 Bit offset in cache line of the starting bit of the cached
-                instruction.
+                instruction. Use the byte offset of the address.
               */
               unsigned instr_cache_line_bit_offset_start =
-                  (absolute_pc % m_L1I->m_config.get_line_sz()) * 8;
+                  (absolute_pc & (m_L1I->m_config.get_line_sz() - 1)) * 8;
               /*
                 Bit offset in cache line of the final bit of the cached
                 instruction.
@@ -4016,18 +4016,31 @@ void shader_core_ctx::broadcast_barrier_reduction(unsigned cta_id,
 
 bool shader_core_ctx::fetch_unit_response_buffer_full() const { return false; }
 
+/*
+  Method that is run each time any of the L2 responses arrive to L1I.
+  For gpuFI, we check if the new data overwrite any of the active bitflips.
+*/
 void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
   mf->set_status(IN_SHADER_FETCHED,
                  m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
 
   // gpuFI start
-  // Store the address and size, as the fill() method deletes the pointer.
+  /*
+    Store the address of the data received, as the fill() method deletes the
+    data pointed to by the mf pointer. We will need it to check which cache line
+    they will be cached in.
+  */
   new_addr_type mf_address = mf->get_addr();
-  unsigned int mf_size = mf->get_data_size();
+  // gpuFI end
 
   m_L1I->fill(mf, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
 
-  // Check if mf received overwrites bitflip.
+  // gpuFI start
+  /*
+    Check if mf received overwrites bitflip. Since L2 is sectored, each L1I
+    request generates 4 sub-requests to L2. The simulator waits for all of them
+    to arrive for the cache line to be written to L1I.
+  */
   for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
     if (m_gpu->l1i_enabled[i] == false) continue;
     if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
@@ -4036,37 +4049,24 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
                                         // index that the mf is cached in.
       // Non-sectored cache, so mask does not play a role.
       mem_access_sector_mask_t mask = mem_access_sector_mask_t();
-      // Check if mf_address is cached. Since L2 is sectored, all 4 requests
-      // from L1I -> L2 must have arrived for the cache line to be written to
-      // L1I.
+      /*
+        Check if mf_address is cached. That's the only way to check
+      */
       enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
           mf_address, mf_cache_line_location, mask, false);
-      // If mf address is cached, all the requests to the sectored L2
-      // have arrived to L1I.
+      /*
+        If mf address is cached, all the requests to the sectored L2
+        have arrived to L1I.
+      */
       if (probe_status == HIT || probe_status == HIT_RESERVED) {
-        // The following doesn't make sense, since the simulator only
-        // fills the cache line after all sub-requests have arrived.
-
-        // Find the first bit that in the cache line that is replaced
-        // by this mf.
-        // mf_address = m_L1I->m_config.block_addr(mf_address);
-        // unsigned mf_cache_line_bit_offset_start = 0;
-        // unsigned mf_cache_line_bit_offset_stop =
-        //     mf_cache_line_bit_offset_start +
-        //     (m_L1I->m_config.get_line_sz() * 8);
-        // Iterate over active bitflips
-        // unsigned mf_cache_line_bit_offset_start =
-        //     (mf_address % m_L1I->m_config.get_line_sz()) * 8;
-        // unsigned mf_cache_line_bit_offset_stop =
-        //     mf_cache_line_bit_offset_start + (mf->m_access.get_size() *
-        //     8);
-
         // Iterate over active bitflips
         for (int bf_enabled_idx = 0;
              bf_enabled_idx < m_gpu->l1i_bf_enabled[i].size();
              bf_enabled_idx++) {
-          // Skip inactive bitflips (i.e. deactivated by a cache line being
-          // replaced)
+          /*
+            Skip inactive bitflips (i.e. deactivated by a cache line being
+            replaced)
+          */
           if (!m_gpu->l1i_bf_enabled[i][bf_enabled_idx]) {
             continue;
           }

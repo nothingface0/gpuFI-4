@@ -2369,7 +2369,9 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
   /*
     Populate the cache, cluster and shader vectors.
-    Loop over clusters.
+    To do that, we loop over all cores of all clusters and, if we find
+    the core with the requested id, we append its cluster id, its
+    cluster-relative core id and a pointer to the requested cache.
   */
   for (unsigned cluster_idx = 0; cluster_idx < m_shader_config->n_simt_clusters;
        cluster_idx++) {
@@ -2400,16 +2402,23 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
     }
   }
   /*
-    For each L1 cache in the l1_to_bitflip vector,
-    perform the bitflip on the actual data of the cache (tag_array).
+    For each L1 cache in the l1_to_bitflip vector, check the type of the
+    bitflip. If it's a tag bitflip, perform the bitflip in place on the actual
+    tag of the cache (tag_array). If it's a data bitflip, keep track of it
+    until the cache is "used" by the functional simulator.
   */
   for (int i = 0; i < l1_to_bitflip.size(); i++) {
     cache_t *l1 = l1_to_bitflip[i];
 
-    std::vector<bool> l1_bf_enabled;
+    std::vector<bool> l1_data_bf_enabled;
+    std::vector<bool> l1_tag_bf_enabled;
     std::vector<unsigned> l1_line_bitflip_bits_idx;
-    std::vector<new_addr_type> l1_tag;
-    std::vector<unsigned> l1_index;
+    // Temp storage of line's tag for data bitflips
+    std::vector<new_addr_type> l1_data_bf_tag;
+    std::vector<unsigned> l1_data_bf_index;
+    // Temp storage of line's tag for tag bitflips
+    std::vector<new_addr_type> l1_tag_bf_tag;
+    std::vector<unsigned> l1_tag_bf_index;
 
     const cache_config &m_config =
         (l1_cache_type == L1D_CACHE || l1_cache_type == L1C_CACHE ||
@@ -2444,12 +2453,11 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
     // For each position in the L1 cache to bitflip (read from config)
     for (int j = 0; j < l1_bitflip_vector.size(); j++) {
       /*
-        Absolute bit position in linear address space of L1 (incl. tag +
-        index bits)
+        Absolute bit position in linear address space of L1 (incl. tag bits)
        */
       unsigned bf_l1 = l1_bitflip_vector[j] - 1;
 
-      // Total size of cache line (incl. tag + index)
+      // Total size of cache line (incl. tag)
       unsigned l1_line_sz_extra_bits =
           m_config.get_line_sz() * 8 + tag_array_size_bits;
 
@@ -2464,37 +2472,12 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       outfile << m_name.c_str() << ", line " << bf_line_idx << ", bf "
               << bf_l1 + 1 << std::endl;
 
-      // If bit position falls in tag/index area
-      if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
-        /*
-          The simulator only uses the "leftmost" 57 bits of the address
-          as a tag. See cache_config::tag(). For this reason we calculate
-          the position to flip by subtracting from the size in bits of the
-          variable holding the tag value.
-        */
-        unsigned int tag_bitflip_position =
-            (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
-        printf("gpuFI: Tag before = %llu, bf_tag=%u\n", line->m_tag,
-               tag_bitflip_position + 1);
-        line->m_tag ^= 1UL << tag_bitflip_position;
-        printf("gpuFI: Tag after = %llu, bf_tag=%u\n", line->m_tag,
-               tag_bitflip_position + 1);
-
-        /*
-         TODO:
-         1. Check if the line whose tag was flipped was valid.
-           1i.  If not, log it, but it *should* be a *very* rare case.
-           1ii. If yes, keep the *previous* tag in some variable.
-         2.
-        */
-        continue;
-      }
-
-      // TODO: Could this be checked directly somehow, using
-      // baseline_cache::m_config->m_cache_type ?
-      // L1D is sectored (4*32 bytes), check each sector if valid data
+      /*
+        First, check if the line targeted is valid. We will need it for both
+        tag and data bitflips.
+      */
       bool is_valid_line = false;
-      if (l1_cache_type == L1D_CACHE) {
+      if (m_config.get_cache_type() == SECTOR) {
         for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
           if (((sector_cache_block *)line)->m_status[i] != INVALID) {
             is_valid_line = true;
@@ -2504,63 +2487,97 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       } else {
         is_valid_line = line->is_valid_line();
       }
-      // Bit offset of bit to flip in cache line, excl. tag bits
-      unsigned l1_line_sz_data_bits_idx =
-          bf_line_sz_bits_extra_idx - tag_array_size_bits;
-      if (is_valid_line) {
-        l1_bf_enabled.push_back(true);
-        l1_line_bitflip_bits_idx.push_back(l1_line_sz_data_bits_idx);
-        l1_tag.push_back(line->m_tag);
-        l1_index.push_back(bf_line_idx);
 
-        printf(
-            "gpuFI: L1 %s ENABLED: bf_l1d = %u, l1d_line_sz_bits = %u, "
-            "bf_line_idx = "
-            "%u, bf_1024bits_idx = %u and tag = %x\n",
-            m_name.c_str(), bf_l1, l1_line_sz_extra_bits, bf_line_idx,
-            l1_line_sz_data_bits_idx + 1, line->m_tag);
+      /*
+        Check if bitflip position falls in tag or data bits.
+        The simulator only uses as the tag the "leftmost" 57 bits of the
+        variable holding the address, by masking the "rightmost" 7. See
+        cache_config::tag(). For this reason, we calculate the position to flip
+        by subtracting from the size in bits of the variable holding the tag
+        value.
+      */
+      if (bf_line_sz_bits_extra_idx <= (tag_array_size_bits - 1)) {
+        /*
+          If the line is valid, keep track of the tag before the bitflip.
+          We will need it in the case where the cache line is used
+        */
+        if (is_valid_line) {
+          l1_tag_bf_enabled.push_back(true);
+          l1_tag_bf_tag.push_back(line->m_tag);
+          l1_tag_bf_index.push_back(bf_line_idx);
+        }
+
+        unsigned int tag_bitflip_position =
+            (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
+        printf("gpuFI: Tag before = %llu, bf_tag=%u\n", line->m_tag,
+               tag_bitflip_position + 1);
+        line->m_tag ^= 1UL << tag_bitflip_position;
+        printf("gpuFI: Tag after = %llu, bf_tag=%u\n", line->m_tag,
+               tag_bitflip_position + 1);
+
+      } else {  // Data bitflip
+        if (is_valid_line) {
+          // Bit offset of bit to flip in cache line, excl. tag bits
+          unsigned l1_line_sz_data_bits_idx =
+              bf_line_sz_bits_extra_idx - tag_array_size_bits;
+          l1_data_bf_enabled.push_back(true);
+          l1_line_bitflip_bits_idx.push_back(l1_line_sz_data_bits_idx);
+          l1_data_bf_tag.push_back(line->m_tag);
+          l1_data_bf_index.push_back(bf_line_idx);
+
+          printf(
+              "gpuFI: L1 %s ENABLED: bf_l1d = %u, l1d_line_sz_bits = %u, "
+              "bf_line_idx = "
+              "%u, bf_1024bits_idx = %u and tag = %x\n",
+              m_name.c_str(), bf_l1, l1_line_sz_extra_bits, bf_line_idx,
+              l1_line_sz_data_bits_idx + 1, line->m_tag);
+        }
       }
-    }
+    }  // Loop over bitflips
 
     /*
-      Update global gpuFI tracking variables.
-      We're using separate variables for each cache type,
-      because we might run bit flips on more than one types.
+      We've checked all requested bitflips for the current L1 cache, now update
+      the gpuFI tracking variables. We're using separate variables for each
+      cache type, because we might run bit flips on more than one types.
     */
     if (l1_cache_type == L1D_CACHE) {
-      l1d_enabled.push_back(l1_bf_enabled.size() > 0);
-      l1d_bf_enabled.push_back(l1_bf_enabled);
+      l1d_with_data_bf_enabled.push_back(l1_data_bf_enabled.size() > 0);
+      l1d_bf_enabled.push_back(l1_data_bf_enabled);
       l1d_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
       l1d_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
       l1d_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
-      l1d_tag.push_back(l1_tag);
-      l1d_index.push_back(l1_index);
+      l1d_tag.push_back(l1_data_bf_tag);
+      l1d_index.push_back(l1_data_bf_index);
     } else if (l1_cache_type == L1C_CACHE) {
-      l1c_enabled.push_back(l1_bf_enabled.size() > 0);
-      l1c_bf_enabled.push_back(l1_bf_enabled);
+      l1c_with_data_bf_enabled.push_back(l1_data_bf_enabled.size() > 0);
+      l1c_bf_enabled.push_back(l1_data_bf_enabled);
       l1c_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
       l1c_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
       l1c_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
-      l1c_tag.push_back(l1_tag);
-      l1c_index.push_back(l1_index);
+      l1c_tag.push_back(l1_data_bf_tag);
+      l1c_index.push_back(l1_data_bf_index);
     } else if (l1_cache_type == L1T_CACHE) {
-      l1t_enabled.push_back(l1_bf_enabled.size() > 0);
-      l1t_bf_enabled.push_back(l1_bf_enabled);
+      l1t_with_data_bf_enabled.push_back(l1_data_bf_enabled.size() > 0);
+      l1t_bf_enabled.push_back(l1_data_bf_enabled);
       l1t_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
       l1t_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
       l1t_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
-      l1t_tag.push_back(l1_tag);
-      l1t_index.push_back(l1_index);
+      l1t_tag.push_back(l1_data_bf_tag);
+      l1t_index.push_back(l1_data_bf_index);
     } else if (l1_cache_type == L1I_CACHE) {
-      l1i_enabled.push_back(l1_bf_enabled.size() > 0);
-      l1i_bf_enabled.push_back(l1_bf_enabled);
+      l1i_with_data_bf_enabled.push_back(l1_data_bf_enabled.size() > 0);
+      l1i_with_tag_bf_enabled.push_back(l1_tag_bf_enabled.size() > 0);
+      l1i_data_bf_enabled.push_back(l1_data_bf_enabled);
+      l1i_tag_bf_enabled.push_back(l1_tag_bf_enabled);
       l1i_cluster_idx.push_back(l1_cluster_to_bitflip[i]);
       l1i_shader_core_ctx.push_back(l1_shader_to_bitflip[i]);
-      l1i_line_bitflip_bits_idx.push_back(l1_line_bitflip_bits_idx);
-      l1i_tag.push_back(l1_tag);
-      l1i_index.push_back(l1_index);
+      l1i_data_bf_line_offset.push_back(l1_line_bitflip_bits_idx);
+      l1i_data_bf_line_tag.push_back(l1_data_bf_tag);
+      l1i_data_bf_line_index.push_back(l1_data_bf_index);
+      l1i_tag_bf_line_tag.push_back(l1_tag_bf_tag);
+      l1i_tag_bf_line_index.push_back(l1_tag_bf_index);
     }
-  }
+  }  // Loop over L1 caches to inject
 }
 // gpuFI end
 

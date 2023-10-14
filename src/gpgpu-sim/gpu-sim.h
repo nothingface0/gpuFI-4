@@ -738,7 +738,7 @@ class gpgpu_sim : public gpgpu_t {
 
   // gpuFI start
   // L1 data cache fault injection
-  std::vector<bool> l1d_enabled;
+  std::vector<bool> l1d_with_data_bf_enabled;
   std::vector<std::vector<bool>> l1d_bf_enabled;
   std::vector<unsigned> l1d_cluster_idx;
   std::vector<unsigned> l1d_shader_core_ctx;
@@ -747,7 +747,7 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<std::vector<unsigned>> l1d_index;
 
   // L1 constant cache fault injection
-  std::vector<bool> l1c_enabled;
+  std::vector<bool> l1c_with_data_bf_enabled;
   std::vector<std::vector<bool>> l1c_bf_enabled;
   std::vector<unsigned> l1c_cluster_idx;
   std::vector<unsigned> l1c_shader_core_ctx;
@@ -756,7 +756,7 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<std::vector<unsigned>> l1c_index;
 
   // L1 texture cache fault injection
-  std::vector<bool> l1t_enabled;
+  std::vector<bool> l1t_with_data_bf_enabled;
   std::vector<std::vector<bool>> l1t_bf_enabled;
   std::vector<unsigned> l1t_cluster_idx;
   std::vector<unsigned> l1t_shader_core_ctx;
@@ -765,14 +765,65 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<std::vector<unsigned>> l1t_index;
 
   // L1 instruction cache fault injection
-  std::vector<bool> l1i_enabled;
-  std::vector<std::vector<bool>> l1i_bf_enabled;
+  /*
+    1D Vector holding a boolean corresponding to one L1I cache. If true, the
+    cache has at least one active data bitflip.
+  */
+  std::vector<bool> l1i_with_data_bf_enabled;
+  /*
+    1D Vector holding a boolean corresponding to one L1I cache. If true, the
+    cache has at least one active tag bitflip.
+  */
+  std::vector<bool> l1i_with_tag_bf_enabled;
+  /*
+    2D Vector that holds a 1D vector for each element in
+    l1i_with_data_bf_enabled. Each sub-vector contains a boolean for each
+    bitflip in the specific cache. If true, the bitflip is active, else it's
+    inactive.
+  */
+  std::vector<std::vector<bool>> l1i_data_bf_enabled;
+  /*
+    2D Vector that holds a 1D vector for each element in
+    l1i_with_tag_bf_enabled. Each sub-vector contains a boolean for each
+    bitflip in the specific cache. If true, the bitflip is active, else it's
+    inactive.
+  */
+  std::vector<std::vector<bool>> l1i_tag_bf_enabled;
+  /*
+    1D Vector holding the cluster id of each cache in l1i_with_data_bf_enabled
+    and l1i_with_tag_bf_enabled.
+  */
   std::vector<unsigned> l1i_cluster_idx;
+  /*
+    1D Vector holding the cluster-relative shader id of each cache in
+    l1i_with_data_bf_enabled and l1i_with_tag_bf_enabled.
+  */
   std::vector<unsigned> l1i_shader_core_ctx;
-  std::vector<std::vector<unsigned>> l1i_line_bitflip_bits_idx;
-  std::vector<std::vector<new_addr_type>> l1i_tag;
-  std::vector<std::vector<unsigned>> l1i_index;
-
+  /*
+    2D Vector holding one 1D vector of bit offsets of data bitflips, for each
+    L1I cache in l1i_with_data_bf_enabled.
+  */
+  std::vector<std::vector<unsigned>> l1i_data_bf_line_offset;
+  /*
+    2D Vector holding one 1D vector of cache line tags of each cache line that
+    has a data bitflip, for each L1I cache in l1i_with_data_bf_enabled.
+  */
+  std::vector<std::vector<new_addr_type>> l1i_data_bf_line_tag;
+  /*
+    2D Vector holding one 1D vector of cache line indices of each cache line
+    that has a data bitflip, for each L1I cache in l1i_with_data_bf_enabled.
+  */
+  std::vector<std::vector<unsigned>> l1i_data_bf_line_index;
+  /*
+    2D Vector holding one 1D vector of cache line tags of each cache line that
+    has a tag bitflip, for each L1I cache in l1i_with_data_bf_enabled.
+  */
+  std::vector<std::vector<new_addr_type>> l1i_tag_bf_line_tag;
+  /*
+    2D Vector holding one 1D vector of cache line indices of each cache line
+    that has a tag bitflip, for each L1I cache in l1i_with_data_bf_enabled.
+  */
+  std::vector<std::vector<unsigned>> l1i_tag_bf_line_index;
   // L2 cache
   bool l2_enabled;
   std::vector<bool> l2_bf_enabled;

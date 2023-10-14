@@ -784,6 +784,8 @@ class cache_config {
   unsigned get_num_tag_bits() const {
     return (sizeof(new_addr_type) * 8) - m_line_sz_log2 - m_nset_log2;
   };
+  // Accessor for m_cache_type
+  enum cache_type get_cache_type() const { return m_cache_type; };
 
   void print(FILE *fp) const {
     fprintf(fp, "Size = %d B (%d Set x %d-way x %d byte line)\n",

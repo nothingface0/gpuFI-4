@@ -884,12 +884,16 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   */
   if (!from_mshr) {
     /*
+      TODO: Check for false HIT due to existing tag bitflips here.
+      If false HIT....?
+    */
+    /*
       i represents the index of a cache that has active bitflips. It does
       not represent an actual index or a pointer to a cache.
     */
-    for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
+    for (int i = 0; i < m_gpu->l1i_with_data_bf_enabled.size(); i++) {
       // Find the next L1I with a data bitflip
-      if (m_gpu->l1i_enabled[i] == false) continue;
+      if (m_gpu->l1i_with_data_bf_enabled[i] == false) continue;
       // Check if it belongs to the current cluster & core
       if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
           m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
@@ -910,20 +914,20 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
         if (probe_status == HIT || probe_status == HIT_RESERVED) {
           // Check if instr_cache_line_location is injected
           for (int bf_enabled_idx = 0;
-               bf_enabled_idx < m_gpu->l1i_bf_enabled[i].size();
+               bf_enabled_idx < m_gpu->l1i_data_bf_enabled[i].size();
                bf_enabled_idx++) {
             /*
               Skip inactive bitflips (i.e. deactivated by a cache line being
               replaced)
             */
-            if (!m_gpu->l1i_bf_enabled[i][bf_enabled_idx]) {
+            if (!m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx]) {
               continue;
             }
             /*
               Make sure that the injected cache line is the same as the one
               where the instruction is cached
             */
-            if (m_gpu->l1i_index[i][bf_enabled_idx] ==
+            if (m_gpu->l1i_data_bf_line_index[i][bf_enabled_idx] ==
                 instr_cache_line_location) {
               /*
                 Bit offset in cache line of the starting bit of the cached
@@ -942,9 +946,9 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                 If bitflip bit offset is within the instruction start/stop,
                 change the instruction.
               */
-              if (m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] >=
+              if (m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] >=
                       instr_cache_line_bit_offset_start &&
-                  m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx] <=
+                  m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] <=
                       instr_cache_line_bit_offset_stop) {
                 std::cout
                     << "gpuFI: Cycle "
@@ -955,7 +959,7 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                     << ", stored at cache block=" << instr_cache_line_location
                     << ", injected at bit "
                     << instr_cache_line_bit_offset_start -
-                           m_gpu->l1i_line_bitflip_bits_idx[i][bf_enabled_idx]
+                           m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx]
                     << std::endl;
               }
             }
@@ -4041,8 +4045,8 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
     request generates 4 sub-requests to L2. The simulator waits for all of them
     to arrive for the cache line to be written to L1I.
   */
-  for (int i = 0; i < m_gpu->l1i_enabled.size(); i++) {
-    if (m_gpu->l1i_enabled[i] == false) continue;
+  for (int i = 0; i < m_gpu->l1i_with_data_bf_enabled.size(); i++) {
+    if (m_gpu->l1i_with_data_bf_enabled[i] == false) continue;
     if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
         m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
       unsigned mf_cache_line_location;  // Unique incremental cache line
@@ -4061,20 +4065,25 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
       if (probe_status == HIT || probe_status == HIT_RESERVED) {
         // Iterate over active bitflips
         for (int bf_enabled_idx = 0;
-             bf_enabled_idx < m_gpu->l1i_bf_enabled[i].size();
+             bf_enabled_idx < m_gpu->l1i_data_bf_enabled[i].size();
              bf_enabled_idx++) {
           /*
             Skip inactive bitflips (i.e. deactivated by a cache line being
             replaced)
           */
-          if (!m_gpu->l1i_bf_enabled[i][bf_enabled_idx]) {
+          if (!m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx]) {
             continue;
           }
-          if (m_gpu->l1i_index[i][bf_enabled_idx] == mf_cache_line_location) {
+          if (m_gpu->l1i_data_bf_line_index[i][bf_enabled_idx] ==
+              mf_cache_line_location) {
             std::cout << "gpuFI: L1I cache line " << mf_cache_line_location
                       << " has been replaced, deactivating bitflip " << i
                       << ", " << bf_enabled_idx << std::endl;
-            m_gpu->l1i_bf_enabled[i][bf_enabled_idx] = false;
+            m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx] = false;
+            /*
+              TODO: Check if all l1i_data_bf_enabled are false, and if yes, also
+              disable l1i_with_data_bf_enabled?
+            */
           }
         }
       }

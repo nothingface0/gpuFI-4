@@ -104,15 +104,15 @@ void find_l1_used(ptx_thread_info *thread, gpgpu_sim *gpu_sim,
   std::vector<unsigned> *l1_cluster_idx;
   std::vector<unsigned> *l1_shader_core_ctx;
   if (l1_cache_type == L1D_CACHE) {  // Data cache
-    l1_enabled = &gpu_sim->l1d_enabled;
+    l1_enabled = &gpu_sim->l1d_with_data_bf_enabled;
     l1_cluster_idx = &gpu_sim->l1d_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1d_shader_core_ctx;
   } else if (l1_cache_type == L1C_CACHE) {  // Constant cache
-    l1_enabled = &gpu_sim->l1c_enabled;
+    l1_enabled = &gpu_sim->l1c_with_data_bf_enabled;
     l1_cluster_idx = &gpu_sim->l1c_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1c_shader_core_ctx;
   } else if (l1_cache_type == L1T_CACHE) {  // Texture cache
-    l1_enabled = &gpu_sim->l1t_enabled;
+    l1_enabled = &gpu_sim->l1t_with_data_bf_enabled;
     l1_cluster_idx = &gpu_sim->l1t_cluster_idx;
     l1_shader_core_ctx = &gpu_sim->l1t_shader_core_ctx;
   }

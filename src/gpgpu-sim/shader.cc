@@ -884,10 +884,6 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   */
   if (!from_mshr) {
     /*
-      TODO: Check for false HIT due to existing tag bitflips here.
-      If false HIT....?
-    */
-    /*
       i represents the index of a cache that has active bitflips. It does
       not represent an actual index or a pointer to a cache.
     */
@@ -1151,6 +1147,10 @@ void shader_core_ctx::fetch() {
             m_warp[warp_id]->set_imiss_pending();
             m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
           } else if (status == HIT) {
+            /*
+              TODO: Check for false HIT due to existing tag bitflips here.
+              If false HIT....?
+            */
             m_last_warp_fetched = warp_id;
             m_inst_fetch_buffer = ifetch_buffer_t(pc, nbytes, warp_id, false);
             m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);

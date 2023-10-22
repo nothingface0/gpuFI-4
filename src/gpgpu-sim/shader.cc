@@ -34,6 +34,7 @@
 #include <float.h>
 #include <limits.h>
 #include <string.h>
+#include <bitset>
 #include "../../libcuda/gpgpu_context.h"
 #include "../cuda-sim/cuda-sim.h"
 #include "../cuda-sim/ptx-stats.h"
@@ -1147,14 +1148,81 @@ void shader_core_ctx::fetch() {
             m_warp[warp_id]->set_imiss_pending();
             m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
           } else if (status == HIT) {
+            address_type next_pc = pc;
             /*
-              TODO: Check for false HIT due to existing tag bitflips here.
-              If false HIT....?
+              We are now checking for a false HIT due to existing tag bitflips.
+              If false HIT, find which instruction would be "stored" in the
+              cached data, find which PC it corresponds to and fill the
+              i_fetch_buffer_t with it.
             */
-            m_last_warp_fetched = warp_id;
-            m_inst_fetch_buffer = ifetch_buffer_t(pc, nbytes, warp_id, false);
-            m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
-            delete mf;
+            for (int i = 0; i < m_gpu->l1i_with_tag_bf_enabled.size(); i++) {
+              if (m_gpu->l1i_with_tag_bf_enabled[i] == false) {
+                continue;
+              }
+              if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
+                  m_config->sid_to_cid(m_sid) ==
+                      m_gpu->l1i_shader_core_ctx[i]) {
+                unsigned instr_cache_line_location;
+                // Non-sectored cache, so mask does not play a role.
+                mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+                /*
+                  We probe here to get the cache line that the instruction is
+                  in cached in.
+                */
+                m_L1I->m_tag_array->probe(ppc, instr_cache_line_location, mask,
+                                          false);
+                for (int bf_enabled_idx = 0;
+                     bf_enabled_idx < m_gpu->l1i_tag_bf_enabled[i].size();
+                     bf_enabled_idx++) {
+                  //  Skip inactive tag bitlips
+                  if (!m_gpu->l1i_tag_bf_enabled[i][bf_enabled_idx]) {
+                    continue;
+                  }
+                  /*
+                    Finally, check if we're at the right cache line that has
+                    a tag bitflip.
+                  */
+                  if (m_gpu->l1i_tag_bf_line_index[i][bf_enabled_idx] ==
+                      instr_cache_line_location) {
+                    /*
+                      Find the PC of the instruction that is actually "stored"
+                      in the L1. We keep the rightmost bits of the ppc (i.e. the
+                      set & index bits) and we replace the current tag with the
+                      one before the bitflip.
+                    */
+                    std::bitset<sizeof(address_type) * 8> set_and_offset_mask;
+                    for (unsigned int bit_pos = 0;
+                         bit_pos < ((sizeof(address_type) * 8 -
+                                     m_L1I->m_config.get_num_tag_bits()));
+                         bit_pos++) {
+                      set_and_offset_mask.set(bit_pos);
+                    }
+                    next_pc = (ppc & set_and_offset_mask.to_ullong()) |
+                              m_gpu->l1i_tag_bf_line_tag[i][bf_enabled_idx] -
+                                  PROGRAM_MEM_START;
+                    std::cout << "gpuFI: False L1I cache hit due to tag "
+                                 "bitflip detected. Warp "
+                              << warp_id << " at core " << m_sid << ", cluster "
+                              << m_cluster->get_cluster_id()
+                              << " getting instruction at " << ppc
+                              << " (PC=" << pc << "), stored at cache line "
+                              << instr_cache_line_location
+                              << ". Current tag is "
+                              << m_L1I->m_tag_array
+                                     ->get_block(instr_cache_line_location)
+                                     ->m_tag
+                              << ", original was "
+                              << m_gpu->l1i_tag_bf_line_tag[i][bf_enabled_idx]
+                              << ". New PC=" << next_pc << std::endl;
+                  }
+                }
+              }
+              m_last_warp_fetched = warp_id;
+              m_inst_fetch_buffer =
+                  ifetch_buffer_t(next_pc, nbytes, warp_id, false);
+              m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
+              delete mf;
+            }
           } else {
             m_last_warp_fetched = warp_id;
             assert(status == RESERVATION_FAIL);

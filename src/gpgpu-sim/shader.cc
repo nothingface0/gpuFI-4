@@ -874,9 +874,15 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                                                        address_type pc,
                                                        bool from_mshr) {
   // read the inst from the functional model
-  const warp_inst_t *correct_instruction = m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
-  bool instr_was_injected = false;
+  const warp_inst_t *correct_instruction_p =
+      m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
 
+  // gpuFI DEBUG
+  // from_mshr = false;
+  // Keep track of injection
+  std::vector<unsigned> instruction_bitflips;
+  // Keep track of the L1I cache index in the l1i_data_bf_enabled vector
+  int l1i_index = -1;
   /*
     Check if any of the active data bitflips apply for the currently decoded
     instruction.
@@ -938,7 +944,7 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
               */
               unsigned instr_cache_line_bit_offset_stop =
                   instr_cache_line_bit_offset_start +
-                  (correct_instruction->isize * 8);
+                  (correct_instruction_p->isize * 8);
               /*
                 If bitflip bit offset is within the instruction start/stop,
                 change the instruction.
@@ -947,17 +953,16 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
                       instr_cache_line_bit_offset_start &&
                   m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] <=
                       instr_cache_line_bit_offset_stop) {
-                std::cout
-                    << "gpuFI: Cycle "
-                    << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle
-                    << ", Shader " << m_sid << ", warp " << warp_id
-                    << ", getting instruction with pc=" << pc
-                    << " and absolute addr=" << absolute_pc
-                    << ", stored at cache block=" << instr_cache_line_location
-                    << ", injected at bit "
-                    << instr_cache_line_bit_offset_start -
-                           m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx]
-                    << std::endl;
+                l1i_index = i;
+                instruction_bitflips.push_back(
+                    m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] -
+                    instr_cache_line_bit_offset_start);
+                std::cout << "gpuFI: Instruction at absolute addr="
+                          << absolute_pc << ", stored at cache block="
+                          << instr_cache_line_location << ", injected at bit "
+                          << m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] -
+                                 instr_cache_line_bit_offset_start
+                          << std::endl;
               }
             }
           }
@@ -965,26 +970,27 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
       }
     }
   }
-  warp_inst_t *instruction_to_return = NULL;
-  if (instr_was_injected) {
-    std::cout << "gpuFI: Injecting instruction at pc " << pc << std::endl;
-    /*
-      TODO: Track bits flipped and inject the instruction here
-      1. Modify (a copy of) the currently running executable at the appropriate
-      place.
-      2. Run cudaobjdump on it, the same way that the simulator does it.
-        2i. If cudaobjdump crashes, exit with error.
-        2ii. We will probably need to consider more weird corner cases here.
-      3. Parse the resulting ptxplus file the same way that the simulator does
-      it.
-      4. Get the modified warp_isnt_t.
-    */
+  if (instruction_bitflips.size() > 0) {
+    std::cout << "gpuFI: Cycle "
+              << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle << ", Shader "
+              << m_sid << ", Cluster " << m_cluster->get_cluster_id()
+              << ", warp " << warp_id << ", getting instruction with pc=" << pc
+              << " injected at " << instruction_bitflips.size() << " bit(s)"
+              << std::endl;
+
+    assert(l1i_index >= 0);
+    // gpuFI: Try to find bitflipped instruction in map, else
+    // create it.
+    if (m_gpu->l1i_pc_to_injected_instruction[l1i_index].find(pc) ==
+        m_gpu->l1i_pc_to_injected_instruction[l1i_index].end()) {
+      m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc] =
+          m_gpu->get_injected_instruction(pc, instruction_bitflips);
+    }
+    return m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc];
+    // return correct_instruction_p;
   } else {
-    return correct_instruction;
+    return correct_instruction_p;
   }
-  return correct_instruction;
-  // const warp_inst_t *final_instruction = &(*instruction_to_return);
-  // return final_instruction;
 }
 
 void exec_shader_core_ctx::get_pdom_stack_top_info(unsigned warp_id,
@@ -4148,10 +4154,34 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
                       << " has been replaced, deactivating bitflip " << i
                       << ", " << bf_enabled_idx << std::endl;
             m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx] = false;
+
             /*
-              TODO: Check if all l1i_data_bf_enabled are false, and if yes, also
-              disable l1i_with_data_bf_enabled?
+              gpuFI TODO: Check if all l1i_data_bf_enabled are false, and if
+              yes, also disable l1i_with_data_bf_enabled?
             */
+          }
+        }
+        // Iterate over affected PCs and remove those that are no longer
+        // effective
+        std::map<address_type, ptx_instruction *> &affected_instructions =
+            m_gpu->l1i_pc_to_injected_instruction[i];
+        for (std::map<address_type, ptx_instruction *>::iterator iter =
+                 affected_instructions.begin();
+             iter != affected_instructions.end(); ++iter) {
+          address_type pc = iter->first;
+
+          // Calculate if PC falls in cache line, if yes, delete
+          // pointer, and remove from map
+          address_type first_cache_line_byte_addr =
+              m_L1I->m_config.block_addr(mf_address);
+          address_type last_cache_line_byte_addr =
+              first_cache_line_byte_addr + m_L1I->m_config.get_line_sz();
+          if (PROGRAM_MEM_START + pc <= last_cache_line_byte_addr &&
+              PROGRAM_MEM_START + pc >= first_cache_line_byte_addr) {
+            std::cout << "gpuFI: Removing modified instruction with PC " << pc
+                      << std::endl;
+            delete iter->second;
+            affected_instructions.erase(pc);
           }
         }
       }

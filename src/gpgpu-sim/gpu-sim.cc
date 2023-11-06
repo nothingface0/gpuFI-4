@@ -1064,6 +1064,24 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   l2_enabled = false;  // gpuFI
 }
 
+gpgpu_sim::~gpgpu_sim() {
+  // gpuFI: Cleanup resources
+  // For each map in vector
+  for (std::vector<std::map<address_type, ptx_instruction *>>::iterator v_iter =
+           l1i_pc_to_injected_instruction.begin();
+       v_iter != l1i_pc_to_injected_instruction.end(); ++v_iter) {
+    // For each key in map
+    for (std::map<address_type, ptx_instruction *>::iterator m_iter =
+             v_iter->begin();
+         m_iter != v_iter->end(); ++m_iter) {
+      std::cout << "gpuFI: Cleaning up leftover modified instruction with PC "
+                << m_iter->first << std::endl;
+      delete m_iter->second;
+      v_iter->erase(m_iter->first);
+    }
+  }
+};
+
 int gpgpu_sim::shared_mem_size() const {
   return m_shader_config->gpgpu_shmem_size;
 }
@@ -1947,7 +1965,24 @@ void read_colon_option(std::vector<unsigned> &result_vector, char *option) {
     tmp = strtok(NULL, ":");
   }
 }
-
+// gpuFI
+ptx_instruction *gpgpu_sim::get_injected_instruction(
+    address_type pc, const std::vector<unsigned> &bitflips) {
+  ptx_instruction *ptx = new ptx_instruction(*(gpgpu_ctx->s_g_pc_to_insn[pc]));
+  ptx->m_is_injected = true;
+  /*
+    gpuFI TODO: Track bits flipped and inject the instruction here
+    1. Modify (a copy of) the currently running executable at the
+      appropriate place.
+    2. Run cudaobjdump on it, the same way that the simulator does it.
+      2i. If cudaobjdump crashes, exit with error.
+      2ii. We will probably need to consider more weird corner cases here.
+    3. Parse the resulting ptxplus file the same way that the simulator does
+    it.
+    4. Get the modified warp_isnt_t.
+  */
+  return ptx;
+}
 struct cmp_str {
   bool operator()(char const *a, char const *b) const {
     return std::strcmp(a, b) < 0;
@@ -2576,6 +2611,8 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
       l1i_data_bf_line_index.push_back(l1_data_bf_index);
       l1i_tag_bf_line_tag.push_back(l1_tag_bf_tag);
       l1i_tag_bf_line_index.push_back(l1_tag_bf_index);
+      l1i_pc_to_injected_instruction.push_back(
+          std::map<address_type, ptx_instruction *>());
     }
   }  // Loop over L1 caches to inject
 }

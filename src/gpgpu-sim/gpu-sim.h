@@ -559,7 +559,7 @@ class watchpoint_event {
 class gpgpu_sim : public gpgpu_t {
  public:
   gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx);
-
+  ~gpgpu_sim();
   void set_prop(struct cudaDeviceProp *prop);
 
   void launch(kernel_info_t *kinfo);
@@ -824,6 +824,11 @@ class gpgpu_sim : public gpgpu_t {
     that has a tag bitflip, for each L1I cache in l1i_with_data_bf_enabled.
   */
   std::vector<std::vector<unsigned>> l1i_tag_bf_line_index;
+  /*
+
+  */
+  std::vector<std::map<address_type, ptx_instruction *>>
+      l1i_pc_to_injected_instruction;
   // L2 cache
   bool l2_enabled;
   std::vector<bool> l2_bf_enabled;
@@ -831,6 +836,10 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<unsigned> l2_line_bitflip_bits_idx;
   std::vector<new_addr_type> l2_tag;
   std::vector<unsigned> l2_index;
+
+  // gpuFI
+  ptx_instruction *get_injected_instruction(
+      address_type pc, const std::vector<unsigned> &bitflips);
   // gpuFI end
 
   // performance counter for stalls due to congestion.

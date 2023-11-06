@@ -1246,6 +1246,8 @@ class warp_inst_t : public inst_t {
   // Jin: cdp support
  public:
   int m_is_cdp;
+  bool m_is_injected =
+      false;  // gpuFI: to communicate information between decode & issue
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

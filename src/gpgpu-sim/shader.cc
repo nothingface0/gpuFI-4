@@ -1223,12 +1223,12 @@ void shader_core_ctx::fetch() {
                   }
                 }
               }
-              m_last_warp_fetched = warp_id;
-              m_inst_fetch_buffer =
-                  ifetch_buffer_t(next_pc, nbytes, warp_id, false);
-              m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
-              delete mf;
             }
+            m_last_warp_fetched = warp_id;
+            m_inst_fetch_buffer =
+                ifetch_buffer_t(next_pc, nbytes, warp_id, false);
+            m_warp[warp_id]->set_last_fetch(m_gpu->gpu_sim_cycle);
+            delete mf;
           } else {
             m_last_warp_fetched = warp_id;
             assert(status == RESERVATION_FAIL);

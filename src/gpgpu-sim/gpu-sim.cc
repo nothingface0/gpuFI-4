@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>  // gpuFI
+#include <regex>
 #include "zlib.h"
 
 #include "dram.h"
@@ -1969,6 +1970,31 @@ void read_colon_option(std::vector<unsigned> &result_vector, char *option) {
 ptx_instruction *gpgpu_sim::get_injected_instruction(
     address_type pc, const std::vector<unsigned> &bitflips) {
   ptx_instruction *ptx = new ptx_instruction(*(gpgpu_ctx->s_g_pc_to_insn[pc]));
+  std::string regexp_pattern = "\\/\\*(0x[a-f0-9]{8,16})\\*\\/";
+  std::regex regexp(regexp_pattern, std::regex_constants::icase);
+
+  auto sass_begin = std::sregex_iterator(ptx->get_source_str().begin(),
+                                         ptx->get_source_str().end(), regexp);
+  auto sass_end = std::sregex_iterator();
+  if (std::distance(sass_begin, sass_end) > 0) {
+    for (std::sregex_iterator i = sass_begin; i != sass_end; ++i) {
+      std::smatch match = *i;
+      // Get the 1st capture group from the match
+      std::string match_str = match[1].str();
+      if (match_str.size() > 0) {
+        std::cout << "gpuFI: Command =" << ptx->get_source_str()
+                  << " matches pattern " << regexp_pattern
+                  << ". Matched str=" << match_str << std::endl;
+        // gpuFI TODO: Search for match_str in the executable.
+      }
+    }
+  } else {
+    std::cout << "gpuFI: Error! No SASS instruction found in ptx_instruction's "
+                 "m_source!"
+              << std::endl;
+    // gpuFI TODO: maybe throw an exception.
+  }
+
   ptx->m_is_injected = true;
   /*
     gpuFI TODO: Track bits flipped and inject the instruction here

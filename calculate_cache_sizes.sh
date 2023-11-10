@@ -13,7 +13,7 @@ fi
 
 # Calculates total cache size for a specific cache, given the cache config.
 # $1: The cache name (e.g. L1D). Will also be used to export the appropriate var, i.e. L1D_SIZE_BITS
-# $2: The name of the variable to read from the gpgpusim.config file. E.g. for L1D it's "-gpgpu_cache:il1".
+# $2: The name of the variable to read from the gpgpusim.config file. E.g. for L1D it's "-gpgpu_cache:dl1".
 cache_bits_and_size_calculations() {
     cache_name=$1
     cache_config_id=$2

@@ -36,7 +36,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>  // gpuFI
-#include <regex>
+#include <regex>       // gpuFI
+#include <sstream>     // gpuFI
 #include "zlib.h"
 
 #include "dram.h"
@@ -1966,7 +1967,64 @@ void read_colon_option(std::vector<unsigned> &result_vector, char *option) {
     tmp = strtok(NULL, ":");
   }
 }
+
 // gpuFI
+/*
+  Helper function to swap the bytes of hex instructions read from
+  the SASS file into the format that they are stored in the ELF.
+*/
+std::string gpgpu_sim::swap_instruction(std::string instr_hex) {
+  std::string instr_hex_swapped = instr_hex;
+  /*
+    Some instructions are only 8 bytes, check how
+    we're going to loop, depending on the instr_hex size
+  */
+  int num_half_words = instr_hex.size() == 16 ? 2 : 1;
+  for (unsigned int j = 0; j < num_half_words; ++j) {
+    std::string half_word = instr_hex.substr(j * 8, 8 + j * 8);
+    if (half_word == "    ") {
+      continue;
+    }
+    for (unsigned int i = 0; i < half_word.size(); i += 2) {
+      instr_hex_swapped[i + 8 * j] = half_word[half_word.size() - i - 2];
+      instr_hex_swapped[i + 1 + 8 * j] = half_word[half_word.size() - i - 1];
+    }
+  }
+  return instr_hex_swapped;
+}
+
+/*
+  gpuFI: Find and replace an instruction in the actual executable, given the
+  original instruction (in swapped, hex string), and the injected instruction
+  (also in swapped, hex string).
+ */
+void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
+                                  const std::string &injected_instruction_hex) {
+  assert(original_instruction_hex.size() == injected_instruction_hex.size());
+  /*
+    Hexdump the binary in a continuous stream of hex bytes,
+    and use sed to replace the sequence in the original instruction
+    with the one in the injected instruction.
+
+    https://stackoverflow.com/questions/2604964/binary-sed-replacement
+    https://unix.stackexchange.com/questions/218514/xxd-output-without-line-breaks
+  */
+  std::string command = "xxd -c 0 -p " + app_binary_path;
+  command += " | sed 's/" + original_instruction_hex + "/";
+  command += injected_instruction_hex + "/g' | ";
+  command += "xxd -p -r > " + app_binary_path + "_injected";
+  std::cout << "gpuFI: Running '" << command << "'" << std::endl;
+  try {
+    int result = system(command.c_str());
+    assert(result == 0);
+  } catch (const std::exception &e) {
+    std::cout << "gpuFI: Error when injecting executable: " << e.what()
+              << std::endl;
+    raise(SIGABRT);
+  }
+  std::cout << "gpuFI: Command succeeded" << std::endl;
+}
+
 ptx_instruction *gpgpu_sim::get_injected_instruction(
     address_type pc, const std::vector<unsigned> &bitflips) {
   ptx_instruction *ptx = new ptx_instruction(*(gpgpu_ctx->s_g_pc_to_insn[pc]));
@@ -1999,25 +2057,34 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
           0xa000420504200780 becomes 0x054200a080072004
         */
         instr_hex = instr_hex.substr(2, instr_hex.size());
-        std::string instr_hex_swapped = instr_hex;
-        /*
-          Some instructions are only 8 bytes, check how
-          we're going to loop, depending on the instr_hex size
-        */
-        int num_half_words = instr_hex.size() == 16 ? 2 : 1;
-        for (unsigned int j = 0; j < num_half_words; ++j) {
-          std::string half_word = instr_hex.substr(j * 8, 8 + j * 8);
-          if (half_word == "    ") {
-            continue;
-          }
-          for (unsigned int i = 0; i < half_word.size(); i += 2) {
-            instr_hex_swapped[i + 8 * j] = half_word[half_word.size() - i - 2];
-            instr_hex_swapped[i + 1 + 8 * j] =
-                half_word[half_word.size() - i - 1];
-          }
-        }
-        std::cout << "gpuFI: Instruction 0x" << instr_hex << " swapped: 0x"
+        std::string instr_hex_swapped = swap_instruction(instr_hex);
+        // Convert and store instruction in binary format
+        unsigned long long instr_binary;
+
+        // The swapped version of the binary instruction
+        std::stringstream ss;
+        ss << std::hex << instr_hex;
+        ss >> instr_binary;
+        std::cout << "gpuFI: Instruction 0x" << instr_hex << ", swapped: 0x"
                   << instr_hex_swapped << std::endl;
+        // Perform the actual bitflips on the instruction
+        unsigned long long instr_binary_bitflipped = instr_binary;
+        for (std::vector<unsigned>::const_iterator bitflip = bitflips.begin();
+             bitflip != bitflips.end(); ++bitflip) {
+          std::cout << "gpuFI: Flipping bit " << *bitflip << std::endl;
+          instr_binary_bitflipped ^= 1UL << *bitflip;
+        }
+
+        ss.str(std::string());
+        ss.clear();
+        ss << std::hex << instr_binary_bitflipped;
+        std::string instr_hex_bitflipped = ss.str();
+        std::string instr_hex_bitflipped_swapped =
+            swap_instruction(instr_hex_bitflipped);
+        std::cout << "gpuFI: Resulting injected instruction: 0x"
+                  << instr_hex_bitflipped << ", swapped: 0x"
+                  << instr_hex_bitflipped_swapped << std::endl;
+        inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped);
       }
     }
   } else {

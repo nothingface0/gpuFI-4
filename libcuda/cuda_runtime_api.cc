@@ -133,16 +133,16 @@
 #if (CUDART_VERSION < 8000)
 #include "__cudaFatFormat.h"
 #endif
-#include "gpgpu_context.h"
-#include "cuda_api_object.h"
-#include "../src/gpgpu-sim/gpu-sim.h"
-#include "../src/cuda-sim/ptx_loader.h"
+#include "../src/abstract_hardware_model.h"
 #include "../src/cuda-sim/cuda-sim.h"
 #include "../src/cuda-sim/ptx_ir.h"
+#include "../src/cuda-sim/ptx_loader.h"
 #include "../src/cuda-sim/ptx_parser.h"
+#include "../src/gpgpu-sim/gpu-sim.h"
 #include "../src/gpgpusim_entrypoint.h"
 #include "../src/stream_manager.h"
-#include "../src/abstract_hardware_model.h"
+#include "cuda_api_object.h"
+#include "gpgpu_context.h"
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -2982,7 +2982,7 @@ __host__ cudaError_t CUDARTAPI cudaGetExportTable(
  *                                                                              *
  *******************************************************************************/
 
-//#include "../../cuobjdump_to_ptxplus/cuobjdump_parser.h"
+// #include "../../cuobjdump_to_ptxplus/cuobjdump_parser.h"
 
 // extracts all ptx files from binary and dumps into
 // prog_name.unique_no.sm_<>.ptx files
@@ -3137,6 +3137,7 @@ void cuda_runtime_api::extract_code_using_cuobjdump() {
       cuobjdump_parse(parser.scanner, &parser, cuobjdumpSectionList);
       cuobjdump_lex_destroy(parser.scanner);
       fclose(cuobjdump_in);
+      context->get_device()->get_gpgpu()->app_binary_path = app_binary;
       printf("Done parsing!!!\n");
     } else {
       printf("Parsing skipped for %s\n", fname);
@@ -3822,9 +3823,9 @@ __host__ cudaError_t CUDARTAPI cudaDeviceSetLimit(enum cudaLimit limit,
   return g_last_cudaError = cudaSuccess;
 }
 
-//#if CUDART_VERSION >= 9000
+// #if CUDART_VERSION >= 9000
 //__host__  cudaError_t cudaFuncSetAttribute ( const void* func, enum
-// cudaFuncAttribute attr, int value ) {
+//  cudaFuncAttribute attr, int value ) {
 
 // ignore this Attribute for now, and the default is that carveout =
 // cudaSharedmemCarveoutDefault;   //  (-1)

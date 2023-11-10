@@ -1970,7 +1970,7 @@ void read_colon_option(std::vector<unsigned> &result_vector, char *option) {
 ptx_instruction *gpgpu_sim::get_injected_instruction(
     address_type pc, const std::vector<unsigned> &bitflips) {
   ptx_instruction *ptx = new ptx_instruction(*(gpgpu_ctx->s_g_pc_to_insn[pc]));
-  std::string regexp_pattern = "\\/\\*(0x[a-f0-9]{8,16})\\*\\/";
+  std::string regexp_pattern = "\\/\\*(0x[a-f0-9]{8,16})\\s*\\*\\/";
   std::regex regexp(regexp_pattern, std::regex_constants::icase);
 
   auto sass_begin = std::sregex_iterator(ptx->get_source_str().begin(),
@@ -1980,12 +1980,44 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
     for (std::sregex_iterator i = sass_begin; i != sass_end; ++i) {
       std::smatch match = *i;
       // Get the 1st capture group from the match
-      std::string match_str = match[1].str();
-      if (match_str.size() > 0) {
-        std::cout << "gpuFI: Command =" << ptx->get_source_str()
+      std::string instr_hex = match[1].str();
+      if (instr_hex.size() > 0) {
+        std::cout << "gpuFI: Command=" << ptx->get_source_str()
                   << " matches pattern " << regexp_pattern
-                  << ". Matched str=" << match_str << std::endl;
-        // gpuFI TODO: Search for match_str in the executable.
+                  << ". Matched str=" << instr_hex << std::endl;
+        // gpuFI TODO: Search for instr_hex in the executable.
+        /*
+          The binary instruction read from the source file
+          is always expected to be "0x" + 16 hex characters (including
+          spaces, in case of a half-size instruction).
+        */
+        assert(instr_hex.substr(0, 2) == "0x");
+
+        /*
+          To look for the instruction in the compiled binary,
+          we need to swap the bytes of each half of the instruction.
+          0xa000420504200780 becomes 0x054200a080072004
+        */
+        instr_hex = instr_hex.substr(2, instr_hex.size());
+        std::string instr_hex_swapped = instr_hex;
+        /*
+          Some instructions are only 8 bytes, check how
+          we're going to loop, depending on the instr_hex size
+        */
+        int num_half_words = instr_hex.size() == 16 ? 2 : 1;
+        for (unsigned int j = 0; j < num_half_words; ++j) {
+          std::string half_word = instr_hex.substr(j * 8, 8 + j * 8);
+          if (half_word == "    ") {
+            continue;
+          }
+          for (unsigned int i = 0; i < half_word.size(); i += 2) {
+            instr_hex_swapped[i + 8 * j] = half_word[half_word.size() - i - 2];
+            instr_hex_swapped[i + 1 + 8 * j] =
+                half_word[half_word.size() - i - 1];
+          }
+        }
+        std::cout << "gpuFI: Instruction 0x" << instr_hex << " swapped: 0x"
+                  << instr_hex_swapped << std::endl;
       }
     }
   } else {

@@ -1997,6 +1997,7 @@ std::string gpgpu_sim::swap_instruction(std::string instr_hex) {
   gpuFI: Find and replace an instruction in the actual executable, given the
   original instruction (in swapped, hex string), and the injected instruction
   (also in swapped, hex string).
+
  */
 void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
                                   const std::string &injected_instruction_hex) {
@@ -2005,6 +2006,9 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
     Hexdump the binary in a continuous stream of hex bytes,
     and use sed to replace the sequence in the original instruction
     with the one in the injected instruction.
+
+    gpuFI TODO: Instead of blindingly searching in all the file, perhaps
+    we should restrict our search region to the part where the instructions are.
 
     https://stackoverflow.com/questions/2604964/binary-sed-replacement
     https://unix.stackexchange.com/questions/218514/xxd-output-without-line-breaks

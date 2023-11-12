@@ -3,13 +3,14 @@
 
 # The full path to the CUDA executable to inject
 app_binary_path=$1
-original_instruction_hex=$2
-injected_instruction_hex=$3
+app_binary_path_out=$2
+original_instruction_hex=$3
+injected_instruction_hex=$4
 
 # The kernel name will be used to limit the search in the
 # executable. If none supplied, the whole file will be searched
 # and replaced.
-kernel_name=$4
+kernel_name=$5
 
 if [ -z "$app_binary_path" ]; then
     echo "gpuFI: ERROR: A path to a cuda executable must be supplied."
@@ -48,7 +49,7 @@ full_binary_dump=$(xxd -c 0 -p "$app_binary_path")
 # manipulate it with sed and then put it back together.
 # Note that the *2 are added due to each byte being in hex.
 new_file_first_part=$(echo "$full_binary_dump" | head -c $(((kernel_byte_offset_in_file - 1) * 2)))
-new_file_last_part=$(echo "$full_binary_dump" | tail -c $((${#full_binary_dump} - ((kernel_byte_offset_in_file - 1) * 2) - 1)) | sed "s/${original_instruction_hex}/${injected_instruction_hex}/g")
+new_file_last_part=$(echo "$full_binary_dump" | tail -c $((${#full_binary_dump} - ((kernel_byte_offset_in_file - 2) * 2) - 1)) | sed "s/${original_instruction_hex}/${injected_instruction_hex}/g")
 
-# Put the file back together, using xxd.
-echo "${new_file_first_part}${new_file_last_part}" | xxd -p -r >"$app_binary_path"_injected
+# Put the file back together, using xxd, store in app_binary_path_out
+echo "${new_file_first_part}${new_file_last_part}" | xxd -p -r >"$app_binary_path_out"

@@ -2013,11 +2013,11 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
     https://stackoverflow.com/questions/2604964/binary-sed-replacement
     https://unix.stackexchange.com/questions/218514/xxd-output-without-line-breaks
   */
-  std::string command = "xxd -c 0 -p " + app_binary_path;
-  command += " | sed 's/" + original_instruction_hex + "/";
-  command += injected_instruction_hex + "/g' | ";
-  command += "xxd -p -r > " + app_binary_path + "_injected";
-  std::cout << "gpuFI: Running '" << command << "'" << std::endl;
+  std::string command = "bash inject_cuda_executable.sh ";
+  command += app_binary_path + " ";
+  command += original_instruction_hex + " ";
+  command += injected_instruction_hex + " ";
+  command += std::cout << "gpuFI: Running '" << command << "'" << std::endl;
   try {
     int result = system(command.c_str());
     assert(result == 0);
@@ -2030,7 +2030,8 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
 }
 
 ptx_instruction *gpgpu_sim::get_injected_instruction(
-    address_type pc, const std::vector<unsigned> &bitflips) {
+    address_type pc, const std::vector<unsigned> &bitflips,
+    const std::string &kernel_name) {
   ptx_instruction *ptx = new ptx_instruction(*(gpgpu_ctx->s_g_pc_to_insn[pc]));
   std::string regexp_pattern = "\\/\\*(0x[a-f0-9]{8,16})\\s*\\*\\/";
   std::regex regexp(regexp_pattern, std::regex_constants::icase);
@@ -2088,7 +2089,8 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         std::cout << "gpuFI: Resulting injected instruction: 0x"
                   << instr_hex_bitflipped << ", swapped: 0x"
                   << instr_hex_bitflipped_swapped << std::endl;
-        inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped);
+        inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped,
+                          kernel_name);
       }
     }
   } else {

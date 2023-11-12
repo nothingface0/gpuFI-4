@@ -840,9 +840,11 @@ class gpgpu_sim : public gpgpu_t {
 
   // gpuFI
   ptx_instruction *get_injected_instruction(
-      address_type pc, const std::vector<unsigned> &bitflips);
+      address_type pc, const std::vector<unsigned> &bitflips,
+      const std::string &kernel_name);
   void inject_executable(const std::string &original_instruction_hex,
-                         const std::string &injected_instruction_hex);
+                         const std::string &injected_instruction_hex,
+                         const std::string &kernel_name);
   std::string swap_instruction(std::string instr_hex);
   // gpuFI end
 

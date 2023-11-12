@@ -2016,19 +2016,39 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
   */
   std::string command = "bash inject_cuda_executable.sh ";
   command += app_binary_path + " ";
+  command += app_binary_path + "_injected ";
   command += original_instruction_hex + " ";
   command += injected_instruction_hex + " ";
   command += kernel_name;
   std::cout << "gpuFI: Running '" << command << "'" << std::endl;
-  try {
-    int result = system(command.c_str());
-    assert(result == 0);
-  } catch (const std::exception &e) {
-    std::cout << "gpuFI: Error when injecting executable: " << e.what()
+  int result = system(command.c_str());
+  if (result != 0) {
+    std::cout << "gpuFI: Error when injecting executable. Aborting."
               << std::endl;
-    raise(SIGABRT);
+    throw(SIGABRT);
   }
+
   std::cout << "gpuFI: Command succeeded" << std::endl;
+}
+/*
+  Run cuobjdump on the injected executable, created by inject_executable.
+  The filename is assumed to be app_binary_path + "_injected", found in the
+  same directory where the app_binary_path is.
+
+  The output file will be named "_cuobjdump_complete_output_injected", and
+  will be found in the simulator's root directory.
+ */
+void gpgpu_sim::cuobjdump_injected_executable() {
+  std::string command = "$CUDA_INSTALL_PATH/bin/cuobjdump -ptx -elf -sass ";
+  command +=
+      app_binary_path + "_injected > _cuobjdump_complete_output_injected";
+  std::cout << "gpuFI: Running command \"" << command << "\"" << std::endl;
+  int result = system(command.c_str());
+  if (result) {
+    std::cout << "gpuFI: Error when disassembling injected file. Aborting."
+              << std::endl;
+    throw(SIGABRT);
+  }
 }
 
 ptx_instruction *gpgpu_sim::get_injected_instruction(
@@ -2093,6 +2113,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                   << instr_hex_bitflipped_swapped << std::endl;
         inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped,
                           kernel_name);
+        cuobjdump_injected_executable();
       }
     }
   } else {

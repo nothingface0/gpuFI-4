@@ -2016,7 +2016,7 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
   */
   std::string command = "bash inject_cuda_executable.sh ";
   command += app_binary_path + " ";
-  command += app_binary_path + "_injected ";
+  command += get_injected_executable_filepath() + " ";
   command += original_instruction_hex + " ";
   command += injected_instruction_hex + " ";
   command += kernel_name;
@@ -2040,8 +2040,8 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
  */
 void gpgpu_sim::cuobjdump_injected_executable() {
   std::string command = "$CUDA_INSTALL_PATH/bin/cuobjdump -ptx -elf -sass ";
-  command +=
-      app_binary_path + "_injected > _cuobjdump_complete_output_injected";
+  command += get_injected_executable_filepath() +
+             " > _cuobjdump_complete_output_injected";
   std::cout << "gpuFI: Running command \"" << command << "\"" << std::endl;
   int result = system(command.c_str());
   if (result) {

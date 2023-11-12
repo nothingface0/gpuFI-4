@@ -2000,7 +2000,8 @@ std::string gpgpu_sim::swap_instruction(std::string instr_hex) {
 
  */
 void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
-                                  const std::string &injected_instruction_hex) {
+                                  const std::string &injected_instruction_hex,
+                                  const std::string &kernel_name) {
   assert(original_instruction_hex.size() == injected_instruction_hex.size());
   /*
     Hexdump the binary in a continuous stream of hex bytes,
@@ -2017,7 +2018,8 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
   command += app_binary_path + " ";
   command += original_instruction_hex + " ";
   command += injected_instruction_hex + " ";
-  command += std::cout << "gpuFI: Running '" << command << "'" << std::endl;
+  command += kernel_name;
+  std::cout << "gpuFI: Running '" << command << "'" << std::endl;
   try {
     int result = system(command.c_str());
     assert(result == 0);

@@ -984,7 +984,8 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
     if (m_gpu->l1i_pc_to_injected_instruction[l1i_index].find(pc) ==
         m_gpu->l1i_pc_to_injected_instruction[l1i_index].end()) {
       m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc] =
-          m_gpu->get_injected_instruction(pc, instruction_bitflips);
+          m_gpu->get_injected_instruction(pc, instruction_bitflips,
+                                          get_kernel()->get_name());
     }
     return m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc];
     // return correct_instruction_p;
@@ -1234,8 +1235,7 @@ void shader_core_ctx::fetch() {
             assert(status == RESERVATION_FAIL);
             delete mf;
           }
-          // printf("Got else PC = %u\n", m_warp[warp_id]->get_pc());
-          break;  // Always breaks the for loop that goes over warps (???)
+          break;
         }
       }
     }

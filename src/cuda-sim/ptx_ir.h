@@ -330,6 +330,7 @@ class symbol_table {
   addr_t get_global_next() { return m_global_next; }
   addr_t get_local_next() { return m_local_next; }
   addr_t get_tex_next() { return m_tex_next; }
+  std::map<std::string, symbol *> &get_symbols() { return m_symbols; }
   void alloc_shared(unsigned num_bytes) { m_shared_next += num_bytes; }
   void alloc_sstarr(unsigned num_bytes) { m_sstarr_next += num_bytes; }
   void alloc_global(unsigned num_bytes) { m_global_next += num_bytes; }
@@ -1331,6 +1332,16 @@ class function_info {
     if (index < m_instr_mem_size) return m_instr_mem[index];
     return NULL;
   }
+  const ptx_instruction *get_instruction_from_m_instructions(
+      unsigned PC) const {
+    unsigned index = PC - m_start_PC;
+    if (index < m_instructions.size()) {
+      auto first_instr = m_instructions.begin();
+      std::advance(first_instr, index);
+      return *first_instr;
+    }
+    return NULL;
+  };
   addr_t get_start_PC() const { return m_start_PC; }
 
   void finalize(memory_space *param_mem);

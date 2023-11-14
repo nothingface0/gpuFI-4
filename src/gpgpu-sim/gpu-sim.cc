@@ -100,6 +100,12 @@ tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
 #include "mem_latency_stat.h"
 
+extern int cuobjdump_lex_init(yyscan_t *scanner);
+extern void cuobjdump_set_in(FILE *_in_str, yyscan_t yyscanner);
+extern int cuobjdump_parse(yyscan_t scanner, struct cuobjdump_parser *parser,
+                           std::list<cuobjdumpSection *> &cuobjdumpSectionList);
+extern int cuobjdump_lex_destroy(yyscan_t scanner);
+
 void power_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-accelwattch_xml_file", OPT_CSTR,
                          &g_power_config_name, "AccelWattch XML file",
@@ -2113,7 +2119,39 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                   << instr_hex_bitflipped_swapped << std::endl;
         inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped,
                           kernel_name);
+        // Create _complete_cuobjdmp
         cuobjdump_injected_executable();
+
+        // Create .elf, .ptx, .sass files
+        FILE *cuobjdump_in;
+        cuobjdump_in = fopen("_cuobjdump_complete_output_injected", "r");
+        struct cuobjdump_parser parser;
+        std::list<cuobjdumpSection *> cuobjdumpSectionList;
+        parser.elfserial = 1;
+        parser.ptxserial = 1;
+        cuobjdump_lex_init(&(parser.scanner));
+        cuobjdump_set_in(cuobjdump_in, (parser.scanner));
+        cuobjdump_parse(parser.scanner, &parser, cuobjdumpSectionList);
+        cuobjdump_lex_destroy(parser.scanner);
+        fclose(cuobjdump_in);
+        // Convert to ptxplus and read it
+        // gpuFI TODO: Is it safe to assume the filenames?
+        // gpuFI TODO: Is it safe to call the class method? Maybe it updates
+        // some variable for the whole context that shouldn't be updated?
+        char *ptxplus_str =
+            gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                "_cuobjdump_1.ptx", "_cuobjdump_1.elf", "_cuobjdump_1.sass");
+        // Parse PTXPLUS.
+        symbol_table *symtab;
+        // gpuFI TODO: Is it safe to call the class method? Maybe it updates
+        // some variable for the whole context that shouldn't be updated?
+        symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(ptxplus_str, 1);
+        std::cout << "HAHAHA:"
+                  << symtab->get_symbols()[kernel_name]
+                         ->get_pc()
+                         ->get_instruction_from_m_instructions(pc)
+                         ->get_source()
+                  << std::endl;
       }
     }
   } else {

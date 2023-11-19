@@ -851,6 +851,7 @@ class gpgpu_sim : public gpgpu_t {
 
   std::string swap_instruction(std::string instr_hex);
   void cuobjdump_injected_executable();
+  void cuobjdump_parse_output(const std::string &cuobjdump_filename);
   // gpuFI end
 
   // performance counter for stalls due to congestion.

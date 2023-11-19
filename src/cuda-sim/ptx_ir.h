@@ -1179,6 +1179,7 @@ class ptx_instruction : public warp_inst_t {
   friend class function_info;
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+  friend class gpgpu_sim;  // gpuFI: To allow access to pre_decode
 };
 
 class param_info {

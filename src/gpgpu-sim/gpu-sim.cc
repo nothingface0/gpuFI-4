@@ -2057,6 +2057,24 @@ void gpgpu_sim::cuobjdump_injected_executable() {
   }
 }
 
+/*
+  After cuobjdump_injected_executable has run, cuobjdump_parse_output parses
+  its output and creates .elf, .ptx, .sass files
+ */
+void gpgpu_sim::cuobjdump_parse_output(const std::string &cuobjdump_filename) {
+  FILE *cuobjdump_in;
+  cuobjdump_in = fopen(cuobjdump_filename.c_str(), "r");
+  struct cuobjdump_parser parser;
+  std::list<cuobjdumpSection *> cuobjdumpSectionList;
+  parser.elfserial = 1;
+  parser.ptxserial = 1;
+  cuobjdump_lex_init(&(parser.scanner));
+  cuobjdump_set_in(cuobjdump_in, (parser.scanner));
+  cuobjdump_parse(parser.scanner, &parser, cuobjdumpSectionList);
+  cuobjdump_lex_destroy(parser.scanner);
+  fclose(cuobjdump_in);
+}
+
 ptx_instruction *gpgpu_sim::get_injected_instruction(
     address_type pc, const std::vector<unsigned> &bitflips,
     const std::string &kernel_name) {
@@ -2121,37 +2139,38 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                           kernel_name);
         // Create _complete_cuobjdmp
         cuobjdump_injected_executable();
+        cuobjdump_parse_output("_cuobjdump_complete_output_injected");
 
-        // Create .elf, .ptx, .sass files
-        FILE *cuobjdump_in;
-        cuobjdump_in = fopen("_cuobjdump_complete_output_injected", "r");
-        struct cuobjdump_parser parser;
-        std::list<cuobjdumpSection *> cuobjdumpSectionList;
-        parser.elfserial = 1;
-        parser.ptxserial = 1;
-        cuobjdump_lex_init(&(parser.scanner));
-        cuobjdump_set_in(cuobjdump_in, (parser.scanner));
-        cuobjdump_parse(parser.scanner, &parser, cuobjdumpSectionList);
-        cuobjdump_lex_destroy(parser.scanner);
-        fclose(cuobjdump_in);
-        // Convert to ptxplus and read it
-        // gpuFI TODO: Is it safe to assume the filenames?
-        // gpuFI TODO: Is it safe to call the class method? Maybe it updates
-        // some variable for the whole context that shouldn't be updated?
+        // Convert to ptxplus and read it into a char*
+        /*
+          gpuFI TODO: Is it safe to assume the filenames?
+          gpuFI TODO: Is it safe to call the class method? Maybe it updates
+            some variable for the whole context that shouldn't be updated?
+          gpuFI TODO: This may fail to parse the injected SASS. How will we
+          parse the failure?
+        */
         char *ptxplus_str =
             gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
                 "_cuobjdump_1.ptx", "_cuobjdump_1.elf", "_cuobjdump_1.sass");
-        // Parse PTXPLUS.
+
+        // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(ptxplus_str, 1);
-        std::cout << "HAHAHA:"
+        std::cout << "gpuFI: Parsed injected instruction hex is: "
                   << symtab->get_symbols()[kernel_name]
                          ->get_pc()
                          ->get_instruction_from_m_instructions(pc)
                          ->get_source()
                   << std::endl;
+        delete ptx;
+        ptx =
+            new ptx_instruction(*symtab->get_symbols()[kernel_name]
+                                     ->get_pc()
+                                     ->get_instruction_from_m_instructions(pc));
+        ptx->set_PC(pc);
+        ptx->pre_decode();
       }
     }
   } else {
@@ -2162,17 +2181,6 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
   }
 
   ptx->m_is_injected = true;
-  /*
-    gpuFI TODO: Track bits flipped and inject the instruction here
-    1. Modify (a copy of) the currently running executable at the
-      appropriate place.
-    2. Run cudaobjdump on it, the same way that the simulator does it.
-      2i. If cudaobjdump crashes, exit with error.
-      2ii. We will probably need to consider more weird corner cases here.
-    3. Parse the resulting ptxplus file the same way that the simulator does
-    it.
-    4. Get the modified warp_isnt_t.
-  */
   return ptx;
 }
 struct cmp_str {

@@ -1335,11 +1335,26 @@ class function_info {
   }
   const ptx_instruction *get_instruction_from_m_instructions(
       unsigned PC) const {
-    unsigned index = PC - m_start_PC;
-    if (index < m_instructions.size()) {
-      auto first_instr = m_instructions.begin();
-      std::advance(first_instr, index);
-      return *first_instr;
+    PC -= m_start_PC;         // PC has always some offset for some reason.
+    unsigned mem_offset = 0;  // Calculate offset manually
+    // There's no straightforward way that I found in order to access the
+    // correct instruction using only the PC, which is why some manual work is
+    // done here.
+    for (unsigned i = 0; i < m_instructions.size(); i++) {
+      auto instr = m_instructions.begin();
+      std::advance(instr, i);
+      if (mem_offset == PC) {
+        return *instr;
+      }
+      // Don't count labels
+      if ((*instr)->m_label != NULL) {
+        continue;
+      }
+      // Increase the offset by the size of the current instruction,
+      // in order to check in the next loop where the next instruction begins.
+      // Not all instructions are the same size, which is why we need to
+      // calculate the PC manually.
+      mem_offset += (*instr)->m_inst_size;
     }
     return NULL;
   };

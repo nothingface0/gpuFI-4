@@ -826,7 +826,9 @@ class gpgpu_sim : public gpgpu_t {
   */
   std::vector<std::vector<unsigned>> l1i_tag_bf_line_index;
   /*
-
+    For each cache injected, we create a map of PC->injected instruction
+    in order to avoid having to recreate the injected instructions, and
+    to pass this information to both the decode and issue stages.
   */
   std::vector<std::map<address_type, ptx_instruction *>>
       l1i_pc_to_injected_instruction;

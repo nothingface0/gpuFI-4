@@ -1,5 +1,8 @@
 #!/bin/bash
 # Script for replacing a SASS instruction in a CUDA executable.
+# The script will try to limit the search in the kernel whose name is provided.
+# If the instruction is found multiple times, *all* of them are replaced.
+# gpuFI TODO: Find the end of the kernel to limit the search even more
 
 # The full path to the CUDA executable to inject
 app_binary_path=$1

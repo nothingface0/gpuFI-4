@@ -2158,18 +2158,20 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(ptxplus_str, 1);
+        auto ptx_instr = symtab->get_symbols()[kernel_name]
+                             ->get_pc()
+                             ->get_instruction_from_m_instructions(pc);
+        assert(ptx_instr != NULL);
         std::cout << "gpuFI: Parsed injected instruction hex is: "
-                  << symtab->get_symbols()[kernel_name]
-                         ->get_pc()
-                         ->get_instruction_from_m_instructions(pc)
-                         ->get_source()
-                  << std::endl;
+                  << ptx_instr->get_source() << std::endl;
         delete ptx;
-        ptx =
-            new ptx_instruction(*symtab->get_symbols()[kernel_name]
-                                     ->get_pc()
-                                     ->get_instruction_from_m_instructions(pc));
+        /*
+          This memory will be freed on cache line replacement
+          (see: accept_fetch_response).
+        */
+        ptx = new ptx_instruction(*ptx_instr);
         ptx->set_PC(pc);
+        // Calculate all the required instruction's attributes.
         ptx->pre_decode();
       }
     }

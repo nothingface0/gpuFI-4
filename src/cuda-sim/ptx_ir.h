@@ -1354,7 +1354,7 @@ class function_info {
       // in order to check in the next loop where the next instruction begins.
       // Not all instructions are the same size, which is why we need to
       // calculate the PC manually.
-      mem_offset += (*instr)->m_inst_size;
+      mem_offset += (*instr)->inst_size();
     }
     return NULL;
   };

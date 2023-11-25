@@ -1339,10 +1339,10 @@ class function_info {
     unsigned mem_offset = 0;  // Calculate offset manually
     // There's no straightforward way that I found in order to access the
     // correct instruction using only the PC, which is why some manual work is
-    // done here.
-    for (unsigned i = 0; i < m_instructions.size(); i++) {
-      auto instr = m_instructions.begin();
-      std::advance(instr, i);
+    // done here to calculate each instruction's actual PC.
+    for (std::list<ptx_instruction *>::const_iterator instr =
+             m_instructions.begin();
+         instr != m_instructions.end(); ++instr) {
       if (mem_offset == PC) {
         return *instr;
       }

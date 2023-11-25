@@ -2001,9 +2001,9 @@ std::string gpgpu_sim::swap_instruction(std::string instr_hex) {
 
 /*
   gpuFI: Find and replace an instruction in the actual executable, given the
-  original instruction (in swapped, hex string), and the injected instruction
-  (also in swapped, hex string).
-
+  original instruction (in swapped, hex string), the injected instruction
+  (also in swapped, hex string) and the kernel name the instruction
+  belongs to.
  */
 void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
                                   const std::string &injected_instruction_hex,
@@ -2029,8 +2029,8 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
   std::cout << "gpuFI: Running '" << command << "'" << std::endl;
   int result = system(command.c_str());
   if (result != 0) {
-    std::cout << "gpuFI: Error when injecting executable. Aborting."
-              << std::endl;
+    std::cout << "gpuFI: Error " << result
+              << " when injecting executable. Aborting." << std::endl;
     throw(SIGABRT);
   }
 

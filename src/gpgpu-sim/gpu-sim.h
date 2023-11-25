@@ -421,6 +421,9 @@ class gpgpu_sim_config : public power_config,
 
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
 
+  // gpuFI
+  bool gpufi_l1i_cache_bitflips_ignore_mshr;
+
  private:
   void init_clock_domains(void);
 

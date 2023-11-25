@@ -877,8 +877,6 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   const warp_inst_t *correct_instruction_p =
       m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
 
-  // gpuFI DEBUG
-  // from_mshr = false;
   // Keep track of injection
   std::vector<unsigned> instruction_bitflips;
   // Keep track of the L1I cache index in the l1i_data_bf_enabled vector
@@ -889,7 +887,7 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
     Only check those *not* coming from the MSHR, i.e. check only in the case of
     a cache HIT.
   */
-  if (!from_mshr) {
+  if (m_gpu->get_config().gpufi_l1i_cache_bitflips_ignore_mshr || !from_mshr) {
     /*
       i represents the index of a cache that has active bitflips. It does
       not represent an actual index or a pointer to a cache.
@@ -944,7 +942,7 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
               */
               unsigned instr_cache_line_bit_offset_stop =
                   instr_cache_line_bit_offset_start +
-                  (correct_instruction_p->isize * 8);
+                  (correct_instruction_p->isize * 8) - 1;
               /*
                 If bitflip bit offset is within the instruction start/stop,
                 change the instruction.

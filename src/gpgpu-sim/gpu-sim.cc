@@ -2706,6 +2706,12 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       // find which line the bitflip should be done in
       unsigned bf_line_idx = bf_l1 / l1_line_sz_extra_bits;
+      /*
+        Check that the requestsed bitflip does not try to access a
+        non-existent line.
+      */
+      assert(bf_line_idx < m_tag_array->m_config.get_max_num_lines());
+
       // Bit offset of bit to flip in cache line, incl. tag bits
       unsigned bf_line_sz_bits_extra_idx =
           bf_l1 - bf_line_idx * l1_line_sz_extra_bits;

@@ -1343,13 +1343,14 @@ class function_info {
     for (std::list<ptx_instruction *>::const_iterator instr =
              m_instructions.begin();
          instr != m_instructions.end(); ++instr) {
-      if (mem_offset == PC) {
-        return *instr;
-      }
       // Don't count labels
       if ((*instr)->m_label != NULL) {
         continue;
       }
+      if (mem_offset == PC) {
+        return *instr;
+      }
+
       // Increase the offset by the size of the current instruction,
       // in order to check in the next loop where the next instruction begins.
       // Not all instructions are the same size, which is why we need to

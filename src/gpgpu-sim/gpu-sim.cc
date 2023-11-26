@@ -2168,7 +2168,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
         assert(ptx_instr != NULL);
-        std::cout << "gpuFI: Parsed injected instruction hex is: "
+        std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
         delete ptx;
         /*

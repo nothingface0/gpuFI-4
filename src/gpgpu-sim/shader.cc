@@ -4151,35 +4151,41 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
             std::cout << "gpuFI: L1I cache line " << mf_cache_line_location
                       << " has been replaced, deactivating bitflip " << i
                       << ", " << bf_enabled_idx << std::endl;
+
             m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx] = false;
 
             /*
               gpuFI TODO: Check if all l1i_data_bf_enabled are false, and if
               yes, also disable l1i_with_data_bf_enabled?
             */
-          }
-        }
-        // Iterate over affected PCs and remove those that are no longer
-        // effective
-        std::map<address_type, ptx_instruction *> &affected_instructions =
-            m_gpu->l1i_pc_to_injected_instruction[i];
-        for (std::map<address_type, ptx_instruction *>::iterator iter =
-                 affected_instructions.begin();
-             iter != affected_instructions.end(); ++iter) {
-          address_type pc = iter->first;
-
-          // Calculate if PC falls in cache line, if yes, delete
-          // pointer, and remove from map
-          address_type first_cache_line_byte_addr =
-              m_L1I->m_config.block_addr(mf_address);
-          address_type last_cache_line_byte_addr =
-              first_cache_line_byte_addr + m_L1I->m_config.get_line_sz();
-          if (PROGRAM_MEM_START + pc <= last_cache_line_byte_addr &&
-              PROGRAM_MEM_START + pc >= first_cache_line_byte_addr) {
-            std::cout << "gpuFI: Removing modified instruction with PC " << pc
-                      << std::endl;
-            delete iter->second;
-            affected_instructions.erase(pc);
+            /*
+              Iterate over affected PCs and remove those that are no longer
+              effective.
+            */
+            std::map<address_type, ptx_instruction *>::iterator
+                affected_instruction =
+                    m_gpu->l1i_pc_to_injected_instruction[i].begin();
+            while (affected_instruction !=
+                   m_gpu->l1i_pc_to_injected_instruction[i].end()) {
+              /*
+                Calculate the tag of the affected instruction, to see
+                if matches the tag of the line being replaced.
+               */
+              address_type pc_tag = m_L1I->m_config.tag(
+                  PROGRAM_MEM_START + affected_instruction->first);
+              if (m_gpu->l1i_data_bf_line_tag[i][bf_enabled_idx] == pc_tag) {
+                std::cout << "gpuFI: Removing modified instruction with PC "
+                          << affected_instruction->first << std::endl;
+                // Delete pointer to ptx_instruction
+                delete affected_instruction->second;
+                // Remove element from map
+                affected_instruction =
+                    m_gpu->l1i_pc_to_injected_instruction[i].erase(
+                        affected_instruction);
+              } else {
+                ++affected_instruction;
+              }
+            }
           }
         }
       }

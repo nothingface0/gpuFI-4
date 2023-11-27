@@ -940,8 +940,7 @@ cudaError_t cudaLaunchInternal(const char *hostFun,
   }
   struct CUstream_st *stream = config.get_stream();
 
-  printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n",
-         hostFun,
+  printf("\nGPGPU-Sim PTX: cudaLaunch for %p (mode=%s) on stream %u\n", hostFun,
          (ctx->func_sim->g_ptx_sim_mode) ? "functional simulation"
                                          : "performance simulation",
          stream ? stream->get_uid() : 0);

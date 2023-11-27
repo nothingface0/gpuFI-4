@@ -448,7 +448,6 @@ class gpgpu_sim_config : public power_config,
   unsigned gpufi_profile;
   unsigned gpufi_last_cycle;
 
-  unsigned component_to_flip;
   unsigned gpufi_thread_rand;
   unsigned gpufi_warp_rand;
   unsigned gpufi_total_cycle_rand;

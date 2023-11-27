@@ -681,8 +681,6 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          "TODO", "0");
   option_parser_register(opp, "-gpufi_last_cycle", OPT_INT32, &gpufi_last_cycle,
                          "TODO", "0");
-  option_parser_register(opp, "-component_to_flip", OPT_INT32,
-                         &component_to_flip, "TODO", "0");
   option_parser_register(opp, "-gpufi_thread_rand", OPT_INT32,
                          &gpufi_thread_rand, "TODO", "0");
   option_parser_register(opp, "-gpufi_warp_rand", OPT_INT32, &gpufi_warp_rand,

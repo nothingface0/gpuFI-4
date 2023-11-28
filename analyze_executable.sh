@@ -16,7 +16,7 @@
 #                           GPGPU_SIM_CONFIG_PATH=<path to gpgpusim.config> \
 #                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to>
 
-set -ex
+set -e
 
 # The full path of the executable to analyze
 CUDA_EXECUTABLE_PATH=
@@ -80,7 +80,6 @@ create_directories() {
     dirname="$(_get_gpufi_analysis_path)"
     echo "Creating directory $dirname"
     mkdir -p "$dirname"
-
 }
 
 _create_kernel_directories() {
@@ -93,9 +92,9 @@ _create_kernel_directories() {
 }
 
 check_gpufi_profile() {
-    echo "TODO: Make sure that gpufi_profile is set to 1 or 3"
+    # Make sure that gpufi_profile is set to 1
     gpufi_profile_regex="^[[:space:]]*-gpufi_profile[[:space:]]+([0-9])"
-    if ! grep -E $gpufi_profile_regex "$GPGPU_SIM_CONFIG_PATH" --only-matching; then
+    if ! grep -E $gpufi_profile_regex "$GPGPU_SIM_CONFIG_PATH" --only-matching >/dev/null; then
         echo "No gpufi_profile parameter found in $GPGPU_SIM_CONFIG_PATH"
         exit 1
     fi
@@ -103,7 +102,7 @@ check_gpufi_profile() {
     # Get the gpufi_profile value from the config
     gpufi_profile=$(cat $GPGPU_SIM_CONFIG_PATH | gawk -v pat=$gpufi_profile_regex 'match($0, pat, a) {print a[1]}')
     if [ $gpufi_profile -ne 1 ]; then
-        echo "gpufi_profile must either be 0 or 3 for running analysis"
+        echo "gpufi_profile must be 1 for analysing the executable"
         exit 1
     fi
 }
@@ -131,8 +130,8 @@ post_execution_actions() {
     _create_per_kernel_config
 }
 
+# parse the output of the executable and extract per-kernel information
 _parse_executable_output() {
-    echo "TODO: parse the output of the executable and extract per-kernel information"
     output_log="$(_get_gpufi_analysis_path)/out.log"
     if [ ! -f "$output_log" ]; then
         echo "Could not find the execution log: $output_log"
@@ -156,25 +155,47 @@ _parse_executable_output() {
         regs_mems=$(cat "$output_log" | gawk -v pat="$regex_kernel_regs_mem" 'match($0, pat, a) {print a[1], a[2], a[3], a[4]}')
         regs_mems=(${regs_mems// / })
 
+        # LMEM, SMEM, CMEM used
         var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED"
         eval "export $var_name_kernel_lmem=${regs_mems[1]}"
         var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED"
         eval "export $var_name_kernel_smem=${regs_mems[2]}"
-        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
-        eval "export $var_name_kernel_cmem=${regs_mems[3]}"
-        echo "Done"
+        # Unused for now
+        # var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
+        # eval "export $var_name_kernel_cmem=${regs_mems[3]}"
 
+        # Max registers used
         regex_kernel_max_active_regs="gpuFI: Kernel = $kernel_name, max active regs = ([0-9]+)"
         max_active_regs=$(cat "$output_log" | gawk -v pat="$regex_kernel_max_active_regs" 'match($0, pat, a) {print a[1]}')
         var_name_kernel_regs="KERNEL_${kernel_name}_MAX_ACTIVE_REGS"
         eval "export $var_name_kernel_regs=$max_active_regs"
 
+        # Shaders used
         regex_kernel_used_shaders="gpuFI: Kernel = $kernel_name used shaders: ([0-9[:space:]]+)"
         shaders_used=$(cat "$output_log" | gawk -v pat="$regex_kernel_used_shaders" 'match($0, pat, a) {print a[1]}')
         shaders_used=(${shaders_used// / })
         var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
         eval "export $var_name_kernel_shaders=\"${shaders_used[*]}\""
+
         #TODO: active cycles
+        regex_kernel_active_cycles="gpuFI: Kernel = ([0-9]+) with name = $kernel_name, started on cycle = ([0-9]+) and finished on cycle = ([0-9]+)"
+        kernel_active_cycles_sets=$(cat "$output_log" | gawk -v pat="$regex_kernel_active_cycles" 'match($0, pat, a) {print a[1], a[2], a[3]}')
+        # A single kernel may be launched many times
+        OLD_IFS=$IFS
+        IFS=$'\n' # Temporarily split with newlines
+        kernel_active_cycles=""
+        for set in $kernel_active_cycles_sets; do
+            IFS=' '
+            set=(${set// / })
+            # Sanity check
+            # echo "Kernel $kernel_name launch# ${set[0]}, started ${set[1]}, stopped ${set[2]}"
+            kernel_active_cycles="${kernel_active_cycles},${set[1]}:${set[2]}"
+            IFS=$'\n'
+        done
+        IFS=$OLD_IFS
+        var_name_kernel_active_cycles="KERNEL_${kernel_name}_ACTIVE_CYCLES"
+        eval "export $var_name_kernel_active_cycles=\"${kernel_active_cycles[*]}\""
+        echo "Done"
     done
     #touch "$(_get_gpufi_analysis_path)/.analysis_complete"
 }
@@ -195,7 +216,26 @@ create_gpufi_configs() {
 }
 
 _create_cycles_txt() {
-    echo "TODO: create cycles.in --> cycles.txt"
+    OLD_IFS=$IFS
+    if [ -f "$cycles_txt_file" ]; then
+        rm -f "$cycles_txt_file"
+    fi
+    for kernel_name in $KERNEL_NAMES; do
+        cycles_txt_file="$(_get_gpufi_analysis_path)/$kernel_name/cycles.txt"
+        var_name_kernel_active_cycles="KERNEL_${kernel_name}_ACTIVE_CYCLES"
+        IFS=","
+        for start_stop_cycle in ${!var_name_kernel_active_cycles}; do
+            if [ -z "$start_stop_cycle" ]; then
+                continue
+            fi
+            start=$(echo $start_stop_cycle | cut -d':' -f1)
+            stop=$(echo $start_stop_cycle | cut -d':' -f2)
+            seq $start $stop >>$cycles_txt_file
+        done
+        IFS=","
+    done
+
+    IFS=$OLD_IFS
 }
 
 ### Main script

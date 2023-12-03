@@ -116,7 +116,7 @@ check_gpufi_profile() {
 execute_executable() {
     echo "TODO: execute cuda executable, store output to file, count time."
     # Copy the config file just in case
-    cp "$GPGPU_SIM_CONFIG_PATH" "$(_get_gpufi_analysis_path)/$(basename $GPGPU_SIM_CONFIG_PATH)"
+    cp "$GPGPU_SIM_CONFIG_PATH" "$(dirname $(_get_gpufi_analysis_path))/$(basename $GPGPU_SIM_CONFIG_PATH)"
 
     # Time the execution
     SECONDS=0
@@ -131,8 +131,6 @@ execute_executable() {
 
 # Stuff to do after execution is complete
 post_execution_actions() {
-    _parse_executable_output
-    _create_kernel_directories # Depends on parsing the execution output first
     _create_per_kernel_config
 }
 
@@ -143,7 +141,8 @@ post_execution_actions() {
 # - Max registers used,
 # - LMEM size bits
 # - SMEM size bits
-_parse_executable_output() {
+# Exports the necessary variables to be used subsequently.
+parse_executable_output() {
     output_log="$(_get_gpufi_analysis_path)/out.log"
     if [ ! -f "$output_log" ]; then
         echo "Could not find the execution log: $output_log"
@@ -172,9 +171,8 @@ _parse_executable_output() {
         eval "export $var_name_kernel_lmem=${regs_mems[1]}"
         var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED"
         eval "export $var_name_kernel_smem=${regs_mems[2]}"
-        # Unused for now
-        # var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
-        # eval "export $var_name_kernel_cmem=${regs_mems[3]}"
+        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
+        eval "export $var_name_kernel_cmem=${regs_mems[3]}"
 
         # Max registers used
         regex_kernel_max_active_regs="gpuFI: Kernel = $kernel_name, max active regs = ([0-9]+)"
@@ -209,22 +207,39 @@ _parse_executable_output() {
         eval "export $var_name_kernel_active_cycles=\"${kernel_active_cycles[*]}\""
         echo "Done"
     done
-    # Mark the
-    #touch "$(_get_gpufi_analysis_path)/.analysis_complete"
 }
 
-_create_per_kernel_config() {
+# Create an analysis file for the specific executable: cycles total, timeout expected
+_create_per_executable_analysis_file() {
+    echo "TODO: Create common per-executable config: cycles total, timeout"
+}
+
+_create_per_kernel_analysis_file() {
+    _create_kernel_directories # Create per-kernel subdirs, depends on parsing the execution output first
+    set -x
     for kernel_name in $KERNEL_NAMES; do
-        var_name_kernel_regs="KERNEL_${kernel_name}_REGS_USED"
+        per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
+        rm -rf "$per_kernel_analysis_file_path"
+        var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
+        var_name_kernel_regs="KERNEL_${kernel_name}_MAX_ACTIVE_REGS"
         var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED"
         var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED"
-        # Unused for now
-        # var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
+        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED" # Unused for now
+        {
+            echo "${var_name_kernel_shaders}=\"${!var_name_kernel_shaders}\""
+            echo "${var_name_kernel_regs}=${!var_name_kernel_regs}"
+            echo "${var_name_kernel_lmem}=${!var_name_kernel_lmem}"
+            echo "${var_name_kernel_smem}=${!var_name_kernel_smem}"
+            echo "${var_name_kernel_cmem}=${!var_name_kernel_cmem}"
+        } >>"$per_kernel_analysis_file_path"
     done
+    set +x
 }
 
 create_gpufi_configs() {
     echo "TODO: create directories and files per GPU/executable/arguments/kernel combination"
+    _create_per_executable_analysis_file
+    _create_per_kernel_analysis_file
     _create_cycles_txt
 }
 
@@ -256,14 +271,20 @@ _create_cycles_txt() {
     IFS=$OLD_IFS
 }
 
+finalize_analysis() {
+    touch "$(_get_gpufi_analysis_path)/.analysis_complete"
+}
+
 ### Main script
 declare -a analysis_steps=(
     preliminary_checks
     check_gpufi_profile
     create_directories
     execute_executable
-    post_execution_actions
+    #post_execution_actions
+    parse_executable_output
     create_gpufi_configs
+    finalize_analysis
 )
 
 # Create dynamic flags to selectively disable/enable steps of the analysis if needed.

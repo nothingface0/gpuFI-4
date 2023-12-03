@@ -14,7 +14,7 @@ DELETE_LOGS=0                                      # if 1 then all logs will be 
 # ---------------------------------------------- END ONE-TIME PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER GPGPU CARD PARAMETERS ----------------------------------------------
-source calculate_cache_sizes.sh
+source gpufi_calculate_cache_sizes.sh
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ----------------------------------------------

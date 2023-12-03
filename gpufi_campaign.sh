@@ -20,7 +20,7 @@ GPGPU_SIM_CONFIG_PATH=
 TMP_DIR=./logs
 CACHE_LOGS_DIR=./cache_logs
 TMP_FILE=tmp.out
-NUM_RUNS=7
+NUM_RUNS=1
 NUM_AVAILABLE_CORES=$(($(nproc) - 1)) # -1 core for computer not to hang
 DELETE_LOGS=0                         # if 1 then all logs will be deleted at the end of the script
 # ---------------------------------------------- END ONE-TIME PARAMETERS ------------------------------------------------
@@ -30,7 +30,13 @@ DELETE_LOGS=0                         # if 1 then all logs will be deleted at th
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+GPUFI_PROFILE=1) ----------------------------------------------
+# gpuFI TODO: Configuration in this section seems to have been intended for targeting a
+# specific kernel of a speicific executable. But this does not make sense, as there is an option,
+# gpufi_kernel_n, which allows gpuFI to target ALL the kernels. How will MAX_REGISTERS_USED make
+# sense for all the kernels then?
+
 # Register size
+# gpuFI TODO: Should this be hardcoded?
 DATATYPE_SIZE=32
 
 # Complete command for CUDA executable
@@ -43,6 +49,8 @@ TOTAL_CYCLES=
 TIMEOUT_VALUE=
 
 # Per kernel config
+# cycles.txt file for the kernel. Used for selecting a random cycle to perform the injection while
+# the targeted kernel is running both in this script, and inside the simulator, when GPUFI_PROFILE=2.
 CYCLES_FILE=
 MAX_REGISTERS_USED=
 SHADERS_USED=
@@ -173,6 +181,7 @@ initialize_config() {
     sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_cycles_file.*$/-gpufi_cycles_file ${CYCLES_FILE}/" ${GPGPU_SIM_CONFIG_PATH}
 }
 
 # Parses resulting logs and determines successful execution.
@@ -299,7 +308,7 @@ main() {
     fi
 }
 
-read_gpgpusim_config() {
+read_params_from_gpgpusim_config() {
     source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH
 }
 
@@ -372,7 +381,7 @@ for ARGUMENT in "$@"; do
 done
 
 preliminary_checks
-read_gpgpusim_config
+read_params_from_gpgpusim_config
 read_executable_analysis_files
 exit 0
 main

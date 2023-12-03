@@ -455,6 +455,7 @@ class gpgpu_sim_config : public power_config,
   char *gpufi_reg_bitflip_rand_n;
   bool gpufi_per_warp;
   char *gpufi_kernel_n;
+  char *gpufi_cycles_file;
   char *gpufi_local_mem_bitflip_rand_n;
   char *gpufi_components_to_flip;
   unsigned gpufi_block_rand;

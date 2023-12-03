@@ -695,6 +695,8 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          "TODO", "0");
   option_parser_register(opp, "-gpufi_kernel_n", OPT_CSTR, &gpufi_kernel_n,
                          "TODO", "0");
+  option_parser_register(opp, "-gpufi_cycles_file", OPT_CSTR,
+                         &gpufi_cycles_file, "TODO", "0");
   option_parser_register(opp, "-gpufi_local_mem_bitflip_rand_n", OPT_CSTR,
                          &gpufi_local_mem_bitflip_rand_n, "TODO", "0");
   option_parser_register(opp, "-gpufi_components_to_flip", OPT_CSTR,
@@ -2956,7 +2958,7 @@ void gpgpu_sim::cycle() {
 
       if (m_config.gpufi_profile == GPUFI_MEAN_VALUES_PER_SM_RUN) {
         active_threads_sum = 0;
-        FILE *file = fopen("./cycles.txt", "r");
+        FILE *file = fopen(m_config.gpufi_cycles_file, "r");
         cycles_txt_lines = 0;
         int num;
         while (fscanf(file, "%d", &num) > 0) {

@@ -1,40 +1,47 @@
 #!/bin/bash
+
+# gpuFI script for running an injection campaign for a combination of:
+# - A specific gpgpusim.config (i.e. a specific GPU),
+# - A specific CUDA executable and its arguments, and
+# - A kernel of the executable to be targeted.
+
 # set -x
+source gpufi_utils.sh
+# Get files created from gpufi_analyze_executable.sh
+EXECUTABLE_ANALYSIS_FILE=
+KERNEL_ANALYSIS_FILE=
+GPU_ID=
+KERNEL_NAME=
 # ---------------------------------------------- START ONE-TIME PARAMETERS ----------------------------------------------
 # needed by gpgpu-sim for real register usage on PTXPlus mode
 #export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.0
 
-CONFIG_FILE=./gpgpusim.config
+CONFIG_FILE=
 TMP_DIR=./logs
 CACHE_LOGS_DIR=./cache_logs
 TMP_FILE=tmp.out
-RUNS=7
-BATCH=$(($(grep -c ^processor /proc/cpuinfo) - 1)) # -1 core for computer not to hang
-DELETE_LOGS=0                                      # if 1 then all logs will be deleted at the end of the script
+NUM_RUNS=7
+NUM_AVAILABLE_CORES=$(($(nproc) - 1)) # -1 core for computer not to hang
+DELETE_LOGS=0                         # if 1 then all logs will be deleted at the end of the script
 # ---------------------------------------------- END ONE-TIME PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER GPGPU CARD PARAMETERS ----------------------------------------------
-source gpufi_calculate_cache_sizes.sh
+
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
-# ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ----------------------------------------------
+# ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+GPUFI_PROFILE=1) ----------------------------------------------
 # Complete command for CUDA executable
-CUDA_UUT="../cuda-tests/kernels/test_if/bin/test_if"
+CUDA_EXECUTABLE_PATH=
+CUDA_EXECUTABLE_ARGS=""
 
 # total cycles for all kernels
-CYCLES=120866
-
-# Get the exact cycles, max registers and SIMT cores used for each kernel with gpufi_profile=1
-# fix cycles.txt with kernel execution cycles
-# (e.g. seq 1 10 >> cycles.txt, or multiple seq commands if a kernel has multiple executions)
-# use the following command from profiling execution for easier creation of cycles.txt file
-# e.g. grep "_Z12lud_diagonalPfii" cycles.in | awk '{ system("seq " $12 " " $18 ">> cycles.txt")}'
-CYCLES_FILE=./cycles.txt
-MAX_REGISTERS_USED=7
-SHADER_USED="0 1"
+TOTAL_CYCLES=
+CYCLES_FILE=
+MAX_REGISTERS_USED=
+SHADERS_USED=
 SUCCESS_MSG='Test PASSED'
 FAILED_MSG='Test FAILED'
-TIMEOUT_VAL=400s
+TIMEOUT_VAL=
 
 # Register size
 DATATYPE_SIZE=32
@@ -42,9 +49,9 @@ DATATYPE_SIZE=32
 # lmem and smem values are taken from gpgpu-sim ptx output per kernel
 # e.g. GPGPU-Sim PTX: Kernel '_Z9vectorAddPKdS0_Pdi' : regs=8, lmem=0, smem=0, cmem=380
 # if 0 put a random value > 0
-LMEM_SIZE_BITS=1
-SMEM_SIZE_BITS=1
-# ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+gpufi_profile=1) ------------------------------------------------
+LMEM_SIZE_BITS=
+SMEM_SIZE_BITS=
+# ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+GPUFI_PROFILE=1) ------------------------------------------------
 
 FAULT_INJECTION_OCCURRED="gpuFI: Fault injection"
 CYCLES_MSG="gpu_tot_sim_cycle ="
@@ -52,15 +59,15 @@ CYCLES_MSG="gpu_tot_sim_cycle ="
 masked=0
 performance=0
 SDC=0
-crashes=0
+num_crashes=0
 
-# ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ----------------------------------------------
+# ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (GPUFI_PROFILE=0) ----------------------------------------------
 # gpuFI profile to run. Possible values:
 # 0: perform injection campaign
 # 1: get cycles of each kernel
 # 2: get mean value of active threads, during all cycles in CYCLES_FILE, per SM,
 # 3: single fault-free execution
-gpufi_profile=0
+GPUFI_PROFILE=
 
 # Which components to apply a bif flip to. Multiple ones can be
 # specified with a colon, e.g. gpufi_components_to_flip=0:1 for both RF and local_mem). Possible values:
@@ -81,16 +88,19 @@ gpufi_per_warp=0
 gpufi_kernel_n=0
 
 # in how many blocks (smems) to inject the bit flip
-blocks=1
+gpufi_block_n=1
 
 # Function which initializes variables based on user config and edits the gpgpusim.config file.
 initialize_config() {
-    # random number for choosing a random thread after gpufi_thread_rand % #threads operation in gpgpu-sim
+    # Random number for choosing a random thread after gpufi_thread_rand % #threads operation in gpgpu-sim
+    # The number 6000 looks hardcoded but it does not have a significance. It should just
+    # be >= the total number of threads, as it will be modulo'd with the total number during
+    # execution.
     gpufi_thread_rand=$(shuf -i 0-6000 -n 1)
     # random number for choosing a random warp after gpufi_warp_rand % #warp operation in gpgpu-sim
     gpufi_warp_rand=$(shuf -i 0-6000 -n 1)
     gpufi_total_cycle_rand=-1
-    if [[ "$gpufi_profile" -eq 0 ]]; then
+    if [[ "$GPUFI_PROFILE" -eq 0 ]]; then
         # random cycle for fault injection
         gpufi_total_cycle_rand="$(shuf ${CYCLES_FILE} -n 1)"
     fi
@@ -109,25 +119,25 @@ initialize_config() {
     gpufi_shared_mem_bitflip_rand_n="$(shuf -i 1-${SMEM_SIZE_BITS} -n 1)"
     gpufi_shared_mem_bitflip_rand_n="${gpufi_shared_mem_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 data cache fault injections
-    gpufi_l1d_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"
+    gpufi_l1d_shader_rand_n="$(shuf -e ${SHADERS_USED} -n 1)"
     gpufi_l1d_shader_rand_n="${gpufi_l1d_shader_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L1 data cache bit flips
     gpufi_l1d_cache_bitflip_rand_n="$(shuf -i 1-${L1D_SIZE_BITS} -n 1)"
     gpufi_l1d_cache_bitflip_rand_n="${gpufi_l1d_cache_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 constant cache fault injections
-    gpufi_l1c_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"
+    gpufi_l1c_shader_rand_n="$(shuf -e ${SHADERS_USED} -n 1)"
     gpufi_l1c_shader_rand_n="${gpufi_l1c_shader_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L1 constant cache bit flips
     gpufi_l1c_cache_bitflip_rand_n="$(shuf -i 1-${L1C_SIZE_BITS} -n 1)"
     gpufi_l1c_cache_bitflip_rand_n="${gpufi_l1c_cache_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 texture cache fault injections
-    gpufi_l1t_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"
+    gpufi_l1t_shader_rand_n="$(shuf -e ${SHADERS_USED} -n 1)"
     gpufi_l1t_shader_rand_n="${gpufi_l1t_shader_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L1 texture cache bit flips
     gpufi_l1t_cache_bitflip_rand_n="$(shuf -i 1-${L1T_SIZE_BITS} -n 1)"
     gpufi_l1t_cache_bitflip_rand_n="${gpufi_l1t_cache_bitflip_rand_n//$'\n'/:}"
     # randomly select one or more shaders for L1 instruction cache fault injections
-    gpufi_l1i_shader_rand_n="$(shuf -e ${SHADER_USED} -n 1)"
+    gpufi_l1i_shader_rand_n="$(shuf -e ${SHADERS_USED} -n 1)"
     gpufi_l1i_shader_rand_n="${gpufi_l1i_shader_rand_n//$'\n'/:}"
     # same format like gpufi_reg_bitflip_rand_n but for L1 instruction cache bit flips
     gpufi_l1i_cache_bitflip_rand_n="$(shuf -i 1-${L1I_SIZE_BITS} -n 1)"
@@ -135,11 +145,11 @@ initialize_config() {
     # same format like gpufi_reg_bitflip_rand_n but for L2 cache bit flips
     gpufi_l2_cache_bitflip_rand_n="$(shuf -i 1-${L2_SIZE_BITS} -n 1)"
     gpufi_l2_cache_bitflip_rand_n="${gpufi_l2_cache_bitflip_rand_n//$'\n'/:}"
-    # ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (gpufi_profile=0) ------------------------------------------------
+    # ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (GPUFI_PROFILE=0) ------------------------------------------------
 
     sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${gpufi_components_to_flip}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${gpufi_profile}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${CYCLES}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${GPUFI_PROFILE}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${CONFIG_FILE}
@@ -149,7 +159,7 @@ initialize_config() {
     sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${gpufi_kernel_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${blocks}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${gpufi_block_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${CONFIG_FILE}
     sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${CONFIG_FILE}
@@ -165,41 +175,50 @@ initialize_config() {
 # Parses resulting logs and determines successful execution.
 gather_results() {
     for file in ${TMP_DIR}${1}/${TMP_FILE}*; do
-        if [[ "$gpufi_profile" -eq 1 ]]; then
-            # Find start and end cycles for each kernel
-            grep -E "gpuFI: Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g >${TMP_DIR}${1}/cycles.in
-            # TODO: parse Kernel = %s, max active regs = %u
-            # TODO: parse Kernel = %s used shaders
-        fi
+        # Done in gpufi_analyze_executable.sh
+        # if [[ "$GPUFI_PROFILE" -eq 1 ]]; then
+        #     # Find start and end cycles for each kernel
+        #     grep -E "gpuFI: Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g >${TMP_DIR}${1}/cycles.in
+        #     # TODO: parse Kernel = %s, max active regs = %u
+        #     # TODO: parse Kernel = %s used shaders
+        # fi
         grep -iq "${SUCCESS_MSG}" $file
-        success_msg_grep=$(echo $?)
-        grep -i "${CYCLES_MSG}" $file | tail -1 | grep -q "${CYCLES}"
-        cycles_grep=$(echo $?)
+        success_msg_grep=$?
+        grep -i "${CYCLES_MSG}" $file | tail -1 | grep -q "${TOTAL_CYCLES}"
+        cycles_grep=$?
         grep -iq "${FAILED_MSG}" $file
-        failed_msg_grep=$(echo $?)
+        failed_msg_grep=$?
+        # Result consists of three numbers:
+        # - Was the SUCCESS_MSG found in the resulting log?
+        # - Were the total cycles same as the reference execution?
+        # - Was the FAILED_MSG found in the resulting log?
         result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
         case $result in
         "001")
-            let RUNS--
-            let masked++
+            # Success msg found, same total cycles, no failure
+            ((NUM_RUNS--))
+            ((masked++))
             ;;
         "011")
-            let RUNS--
-            let masked++
-            let performance++
+            # Success msg found, different total cycles, no failure
+            ((NUM_RUNS--))
+            ((masked++))
+            ((performance++))
             ;;
         "100" | "110")
-            let RUNS--
-            let SDC++
+            # No success msg, same or different cycles, failure message
+            ((NUM_RUNS--))
+            ((SDC++))
             ;;
         *)
-            grep -iq "${FAULT_INJECTION_OCCURRED}" $file
-            if [ $? -eq 0 ]; then
-                let RUNS--
-                let crashes++
-                echo "Crash appeared in loop ${1}" # DEBUG
+            # Any other combination is considered a crash
+            if grep -iq "${FAULT_INJECTION_OCCURRED}" "$file"; then
+                # Fault injection was performed, but then program crashed
+                ((NUM_RUNS--))
+                ((num_crashes++))
+                echo "Fault injection-related crash detected in loop ${1}" # DEBUG
             else
-                echo "Unclassified in loop ${1} ${result}" # DEBUG
+                echo "Unclassified error in loop ${1}: result=${result}" # DEBUG
             fi
             ;;
         esac
@@ -214,7 +233,7 @@ parallel_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${CONFIG_FILE}
         cp ${CONFIG_FILE} ${TMP_DIR}${2}/${CONFIG_FILE}${i} # save state
-        timeout ${TIMEOUT_VAL} $CUDA_UUT >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
+        timeout ${TIMEOUT_VAL} $CUDA_EXECUTABLE_PATH >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
     done
     wait
     gather_results $2
@@ -222,60 +241,124 @@ parallel_execution() {
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
         rm -r ${TMP_DIR}${2} >/dev/null 2>&1 # comment out to debug output
     fi
-    if [[ "$gpufi_profile" -ne 1 ]]; then
-        # clean intermediate logs anyway if gpufi_profile != 1
+    if [[ "$GPUFI_PROFILE" -ne 1 ]]; then
+        # clean intermediate logs anyway if GPUFI_PROFILE != 1
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
     fi
 }
 
-# Main script entrypoint. Gets passed all the parameters that are passed to the script itself.
+# Main script function.
 main() {
-    if [[ "$gpufi_profile" -eq 1 ]] || [[ "$gpufi_profile" -eq 2 ]] || [[ "$gpufi_profile" -eq 3 ]]; then
-        RUNS=1
+    if [[ "$GPUFI_PROFILE" -eq 1 ]] || [[ "$GPUFI_PROFILE" -eq 2 ]] || [[ "$GPUFI_PROFILE" -eq 3 ]]; then
+        NUM_RUNS=1
     fi
-    # MAX_RETRIES to avoid flooding the system storage with logs infinitely if the user
+    # max_retries to avoid flooding the system storage with logs infinitely if the user
     # has wrong configuration and only Unclassified errors are returned
-    MAX_RETRIES=3
-    LOOP=1
+    max_retries=3
+    current_loop_num=1
     mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
-    while [[ $RUNS -gt 0 ]] && [[ $MAX_RETRIES -gt 0 ]]; do
-        echo "runs left ${RUNS}" # DEBUG
-        let MAX_RETRIES--
-        LOOP_START=${LOOP}
+    while [[ $NUM_RUNS -gt 0 ]] && [[ $max_retries -gt 0 ]]; do
+        echo "runs left ${NUM_RUNS}" # DEBUG
+        ((max_retries--))
+        loop_start=${current_loop_num}
         unset LAST_BATCH
-        if [ "$BATCH" -gt "$RUNS" ]; then
-            BATCH=${RUNS}
-            LOOP_END=$(($LOOP_START))
+        if [ "$NUM_AVAILABLE_CORES" -gt "$NUM_RUNS" ]; then
+            NUM_AVAILABLE_CORES=${NUM_RUNS}
+            loop_end=$loop_start
         else
-            BATCH_RUNS=$(($RUNS / $BATCH))
-            if (($RUNS % $BATCH)); then
-                LAST_BATCH=$(($RUNS - $BATCH_RUNS * $BATCH))
+            BATCH_RUNS=$((NUM_RUNS / NUM_AVAILABLE_CORES))
+            if ((NUM_RUNS % NUM_AVAILABLE_CORES)); then
+                LAST_BATCH=$((NUM_RUNS - BATCH_RUNS * NUM_AVAILABLE_CORES))
             fi
-            LOOP_END=$(($LOOP_START + $BATCH_RUNS - 1))
+            loop_end=$((loop_start + BATCH_RUNS - 1))
         fi
 
-        for i in $(seq $LOOP_START $LOOP_END); do
-            parallel_execution $BATCH $i
-            let LOOP++
+        for i in $(seq $loop_start $loop_end); do
+            parallel_execution $NUM_AVAILABLE_CORES $i
+            ((current_loop_num++))
         done
 
-        if [[ ! -z ${LAST_BATCH+x} ]]; then
-            parallel_execution $LAST_BATCH $LOOP
-            let LOOP++
+        if [[ -n ${LAST_BATCH+x} ]]; then
+            parallel_execution $LAST_BATCH $current_loop_num
+            ((current_loop_num++))
         fi
     done
 
-    if [[ $MAX_RETRIES -eq 0 ]]; then
-        echo "Probably \"${CUDA_UUT}\" was not able to run! Please make sure the execution with GPGPU-Sim works!"
+    if [[ $max_retries -eq 0 ]]; then
+        echo "Probably \"${CUDA_EXECUTABLE_PATH}\" was not able to run! Please make sure the execution with GPGPU-Sim works!"
     else
         echo "Masked: ${masked} (performance = ${performance})"
         echo "SDCs: ${SDC}"
-        echo "DUEs: ${crashes}"
+        echo "DUEs: ${num_crashes}"
     fi
     if [[ "$DELETE_LOGS" -eq 1 ]]; then
         rm -r ${CACHE_LOGS_DIR} >/dev/null 2>&1 # comment out to debug cache logs
     fi
 }
 
-main "$@"
+read_gpgpusim_config() {
+    source gpufi_calculate_cache_sizes.sh $CONFIG_FILE
+}
+
+_get_gpufi_analysis_path() {
+    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
+}
+
+preliminary_checks() {
+    if [ -z "$CUDA_EXECUTABLE_PATH" ]; then
+        echo "Please provide a valid CUDA executable to run"
+        exit 1
+    fi
+
+    if [ ! -f "$CUDA_EXECUTABLE_PATH" ]; then
+        echo "File $CUDA_EXECUTABLE_PATH does not exist, please provide a valid executable"
+        exit 1
+    fi
+
+    if [ -z "$CONFIG_FILE" ]; then
+        echo "Please provide a valid gpgpusim.config"
+        exit 1
+    fi
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "File $CONFIG_FILE does not exist, please provide a valid gpgpusim.config"
+        exit 1
+    fi
+
+    if [ -z "$GPU_ID" ]; then
+        echo "No GPU id was given, please provide a valid GPU id, e.g. SM7_QV100"
+        exit 1
+    fi
+
+    if [ -z "$GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN" ]; then
+        echo "GPGPU-Sim's setup_environment has not been run!"
+        exit 1
+    fi
+
+    if [ ! -d "$(_get_gpufi_analysis_path)" ] && [ ! -f "$(_get_gpufi_analysis_path)/.analysis_complete" ]; then
+        echo "Analysis not yet run for $CUDA_EXECUTABLE_PATH"
+        exit 1
+    fi
+
+}
+
+read_executable_analysis_files() {
+    base_analysis_path=$(_get_gpufi_analysis_path)
+
+}
+
+### Script execution sequence ###
+
+# Parse command line arguments -- use <key>=<value> to override the flags mentioned above.
+for ARGUMENT in "$@"; do
+    KEY=$(echo "$ARGUMENT" | cut -f1 -d=)
+    KEY_LENGTH=${#KEY}
+    VALUE="${ARGUMENT:$KEY_LENGTH+1}"
+    eval "$KEY=\"$VALUE\""
+done
+
+preliminary_checks
+read_gpgpusim_config
+read_executable_analysis_files
+main
 exit 0

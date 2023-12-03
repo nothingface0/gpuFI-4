@@ -17,7 +17,7 @@
 #                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to, e.g. SM7_QV100>
 
 set -e
-
+source gpufi_utils.sh
 # The full path of the executable to analyze
 CUDA_EXECUTABLE_PATH=
 
@@ -29,17 +29,6 @@ GPGPU_SIM_CONFIG_PATH=
 
 # The ID of the GPU the config corresponds to, e.g. SM7_QV100
 GPU_ID=
-
-# Function to sanitize args to a folder name
-# From here: https://stackoverflow.com/a/44811468/6562491
-_sanitize() {
-    local s="${*?need a string}" # receive input in first argument
-    s="${s//[^[:alnum:]]/-}"     # replace all non-alnum characters to -
-    s="${s//+(-)/-}"             # convert multiple - to single -
-    s="${s/#-/}"                 # remove - from start
-    s="${s/%-/}"                 # remove - from end
-    echo "${s,,}"                # convert to lowercase
-}
 
 # Get the path to a unique directory in the same directory the executable is in
 # which is identified by the GPU_ID and the arguments the executable is run with,

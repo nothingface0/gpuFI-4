@@ -2024,7 +2024,7 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
     https://stackoverflow.com/questions/2604964/binary-sed-replacement
     https://unix.stackexchange.com/questions/218514/xxd-output-without-line-breaks
   */
-  std::string command = "bash inject_cuda_executable.sh ";
+  std::string command = "bash gpufi_inject_cuda_executable.sh ";
   command += app_binary_path + " ";
   command += get_injected_executable_filepath() + " ";
   command += original_instruction_hex + " ";

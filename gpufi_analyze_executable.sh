@@ -50,8 +50,8 @@ preliminary_checks() {
         exit 1
     fi
 
-    if [ -z "$GPU_ID" ]; then
-        echo "No GPU id was given, please provide a valid GPU id, e.g. SM7_QV100"
+    if ! _is_gpu_id_valid $GPU_ID; then
+        echo "No valid GPU_ID was given, please provide a valid GPU id, e.g. SM7_QV100"
         exit 1
     fi
 
@@ -102,8 +102,8 @@ check_gpufi_profile() {
     fi
 }
 
+# Execute cuda executable, store output to file, count time.
 execute_executable() {
-    echo "TODO: execute cuda executable, store output to file, count time."
     # Copy the config file just in case
     cp "$GPGPU_SIM_CONFIG_PATH" "$(dirname $(_get_gpufi_analysis_path))/$(basename $GPGPU_SIM_CONFIG_PATH)"
 
@@ -200,13 +200,14 @@ parse_executable_output() {
 
 # Create an analysis file for the specific executable: cycles total, timeout expected
 _create_per_executable_analysis_file() {
-    echo "TODO: Create common per-executable config: cycles total, timeout"
     {
         echo "TOTAL_CYCLES=${TOTAL_CYCLES}"
         echo "TIMEOUT_VALUE=${TIMEOUT_VALUE}"
     } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 
+# For each kernel inside the executable, create a subdirectory where
+# analysis information will be stored
 _create_per_kernel_analysis_file() {
     _create_kernel_directories # Create per-kernel subdirs, depends on parsing the execution output first
     for kernel_name in $KERNEL_NAMES; do
@@ -221,17 +222,20 @@ _create_per_kernel_analysis_file() {
             echo "${var_name_kernel_shaders}=\"${!var_name_kernel_shaders}\""
             echo "${var_name_kernel_regs}=${!var_name_kernel_regs}"
             tmp=${!var_name_kernel_lmem}
-            echo "${var_name_kernel_lmem}=$((tmp * 8))"
+            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            echo "${var_name_kernel_lmem}=$tmp"
             tmp=${!var_name_kernel_smem}
-            echo "${var_name_kernel_smem}=$((tmp * 8))"
+            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            echo "${var_name_kernel_smem}=$tmp"
             tmp=${!var_name_kernel_cmem}
-            echo "${var_name_kernel_cmem}=$((tmp * 8))"
+            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            echo "${var_name_kernel_cmem}=$tmp"
         } >>"$per_kernel_analysis_file_path"
     done
 }
 
+# Create directories and files per GPU/executable/arguments/kernel combination
 create_gpufi_configs() {
-    echo "TODO: create directories and files per GPU/executable/arguments/kernel combination"
     _create_per_executable_analysis_file
     _create_per_kernel_analysis_file
     _create_per_kernel_cycles_txt

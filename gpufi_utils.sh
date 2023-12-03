@@ -12,8 +12,17 @@ _sanitize() {
     echo "${s,,}"            # convert to lowercase
 }
 
-# Get a list of valid GPU_IDs to use
-_get_valid_gpu_ids() {
+# Cehck if GPU_ID is valid
+_is_gpu_id_valid() {
+    gpu_id=$1
+    if [ -z "$gpu_id" ]; then
+        return 1
+    fi
     SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-    ls "$SCRIPT_DIR/configs/tested-cfgs"
+    for valid_gpu_id_directory in $SCRIPT_DIR/configs/tested-cfgs/*; do
+        if [ "$gpu_id" = "$(basename $valid_gpu_id_directory)" ]; then
+            return 0
+        fi
+    done
+    return 1
 }

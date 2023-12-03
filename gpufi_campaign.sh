@@ -16,7 +16,7 @@ KERNEL_NAME=
 # needed by gpgpu-sim for real register usage on PTXPlus mode
 #export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.0
 
-CONFIG_FILE=
+GPGPU_SIM_CONFIG_PATH=
 TMP_DIR=./logs
 CACHE_LOGS_DIR=./cache_logs
 TMP_FILE=tmp.out
@@ -147,29 +147,29 @@ initialize_config() {
     gpufi_l2_cache_bitflip_rand_n="${gpufi_l2_cache_bitflip_rand_n//$'\n'/:}"
     # ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (GPUFI_PROFILE=0) ------------------------------------------------
 
-    sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${gpufi_components_to_flip}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${GPUFI_PROFILE}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${gpufi_per_warp}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${gpufi_kernel_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${gpufi_block_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${CONFIG_FILE}
-    sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${CONFIG_FILE}
+    sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${gpufi_components_to_flip}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${GPUFI_PROFILE}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${gpufi_per_warp}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${gpufi_kernel_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${gpufi_block_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
 }
 
 # Parses resulting logs and determines successful execution.
@@ -231,8 +231,8 @@ parallel_execution() {
     for i in $(seq 1 $batch); do
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
-        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${CONFIG_FILE}
-        cp ${CONFIG_FILE} ${TMP_DIR}${2}/${CONFIG_FILE}${i} # save state
+        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
+        cp ${GPGPU_SIM_CONFIG_PATH} ${TMP_DIR}${2}/${GPGPU_SIM_CONFIG_PATH}${i} # save state
         timeout ${TIMEOUT_VAL} $CUDA_EXECUTABLE_PATH >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
     done
     wait
@@ -297,7 +297,7 @@ main() {
 }
 
 read_gpgpusim_config() {
-    source gpufi_calculate_cache_sizes.sh $CONFIG_FILE
+    source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH
 }
 
 _get_gpufi_analysis_path() {
@@ -315,23 +315,27 @@ preliminary_checks() {
         exit 1
     fi
 
-    if [ -z "$CONFIG_FILE" ]; then
+    if [ -z "$GPGPU_SIM_CONFIG_PATH" ]; then
         echo "Please provide a valid gpgpusim.config"
         exit 1
     fi
 
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "File $CONFIG_FILE does not exist, please provide a valid gpgpusim.config"
+    if [ ! -f "$GPGPU_SIM_CONFIG_PATH" ]; then
+        echo "File $GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
         exit 1
     fi
 
-    if [ -z "$GPU_ID" ]; then
-        echo "No GPU id was given, please provide a valid GPU id, e.g. SM7_QV100"
+    if ! _is_gpu_id_valid "$GPU_ID"; then
+        echo "No valid GPU_ID was given, please provide a valid GPU_ID, e.g. SM7_QV100"
         exit 1
     fi
 
     if [ -z "$GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN" ]; then
         echo "GPGPU-Sim's setup_environment has not been run!"
+        exit 1
+    fi
+    if [ -z "$KERNEL_NAME" ]; then
+        echo "Please provide a KERNEL_NAME to inject"
         exit 1
     fi
 
@@ -344,11 +348,12 @@ preliminary_checks() {
 
 read_executable_analysis_files() {
     base_analysis_path=$(_get_gpufi_analysis_path)
-
+    source "$base_analysis_path/executable_analysis.sh"
+    source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
 }
 
 ### Script execution sequence ###
-
+set -x
 # Parse command line arguments -- use <key>=<value> to override the flags mentioned above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)
@@ -360,5 +365,6 @@ done
 preliminary_checks
 read_gpgpusim_config
 read_executable_analysis_files
+exit 0
 main
 exit 0

@@ -212,6 +212,10 @@ parse_executable_output() {
 # Create an analysis file for the specific executable: cycles total, timeout expected
 _create_per_executable_analysis_file() {
     echo "TODO: Create common per-executable config: cycles total, timeout"
+    {
+        echo "TOTAL_CYCLES=${TOTAL_CYCLES}"
+        echo "TIMEOUT_VALUE=$((TIMEOUT_VALUE * 2))"
+    } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 
 _create_per_kernel_analysis_file() {
@@ -240,12 +244,12 @@ create_gpufi_configs() {
     echo "TODO: create directories and files per GPU/executable/arguments/kernel combination"
     _create_per_executable_analysis_file
     _create_per_kernel_analysis_file
-    _create_cycles_txt
+    _create_per_kernel_cycles_txt
 }
 
 # Getting the start-stop cycles of each kernel, create the files that
 # contain every cycle that each kernel is active for.
-_create_cycles_txt() {
+_create_per_kernel_cycles_txt() {
     OLD_IFS=$IFS
     if [ -f "$cycles_txt_file" ]; then
         rm -f "$cycles_txt_file"

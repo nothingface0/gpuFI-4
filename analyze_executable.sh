@@ -14,7 +14,7 @@
 # bash analyze_executable.sh CUDA_EXECUTABLE_PATH=<path to executable> \
 #                           CUDA_EXECUTABLE_ARGS="args in double quotes please" \
 #                           GPGPU_SIM_CONFIG_PATH=<path to gpgpusim.config> \
-#                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to>
+#                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to, e.g. SM7_QV100>
 
 set -e
 
@@ -41,10 +41,14 @@ _sanitize() {
     echo "${s,,}"                # convert to lowercase
 }
 
+# Get the path to a unique directory in the same directory the executable is in
+# which is identified by the GPU_ID and the arguments the executable is run with,
+# after sanitization.
 _get_gpufi_analysis_path() {
     echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
 }
 
+# Checks to do before running the executable analysis
 preliminary_checks() {
     # Check script args, check if analysis has been already run.
     if [ ! -f "$CUDA_EXECUTABLE_PATH" ]; then
@@ -82,6 +86,8 @@ create_directories() {
     mkdir -p "$dirname"
 }
 
+# Create per-kernel subdirectories under the main analysis
+# directory to store per-kernel information.
 _create_kernel_directories() {
     # Create subdirs for each kernel
     for kernel_name in $KERNEL_NAMES; do
@@ -130,7 +136,13 @@ post_execution_actions() {
     _create_per_kernel_config
 }
 
-# parse the output of the executable and extract per-kernel information
+# Parse the output of the executable and extract per-kernel information:
+# - Kernel names,
+# - Cycles that each kernel is active for,
+# - Shaders used,
+# - Max registers used,
+# - LMEM size bits
+# - SMEM size bits
 _parse_executable_output() {
     output_log="$(_get_gpufi_analysis_path)/out.log"
     if [ ! -f "$output_log" ]; then
@@ -177,26 +189,27 @@ _parse_executable_output() {
         var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
         eval "export $var_name_kernel_shaders=\"${shaders_used[*]}\""
 
-        #TODO: active cycles
+        # Start-stop cycles that the kernel is active for.
         regex_kernel_active_cycles="gpuFI: Kernel = ([0-9]+) with name = $kernel_name, started on cycle = ([0-9]+) and finished on cycle = ([0-9]+)"
         kernel_active_cycles_sets=$(cat "$output_log" | gawk -v pat="$regex_kernel_active_cycles" 'match($0, pat, a) {print a[1], a[2], a[3]}')
         # A single kernel may be launched many times
         OLD_IFS=$IFS
-        IFS=$'\n' # Temporarily split with newlines
+        IFS=$'\n' # Temporarily split with newlines to separate the multi-line output of gawk
         kernel_active_cycles=""
         for set in $kernel_active_cycles_sets; do
-            IFS=' '
-            set=(${set// / })
+            IFS=' '           # Start-stop cycles are seperated with a space
+            set=(${set// / }) # Split into an array
             # Sanity check
             # echo "Kernel $kernel_name launch# ${set[0]}, started ${set[1]}, stopped ${set[2]}"
             kernel_active_cycles="${kernel_active_cycles},${set[1]}:${set[2]}"
-            IFS=$'\n'
+            IFS=$'\n' # Split with newlines again
         done
         IFS=$OLD_IFS
         var_name_kernel_active_cycles="KERNEL_${kernel_name}_ACTIVE_CYCLES"
         eval "export $var_name_kernel_active_cycles=\"${kernel_active_cycles[*]}\""
         echo "Done"
     done
+    # Mark the
     #touch "$(_get_gpufi_analysis_path)/.analysis_complete"
 }
 
@@ -215,21 +228,26 @@ create_gpufi_configs() {
     _create_cycles_txt
 }
 
+# Getting the start-stop cycles of each kernel, create the files that
+# contain every cycle that each kernel is active for.
 _create_cycles_txt() {
     OLD_IFS=$IFS
     if [ -f "$cycles_txt_file" ]; then
         rm -f "$cycles_txt_file"
     fi
+    # For each kernel executed
     for kernel_name in $KERNEL_NAMES; do
         cycles_txt_file="$(_get_gpufi_analysis_path)/$kernel_name/cycles.txt"
         var_name_kernel_active_cycles="KERNEL_${kernel_name}_ACTIVE_CYCLES"
-        IFS=","
+        IFS="," # Multiple invocations of the same kernel is split with comma
         for start_stop_cycle in ${!var_name_kernel_active_cycles}; do
             if [ -z "$start_stop_cycle" ]; then
                 continue
             fi
+            # Each kernel invocation is in the form of <startcycle>:<stopcycle>
             start=$(echo $start_stop_cycle | cut -d':' -f1)
             stop=$(echo $start_stop_cycle | cut -d':' -f2)
+            # Output the sequence to file
             seq $start $stop >>$cycles_txt_file
         done
         IFS=","

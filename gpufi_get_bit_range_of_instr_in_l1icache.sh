@@ -6,6 +6,7 @@
 # 1. PC (in HEX, e.g. "5af") of the instruction that you want to locate in the L1I cache.
 # 2. PC (in HEX) of the last instruction of the executable.
 # Assumes n-way associative cache.
+# Assumes a single kernel per executable.
 
 # Program counter of instruction to inject.
 PC=$(echo "ibase=16;$(echo $1 | tr '[:lower:]' '[:upper:]')" | bc)

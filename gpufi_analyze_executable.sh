@@ -167,11 +167,11 @@ parse_executable_output() {
         regs_mems=(${regs_mems// / })
 
         # LMEM, SMEM, CMEM used
-        var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED"
+        var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED_BITS"
         eval "export $var_name_kernel_lmem=${regs_mems[1]}"
-        var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED"
+        var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED_BITS"
         eval "export $var_name_kernel_smem=${regs_mems[2]}"
-        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED"
+        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED_BITS"
         eval "export $var_name_kernel_cmem=${regs_mems[3]}"
 
         # Max registers used
@@ -225,9 +225,9 @@ _create_per_kernel_analysis_file() {
         rm -rf "$per_kernel_analysis_file_path"
         var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
         var_name_kernel_regs="KERNEL_${kernel_name}_MAX_ACTIVE_REGS"
-        var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED"
-        var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED"
-        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED" # Unused for now
+        var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED_BITS"
+        var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED_BITS"
+        var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED_BITS" # Unused for now
         {
             echo "${var_name_kernel_shaders}=\"${!var_name_kernel_shaders}\""
             echo "${var_name_kernel_regs}=${!var_name_kernel_regs}"

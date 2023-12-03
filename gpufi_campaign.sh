@@ -30,21 +30,24 @@ DELETE_LOGS=0                         # if 1 then all logs will be deleted at th
 # ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+GPUFI_PROFILE=1) ----------------------------------------------
+# Register size
+DATATYPE_SIZE=32
+
 # Complete command for CUDA executable
 CUDA_EXECUTABLE_PATH=
 CUDA_EXECUTABLE_ARGS=""
 
 # total cycles for all kernels
 TOTAL_CYCLES=
+# Time to wait for executable to finish running.
+TIMEOUT_VALUE=
+
+# Per kernel config
 CYCLES_FILE=
 MAX_REGISTERS_USED=
 SHADERS_USED=
 SUCCESS_MSG='Test PASSED'
 FAILED_MSG='Test FAILED'
-TIMEOUT_VAL=
-
-# Register size
-DATATYPE_SIZE=32
 
 # lmem and smem values are taken from gpgpu-sim ptx output per kernel
 # e.g. GPGPU-Sim PTX: Kernel '_Z9vectorAddPKdS0_Pdi' : regs=8, lmem=0, smem=0, cmem=380
@@ -233,7 +236,7 @@ parallel_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} ${TMP_DIR}${2}/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        timeout ${TIMEOUT_VAL} $CUDA_EXECUTABLE_PATH >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
+        timeout ${TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
     done
     wait
     gather_results $2
@@ -344,12 +347,18 @@ preliminary_checks() {
         exit 1
     fi
 
+    if [ -z "$GPUFI_PROFILE" ]; then
+        echo "GPUFI_PROFILE has not been selected. Setting to 0."
+        GPUFI_PROFILE=0
+    fi
+
 }
 
 read_executable_analysis_files() {
     base_analysis_path=$(_get_gpufi_analysis_path)
     source "$base_analysis_path/executable_analysis.sh"
     source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
+    CYCLES_FILE="$base_analysis_path/$KERNEL_NAME/cycles.txt"
 }
 
 ### Script execution sequence ###

@@ -166,7 +166,7 @@ parse_executable_output() {
         # Max registers used
         regex_kernel_max_active_regs="gpuFI: Kernel = $kernel_name, max active regs = ([0-9]+)"
         max_active_regs=$(cat "$output_log" | gawk -v pat="$regex_kernel_max_active_regs" 'match($0, pat, a) {print a[1]}')
-        var_name_kernel_regs="KERNEL_${kernel_name}_MAX_ACTIVE_REGS"
+        var_name_kernel_regs="KERNEL_${kernel_name}_MAX_REGISTERS_USED"
         eval "export $var_name_kernel_regs=$max_active_regs"
 
         # Shaders used
@@ -200,6 +200,7 @@ parse_executable_output() {
 
 # Create an analysis file for the specific executable: cycles total, timeout expected
 _create_per_executable_analysis_file() {
+    rm -rf "$(_get_gpufi_analysis_path)/executable_analysis.sh"
     {
         echo "TOTAL_CYCLES=${TOTAL_CYCLES}"
         echo "TIMEOUT_VALUE=${TIMEOUT_VALUE}"
@@ -214,22 +215,23 @@ _create_per_kernel_analysis_file() {
         per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
         rm -rf "$per_kernel_analysis_file_path"
         var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
-        var_name_kernel_regs="KERNEL_${kernel_name}_MAX_ACTIVE_REGS"
+        var_name_kernel_regs="KERNEL_${kernel_name}_MAX_REGISTERS_USED"
         var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED_BITS"
         var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED_BITS"
         var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED_BITS" # Unused for now
         {
-            echo "${var_name_kernel_shaders}=\"${!var_name_kernel_shaders}\""
-            echo "${var_name_kernel_regs}=${!var_name_kernel_regs}"
+            echo "SHADERS_USED=\"${!var_name_kernel_shaders}\""
+            echo "MAX_REGISTERS_USED=${!var_name_kernel_regs}"
+
             tmp=${!var_name_kernel_lmem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "${var_name_kernel_lmem}=$tmp"
+            echo "LMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_smem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "${var_name_kernel_smem}=$tmp"
+            echo "SMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_cmem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "${var_name_kernel_cmem}=$tmp"
+            echo "CMEM_SIZE_BITS=$tmp"
         } >>"$per_kernel_analysis_file_path"
     done
 }

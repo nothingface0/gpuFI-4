@@ -74,7 +74,7 @@ preliminary_checks() {
     # Try to see if analysis has already been run for this specfic combination of
     # GPU id, executable and args.
     if [ -f "$(_get_gpufi_analysis_path)/.analysis_complete" ]; then
-        echo "$CUDA_EXECUTABLE_PATH with args $CUDA_EXECUTABLE_ARGS has already been analyzed, skipping."
+        echo "\"$CUDA_EXECUTABLE_PATH\" with args \"$CUDA_EXECUTABLE_ARGS\" has already been analyzed, skipping."
         exit 0
     fi
 }
@@ -214,13 +214,12 @@ _create_per_executable_analysis_file() {
     echo "TODO: Create common per-executable config: cycles total, timeout"
     {
         echo "TOTAL_CYCLES=${TOTAL_CYCLES}"
-        echo "TIMEOUT_VALUE=$((TIMEOUT_VALUE * 2))"
+        echo "TIMEOUT_VALUE=${TIMEOUT_VALUE}"
     } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 
 _create_per_kernel_analysis_file() {
     _create_kernel_directories # Create per-kernel subdirs, depends on parsing the execution output first
-    set -x
     for kernel_name in $KERNEL_NAMES; do
         per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
         rm -rf "$per_kernel_analysis_file_path"
@@ -232,12 +231,14 @@ _create_per_kernel_analysis_file() {
         {
             echo "${var_name_kernel_shaders}=\"${!var_name_kernel_shaders}\""
             echo "${var_name_kernel_regs}=${!var_name_kernel_regs}"
-            echo "${var_name_kernel_lmem}=${!var_name_kernel_lmem}"
-            echo "${var_name_kernel_smem}=${!var_name_kernel_smem}"
-            echo "${var_name_kernel_cmem}=${!var_name_kernel_cmem}"
+            tmp=${!var_name_kernel_lmem}
+            echo "${var_name_kernel_lmem}=$((tmp * 8))"
+            tmp=${!var_name_kernel_smem}
+            echo "${var_name_kernel_smem}=$((tmp * 8))"
+            tmp=${!var_name_kernel_cmem}
+            echo "${var_name_kernel_cmem}=$((tmp * 8))"
         } >>"$per_kernel_analysis_file_path"
     done
-    set +x
 }
 
 create_gpufi_configs() {

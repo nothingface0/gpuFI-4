@@ -189,7 +189,9 @@ initialize_config() {
 
 # Parses resulting logs and determines successful execution.
 gather_results() {
-    for file in ${TMP_DIR}${1}/${TMP_FILE}*; do
+    loop_num=$1
+    tmp_dir=${TMP_DIR}${loop_num}
+    for file in $tmp_dir/${TMP_FILE}*; do
         # Done in gpufi_analyze_executable.sh
         # if [[ "$_GPUFI_PROFILE" -eq 1 ]]; then
         #     # Find start and end cycles for each kernel
@@ -231,9 +233,9 @@ gather_results() {
                 # Fault injection was performed, but then program crashed
                 ((NUM_RUNS--))
                 ((_errors_due++))
-                echo "Fault injection-related crash detected in loop ${1}" # DEBUG
+                echo "Fault injection-related crash detected in loop $loop_num" # DEBUG
             else
-                echo "Unclassified error in loop ${1}: result=${result}" # DEBUG
+                echo "Unclassified error in loop $loop_num: result=$result" # DEBUG
             fi
             ;;
         esac
@@ -242,19 +244,22 @@ gather_results() {
 
 parallel_execution() {
     batch=$1
-    mkdir -p ${TMP_DIR}${2} >/dev/null 2>&1
+    loop_num=$2
+    tmp_dir=${TMP_DIR}${loop_num}
+
+    mkdir -p $tmp_dir >/dev/null 2>&1
     for i in $(seq 1 $batch); do
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
-        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
-        cp ${GPGPU_SIM_CONFIG_PATH} ${TMP_DIR}${2}/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
+        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
+        cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
+        timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
     done
     wait
-    gather_results $2
+    gather_results $loop_num
     if [[ "$DELETE_LOGS" -eq 1 ]]; then
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
-        rm -r ${TMP_DIR}${2} >/dev/null 2>&1 # comment out to debug output
+        rm -r $tmp_dir/${loop_num} >/dev/null 2>&1 # comment out to debug output
     fi
     if [[ "$_GPUFI_PROFILE" -ne 1 ]]; then
         # clean intermediate logs anyway if _GPUFI_PROFILE != 1
@@ -349,7 +354,7 @@ preliminary_checks() {
         echo "GPGPU-Sim's setup_environment has not been run!"
         exit 1
     fi
-    # TODO
+    # gpuFI TODO
     # if [ -z "$KERNEL_NAME" ]; then
     #     echo "Please provide a KERNEL_NAME to inject"
     #     exit 1
@@ -380,7 +385,7 @@ read_executable_analysis_files() {
 }
 
 ### Script execution sequence ###
-set -x
+set -ex
 # Parse command line arguments -- use <key>=<value> to override the flags mentioned above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)

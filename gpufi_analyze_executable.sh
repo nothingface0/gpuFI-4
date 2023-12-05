@@ -87,7 +87,8 @@ _create_kernel_directories() {
 }
 
 check_gpufi_profile() {
-    # Make sure that gpufi_profile is set to 1
+    target_value=$1
+    # Make sure that gpufi_profile is found in the config file
     gpufi_profile_regex="^[[:space:]]*-gpufi_profile[[:space:]]+([0-9])"
     if ! grep -E $gpufi_profile_regex "$GPGPU_SIM_CONFIG_PATH" --only-matching >/dev/null; then
         echo "No gpufi_profile parameter found in $GPGPU_SIM_CONFIG_PATH"
@@ -96,10 +97,18 @@ check_gpufi_profile() {
 
     # Get the gpufi_profile value from the config
     gpufi_profile=$(cat $GPGPU_SIM_CONFIG_PATH | gawk -v pat=$gpufi_profile_regex 'match($0, pat, a) {print a[1]}')
-    if [ $gpufi_profile -ne 1 ]; then
-        echo "gpufi_profile must be 1 for analysing the executable"
+    if [ $gpufi_profile -ne $target_value ]; then
+        echo "gpufi_profile must be $target_value for analysing the executable"
         exit 1
     fi
+}
+
+# Change the gpufi_profile parameter in the GPGPU_SIM_CONFIG_PATH file
+change_gpufi_profile_normal() {
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 3/" ${GPGPU_SIM_CONFIG_PATH}
+}
+change_gpufi_profile_profiling() {
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 1/" ${GPGPU_SIM_CONFIG_PATH}
 }
 
 # Execute cuda executable, store output to file, count time.
@@ -194,7 +203,7 @@ parse_executable_output() {
 }
 
 # Create an analysis file for the specific executable: cycles total, timeout expected
-_create_per_executable_analysis_file() {
+create_per_executable_analysis_file() {
     rm -rf "$(_get_gpufi_analysis_path)/executable_analysis.sh"
     {
         echo "_TOTAL_CYCLES=${TOTAL_CYCLES}"
@@ -209,9 +218,9 @@ _create_per_kernel_analysis_file() {
 
     # List of all shaders used by all kernels
     merged_kernel_shaders_used=""
-    # TODO: Does it make sense to make an aggregate of max registers of all kernels? If yes, how?
+    # gpuFI TODO: Does it make sense to make an aggregate of max registers of all kernels? If yes, how?
     # merged_kernel_max_registers=0
-    # TODO: Does it make sense to make an aggregate of LMEM, SMEM, CMEM for all kernels?
+    # gpuFI TODO: Does it make sense to make an aggregate of LMEM, SMEM, CMEM for all kernels?
 
     for kernel_name in $KERNEL_NAMES; do
         per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
@@ -248,7 +257,7 @@ _create_per_kernel_analysis_file() {
     merged_kernel_shaders_used=$(
         for shader in $merged_kernel_shaders_used; do
             echo $shader
-        done | uniq
+        done | sort -g | uniq
     )
     # Concatenate into a single string
     merged_kernel_shaders_used=$(
@@ -265,8 +274,7 @@ _create_per_kernel_analysis_file() {
 }
 
 # Create directories and files per GPU/executable/arguments/kernel combination
-create_gpufi_configs() {
-    _create_per_executable_analysis_file
+create_per_kernel_configs() {
     _create_per_kernel_analysis_file
     _create_per_kernel_cycles_txt
 }
@@ -306,6 +314,12 @@ _create_per_kernel_cycles_txt() {
     IFS=$OLD_IFS
 }
 
+# Modify the config's last cycle. Needed (with gpufi_profile=1) to print the kernel stats at the right time.
+modify_total_cycles() {
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${GPGPU_SIM_CONFIG_PATH}
+}
+
+# Create an empty file which signals that analysis has run.
 finalize_analysis() {
     touch "$(_get_gpufi_analysis_path)/.analysis_complete"
 }
@@ -313,17 +327,22 @@ finalize_analysis() {
 ### Main script
 declare -a analysis_steps=(
     preliminary_checks
-    check_gpufi_profile
     create_directories
+    change_gpufi_profile_normal
     execute_executable
     parse_executable_output
-    create_gpufi_configs
+    create_per_executable_analysis_file
+    modify_total_cycles
+    change_gpufi_profile_profiling
+    execute_executable
+    parse_executable_output
+    create_per_kernel_configs
     finalize_analysis
 )
 
 # Create dynamic flags to selectively disable/enable steps of the analysis if needed.
 # Those flags are named "do_" with the name of the function.
-# We set those flags to 1 by default.
+# We set those flags to 1 by dstepefault.
 for step in "${analysis_steps[@]}"; do
     eval "do_${step}=1"
 done
@@ -339,7 +358,6 @@ done
 # The actual analysis procedure.
 # For each step, check if the appropriate flag is enabled.
 for step in "${analysis_steps[@]}"; do
-
     analysis_step_flag_name=do_$step
     if [ "${!analysis_step_flag_name}" -ne 0 ]; then
         echo "Analysis step: $step"

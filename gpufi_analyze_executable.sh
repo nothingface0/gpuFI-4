@@ -118,11 +118,6 @@ execute_executable() {
 
 }
 
-# Stuff to do after execution is complete
-post_execution_actions() {
-    _create_per_kernel_config
-}
-
 # Parse the output of the executable and extract per-kernel information:
 # - Kernel names,
 # - Cycles that each kernel is active for,
@@ -202,8 +197,8 @@ parse_executable_output() {
 _create_per_executable_analysis_file() {
     rm -rf "$(_get_gpufi_analysis_path)/executable_analysis.sh"
     {
-        echo "TOTAL_CYCLES=${TOTAL_CYCLES}"
-        echo "TIMEOUT_VALUE=${TIMEOUT_VALUE}"
+        echo "_TOTAL_CYCLES=${TOTAL_CYCLES}"
+        echo "_TIMEOUT_VALUE=${TIMEOUT_VALUE}"
     } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 
@@ -211,29 +206,62 @@ _create_per_executable_analysis_file() {
 # analysis information will be stored
 _create_per_kernel_analysis_file() {
     _create_kernel_directories # Create per-kernel subdirs, depends on parsing the execution output first
+
+    # List of all shaders used by all kernels
+    merged_kernel_shaders_used=""
+    # TODO: Does it make sense to make an aggregate of max registers of all kernels? If yes, how?
+    # merged_kernel_max_registers=0
+    # TODO: Does it make sense to make an aggregate of LMEM, SMEM, CMEM for all kernels?
+
     for kernel_name in $KERNEL_NAMES; do
         per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
         rm -rf "$per_kernel_analysis_file_path"
+
         var_name_kernel_shaders="KERNEL_${kernel_name}_SHADERS_USED"
         var_name_kernel_regs="KERNEL_${kernel_name}_MAX_REGISTERS_USED"
         var_name_kernel_lmem="KERNEL_${kernel_name}_LMEM_USED_BITS"
         var_name_kernel_smem="KERNEL_${kernel_name}_SMEM_USED_BITS"
         var_name_kernel_cmem="KERNEL_${kernel_name}_CMEM_USED_BITS" # Unused for now
-        {
-            echo "SHADERS_USED=\"${!var_name_kernel_shaders}\""
-            echo "MAX_REGISTERS_USED=${!var_name_kernel_regs}"
 
+        # Append shaders used in this kernel
+        merged_kernel_shaders_used="$merged_kernel_shaders_used ${!var_name_kernel_shaders}"
+
+        {
+            echo "_SHADERS_USED=\"${!var_name_kernel_shaders}\""
+            echo "_MAX_REGISTERS_USED=${!var_name_kernel_regs}"
+            # If LMEM, SMEM or CMEM are 0, a random positive int is used.
             tmp=${!var_name_kernel_lmem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "LMEM_SIZE_BITS=$tmp"
+            echo "_LMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_smem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "SMEM_SIZE_BITS=$tmp"
+            echo "_SMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_cmem}
             [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
-            echo "CMEM_SIZE_BITS=$tmp"
+            echo "_CMEM_SIZE_BITS=$tmp"
         } >>"$per_kernel_analysis_file_path"
     done
+
+    # Output all shaders used by all kernels into a single file too.
+    merged_kernel_shaders_used=("${merged_kernel_shaders_used// / }")
+    # Find unique values in shaders used.
+    merged_kernel_shaders_used=$(
+        for shader in $merged_kernel_shaders_used; do
+            echo $shader
+        done | uniq
+    )
+    # Concatenate into a single string
+    merged_kernel_shaders_used=$(
+        tmp=""
+        for shader in $merged_kernel_shaders_used; do
+            tmp="$tmp $shader"
+        done
+        echo $tmp
+    )
+
+    merged_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/merged_kernel_analysis.sh"
+    rm -rf "$merged_kernel_analysis_file_path"
+    echo "_SHADERS_USED=\"${merged_kernel_shaders_used}\"" >>$merged_kernel_analysis_file_path
 }
 
 # Create directories and files per GPU/executable/arguments/kernel combination
@@ -247,12 +275,17 @@ create_gpufi_configs() {
 # contain every cycle that each kernel is active for.
 _create_per_kernel_cycles_txt() {
     OLD_IFS=$IFS
-    if [ -f "$cycles_txt_file" ]; then
-        rm -f "$cycles_txt_file"
-    fi
-    # For each kernel executed
+
+    # File with the cycles of all the kernels
+    merged_cycles_txt_file="$(_get_gpufi_analysis_path)/merged_cycles.txt"
+    rm -rf "$merged_cycles_txt_file"
+
+    # For each kernel executed, create a separate file
     for kernel_name in $KERNEL_NAMES; do
         cycles_txt_file="$(_get_gpufi_analysis_path)/$kernel_name/cycles.txt"
+        if [ -f "$cycles_txt_file" ]; then
+            rm -f "$cycles_txt_file"
+        fi
         var_name_kernel_active_cycles="KERNEL_${kernel_name}_ACTIVE_CYCLES"
         IFS="," # Multiple invocations of the same kernel is split with comma
         for start_stop_cycle in ${!var_name_kernel_active_cycles}; do
@@ -266,6 +299,8 @@ _create_per_kernel_cycles_txt() {
             seq $start $stop >>$cycles_txt_file
         done
         IFS=","
+        # Also append the cycles to the merged cycles file
+        cat $cycles_txt_file >>$merged_cycles_txt_file
     done
 
     IFS=$OLD_IFS
@@ -281,7 +316,6 @@ declare -a analysis_steps=(
     check_gpufi_profile
     create_directories
     execute_executable
-    #post_execution_actions
     parse_executable_output
     create_gpufi_configs
     finalize_analysis

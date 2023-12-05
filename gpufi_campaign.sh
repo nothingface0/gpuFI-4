@@ -199,12 +199,10 @@ gather_results() {
         #     # TODO: parse Kernel = %s, max active regs = %u
         #     # TODO: parse Kernel = %s used shaders
         # fi
-        grep -iq "${_SUCCESS_MSG}" $file
-        success_msg_grep=$?
-        grep -i "${_CYCLES_MSG}" $file | tail -1 | grep -q "${_TOTAL_CYCLES}"
-        cycles_grep=$?
-        grep -iq "${_FAILED_MSG}" $file
-        failed_msg_grep=$?
+        grep -iq "${_SUCCESS_MSG}" "$file" && success_msg_grep=0 || success_msg_grep=1
+        grep -i "${_CYCLES_MSG}" "$file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
+        grep -iq "${_FAILED_MSG}" "$file" && failed_msg_grep=0 || failed_msg_grep=1
+
         # Result consists of three numbers:
         # - Was the _SUCCESS_MSG found in the resulting log?
         # - Were the total cycles same as the reference execution?

@@ -34,7 +34,7 @@ _NUM_AVAILABLE_CORES=$(($(nproc) - 1)) # How many instances of the simulator to 
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+_GPUFI_PROFILE=1) ----------------------------------------------
 # gpuFI TODO: Configuration in this section seems to have been intended for targeting a
 # specific kernel of a speicific executable. But this does not make sense, as there is an option,
-# KERNEL_NUM, which allows gpuFI to target ALL the kernels. How will _MAX_REGISTERS_USED make
+# KERNEL_INDICES, which allows gpuFI to target ALL the kernels. How will _MAX_REGISTERS_USED make
 # sense for all the kernels then?
 
 # Register size
@@ -99,10 +99,10 @@ COMPONENTS_TO_FLIP=7
 PER_WARP=0
 
 # in which kernels to inject the fault. e.g. 0: for all running kernels, 1: for kernel 1, 1:2 for kernel 1 & 2
-KERNEL_NUM=0
+KERNEL_INDICES=0
 
 # in how many blocks (smems) to inject the bit flip
-BLOCK_NUM=1
+BLOCKS_NUM=1
 
 # Function which initializes variables based on user config and edits the gpgpusim.config file.
 initialize_config() {
@@ -170,10 +170,10 @@ initialize_config() {
     sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${PER_WARP}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${KERNEL_NUM}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${KERNEL_INDICES}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${BLOCK_NUM}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${BLOCKS_NUM}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
@@ -184,7 +184,7 @@ initialize_config() {
     sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
     sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_cycles_file.*$/-gpufi_cycles_file ${_CYCLES_FILE}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s#^-gpufi_cycles_file.*\$#-gpufi_cycles_file ${_CYCLES_FILE}#" ${GPGPU_SIM_CONFIG_PATH}
 }
 
 # Parses resulting logs and determines successful execution.
@@ -248,7 +248,7 @@ parallel_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${2}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} ${TMP_DIR}${2}/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
+        timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >${TMP_DIR}${2}/${TMP_FILE}${i} 2>&1 &
     done
     wait
     gather_results $2
@@ -349,10 +349,11 @@ preliminary_checks() {
         echo "GPGPU-Sim's setup_environment has not been run!"
         exit 1
     fi
-    if [ -z "$KERNEL_NAME" ]; then
-        echo "Please provide a KERNEL_NAME to inject"
-        exit 1
-    fi
+    # TODO
+    # if [ -z "$KERNEL_NAME" ]; then
+    #     echo "Please provide a KERNEL_NAME to inject"
+    #     exit 1
+    # fi
 
     if [ ! -d "$(_get_gpufi_analysis_path)" ] && [ ! -f "$(_get_gpufi_analysis_path)/.analysis_complete" ]; then
         echo "Analysis not yet run for $CUDA_EXECUTABLE_PATH"
@@ -369,8 +370,13 @@ preliminary_checks() {
 read_executable_analysis_files() {
     base_analysis_path=$(_get_gpufi_analysis_path)
     source "$base_analysis_path/executable_analysis.sh"
-    source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
-    _CYCLES_FILE="$base_analysis_path/$KERNEL_NAME/cycles.txt"
+    if [ $KERNEL_INDICES -eq 0 ]; then
+        source "$base_analysis_path/merged_kernel_analysis.sh"
+        _CYCLES_FILE="$base_analysis_path/merged_cycles.txt"
+    else
+        source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
+        _CYCLES_FILE="$base_analysis_path/$KERNEL_NAME/cycles.txt"
+    fi
 }
 
 ### Script execution sequence ###
@@ -386,6 +392,5 @@ done
 preliminary_checks
 read_params_from_gpgpusim_config
 read_executable_analysis_files
-exit 0
 main
 exit 0

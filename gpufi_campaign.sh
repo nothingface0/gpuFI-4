@@ -212,26 +212,26 @@ gather_results() {
         case $result in
         "001")
             # Success msg found, same total cycles, no failure
-            NUM_RUNS=$((NUM_RUNS--))
-            _errors_masked=$((_errors_masked++))
+            NUM_RUNS=$((NUM_RUNS - 1))
+            _errors_masked=$((_errors_masked + 1))
             ;;
         "011")
             # Success msg found, different total cycles, no failure
-            NUM_RUNS=$((NUM_RUNS--))
-            _errors_masked=$((_errors_masked++))
-            _errors_performance=$((_errors_performance++))
+            NUM_RUNS=$((NUM_RUNS - 1))
+            _errors_masked=$((_errors_masked + 1))
+            _errors_performance=$((_errors_performance + 1))
             ;;
         "100" | "110")
             # No success msg, same or different cycles, failure message
-            NUM_RUNS=$((NUM_RUNS--))
-            _errors_sdc=$((_errors_sdc++))
+            NUM_RUNS=$((NUM_RUNS - 1))
+            _errors_sdc=$((_errors_sdc + 1))
             ;;
         *)
             # Any other combination is considered a crash
             if grep -iq "${_FAULT_INJECTION_OCCURRED}" "$file"; then
                 # Fault injection was performed, but then program crashed
-                NUM_RUNS=$((NUM_RUNS--))
-                _errors_due=$((_errors_due++))
+                NUM_RUNS=$((NUM_RUNS - 1))
+                _errors_due=$((_errors_due + 1))
                 echo "Fault injection-related crash detected in loop $loop_num" # DEBUG
             else
                 echo "Unclassified error in loop $loop_num: result=$result" # DEBUG
@@ -264,13 +264,13 @@ parallel_execution() {
     echo "Gathering results"
     gather_results $loop_num
     echo "Done"
-    if [[ "$DELETE_LOGS" -eq 1 ]]; then
+    if [ $DELETE_LOGS -eq 1 ]; then
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
         rm -r $tmp_dir/${loop_num} >/dev/null 2>&1 # comment out to debug output
     fi
-    if [[ "$_GPUFI_PROFILE" -ne 1 ]]; then
+    if [ $_GPUFI_PROFILE -ne 1 ]; then
         # clean intermediate logs anyway if _GPUFI_PROFILE != 1
-        rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
+        rm -f _ptx* _cuobjdump_* _app_cuda* '*.ptx' f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
     fi
 }
 
@@ -281,13 +281,13 @@ main() {
     fi
     # max_retries to avoid flooding the system storage with logs infinitely if the user
     # has wrong configuration and only Unclassified errors are returned
-    max_retries=3
-    current_loop_num=1
+    max_retries=$((3))
+    current_loop_num=$((1))
     mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
-    while [[ $NUM_RUNS -gt 0 ]] && [[ $max_retries -gt 0 ]]; do
+    while [ $NUM_RUNS -gt 0 ] && [ $max_retries -gt 0 ]; do
         # echo "runs left ${NUM_RUNS}" # DEBUG
-        max_retries=$((max_retries--))
-        loop_start=${current_loop_num}
+        max_retries=$((max_retries - 1))
+        loop_start=$((current_loop_num))
         unset LAST_BATCH
         if [ "$_NUM_AVAILABLE_CORES" -gt "$NUM_RUNS" ]; then
             _NUM_AVAILABLE_CORES=${NUM_RUNS}
@@ -299,18 +299,16 @@ main() {
             fi
             loop_end=$((loop_start + BATCH_RUNS - 1))
         fi
-
         for i in $(seq $loop_start $loop_end); do
             parallel_execution $_NUM_AVAILABLE_CORES $i
-            current_loop_num=$((current_loop_num++))
+            current_loop_num=$((current_loop_num + 1))
         done
 
         if [[ -n ${LAST_BATCH+x} ]]; then
             parallel_execution $LAST_BATCH $current_loop_num
-            current_loop_num=$((current_loop_num++))
+            current_loop_num=$((current_loop_num + 1))
         fi
     done
-
     if [[ $max_retries -eq 0 ]]; then
         echo "Probably \"${CUDA_EXECUTABLE_PATH}\" was not able to run! Please make sure the execution with GPGPU-Sim works!"
     else

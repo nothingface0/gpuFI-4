@@ -192,6 +192,7 @@ gather_results() {
     loop_num=$1
     tmp_dir=${TMP_DIR}${loop_num}
     for file in $tmp_dir/${TMP_FILE}*; do
+        echo "Examining file $file"
         # Done in gpufi_analyze_executable.sh
         # if [[ "$_GPUFI_PROFILE" -eq 1 ]]; then
         #     # Find start and end cycles for each kernel
@@ -208,53 +209,62 @@ gather_results() {
         # - Were the total cycles same as the reference execution?
         # - Was the _FAILED_MSG found in the resulting log?
         result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
+        echo $NUM_RUNS $result $_errors_masked
         case $result in
         "001")
             # Success msg found, same total cycles, no failure
-            ((NUM_RUNS--))
-            ((_errors_masked++))
+            NUM_RUNS=$((NUM_RUNS--))
+            _errors_masked=$((_errors_masked++))
             ;;
         "011")
             # Success msg found, different total cycles, no failure
-            ((NUM_RUNS--))
-            ((_errors_masked++))
-            ((_errors_performance++))
+            NUM_RUNS=$((NUM_RUNS--))
+            _errors_masked=$((_errors_masked++))
+            _errors_performance=$((_errors_performance++))
             ;;
         "100" | "110")
             # No success msg, same or different cycles, failure message
-            ((NUM_RUNS--))
-            ((_errors_sdc++))
+            NUM_RUNS=$((NUM_RUNS--))
+            _errors_sdc=$((_errors_sdc++))
             ;;
         *)
             # Any other combination is considered a crash
             if grep -iq "${_FAULT_INJECTION_OCCURRED}" "$file"; then
                 # Fault injection was performed, but then program crashed
-                ((NUM_RUNS--))
-                ((_errors_due++))
+                NUM_RUNS=$((NUM_RUNS--))
+                _errors_due=$((_errors_due++))
                 echo "Fault injection-related crash detected in loop $loop_num" # DEBUG
             else
                 echo "Unclassified error in loop $loop_num: result=$result" # DEBUG
             fi
+
             ;;
         esac
+
     done
+    echo "Finished gather_results"
 }
 
 parallel_execution() {
-    batch=$1
+    batch_jobs=$1
     loop_num=$2
     tmp_dir=${TMP_DIR}${loop_num}
-
+    echo "Loop $loop_num, batch jobs $batch_jobs"
     mkdir -p $tmp_dir >/dev/null 2>&1
-    for i in $(seq 1 $batch); do
+    for i in $(seq 1 $batch_jobs); do
+        echo "Starting loop $loop_num task $i/$batch_jobs"
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
         timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
     done
+    echo "Waiting for loop $loop_num jobs (total: $batch_jobs) to complete"
     wait
+    echo "Done"
+    echo "Gathering results"
     gather_results $loop_num
+    echo "Done"
     if [[ "$DELETE_LOGS" -eq 1 ]]; then
         rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
         rm -r $tmp_dir/${loop_num} >/dev/null 2>&1 # comment out to debug output
@@ -277,7 +287,7 @@ main() {
     mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
     while [[ $NUM_RUNS -gt 0 ]] && [[ $max_retries -gt 0 ]]; do
         echo "runs left ${NUM_RUNS}" # DEBUG
-        ((max_retries--))
+        max_retries=$((max_retries--))
         loop_start=${current_loop_num}
         unset LAST_BATCH
         if [ "$_NUM_AVAILABLE_CORES" -gt "$NUM_RUNS" ]; then
@@ -293,12 +303,12 @@ main() {
 
         for i in $(seq $loop_start $loop_end); do
             parallel_execution $_NUM_AVAILABLE_CORES $i
-            ((current_loop_num++))
+            current_loop_num=$((current_loop_num++))
         done
 
         if [[ -n ${LAST_BATCH+x} ]]; then
             parallel_execution $LAST_BATCH $current_loop_num
-            ((current_loop_num++))
+            current_loop_num=$((current_loop_num++))
         fi
     done
 
@@ -315,7 +325,7 @@ main() {
 }
 
 read_params_from_gpgpusim_config() {
-    source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH
+    source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH >/dev/null 2>&1
 }
 
 _get_gpufi_analysis_path() {
@@ -376,6 +386,7 @@ read_executable_analysis_files() {
     if [ $KERNEL_INDICES -eq 0 ]; then
         source "$base_analysis_path/merged_kernel_analysis.sh"
         _CYCLES_FILE="$base_analysis_path/merged_cycles.txt"
+        # gpuFI TODO: currently the merged files don't have SMEM, LMEM, registers...
     else
         source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
         _CYCLES_FILE="$base_analysis_path/$KERNEL_NAME/cycles.txt"
@@ -383,7 +394,6 @@ read_executable_analysis_files() {
 }
 
 ### Script execution sequence ###
-set -ex
 # Parse command line arguments -- use <key>=<value> to override the flags mentioned above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)

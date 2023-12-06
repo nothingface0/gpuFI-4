@@ -270,7 +270,13 @@ _create_per_kernel_analysis_file() {
 
     merged_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/merged_kernel_analysis.sh"
     rm -rf "$merged_kernel_analysis_file_path"
-    echo "_SHADERS_USED=\"${merged_kernel_shaders_used}\"" >>$merged_kernel_analysis_file_path
+    {
+        echo "_SHADERS_USED=\"${merged_kernel_shaders_used}\""
+        echo "_MAX_REGISTERS_USED=1" # gpuFI TODO
+        echo "_LMEM_SIZE_BITS=1"     # gpuFI TODO
+        echo "_SMEM_SIZE_BITS=1"     # gpuFI TODO
+        echo "_CMEM_SIZE_BITS=1"     # gpuFI TODO
+    } >>"$merged_kernel_analysis_file_path"
 }
 
 # Create directories and files per GPU/executable/arguments/kernel combination

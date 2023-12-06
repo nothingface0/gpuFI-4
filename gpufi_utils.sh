@@ -26,3 +26,7 @@ _is_gpu_id_valid() {
     done
     return 1
 }
+
+_get_timestamp() {
+    echo "[$(printf '%(%Y-%m-%d %H:%M:%S)T' -1)]"
+}

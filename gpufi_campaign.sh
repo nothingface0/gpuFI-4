@@ -248,7 +248,7 @@ parallel_execution() {
     batch_jobs=$1
     loop_num=$2
     tmp_dir=${TMP_DIR}${loop_num}
-    echo "Loop $loop_num, batch jobs $batch_jobs"
+    echo "$(_get_timestamp): Loop $loop_num, batch jobs $batch_jobs"
     mkdir -p $tmp_dir >/dev/null 2>&1
     for i in $(seq 1 $batch_jobs); do
         echo "Starting loop $loop_num task $i/$batch_jobs"

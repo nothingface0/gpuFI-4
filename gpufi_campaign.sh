@@ -209,7 +209,6 @@ gather_results() {
         # - Were the total cycles same as the reference execution?
         # - Was the _FAILED_MSG found in the resulting log?
         result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
-        echo $NUM_RUNS $result $_errors_masked
         case $result in
         "001")
             # Success msg found, same total cycles, no failure
@@ -257,7 +256,7 @@ parallel_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        timeout ${_TIMEOUT_VALUE} $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
+        timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
     done
     echo "Waiting for loop $loop_num jobs (total: $batch_jobs) to complete"
     wait
@@ -286,7 +285,7 @@ main() {
     current_loop_num=1
     mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
     while [[ $NUM_RUNS -gt 0 ]] && [[ $max_retries -gt 0 ]]; do
-        echo "runs left ${NUM_RUNS}" # DEBUG
+        # echo "runs left ${NUM_RUNS}" # DEBUG
         max_retries=$((max_retries--))
         loop_start=${current_loop_num}
         unset LAST_BATCH

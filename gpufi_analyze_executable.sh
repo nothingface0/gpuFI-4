@@ -145,7 +145,7 @@ parse_executable_output() {
     export TOTAL_CYCLES
     TOTAL_CYCLES=$(grep "gpu_tot_sim_cycle" "$output_log" | tail -1 | gawk -v pat="gpu_tot_sim_cycle = ([0-9]+)" 'match($0, pat, a) {print a[1]}')
     export TIMEOUT_VALUE
-    TIMEOUT_VALUE=$((CUDA_EXECUTABLE_EXECUTION_TIME * 2))
+    TIMEOUT_VALUE=$((CUDA_EXECUTABLE_EXECUTION_TIME * 4))
     regex_mangled_name="(_Z[0-9_[:alnum:]]+)"
     export KERNEL_NAMES
     KERNEL_NAMES=$(grep -E "kernel_name = $regex_mangled_name" "$output_log" | uniq | gawk -v pat="kernel_name = $regex_mangled_name" 'match($0, pat, a) {print a[1]}')

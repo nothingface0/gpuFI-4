@@ -187,28 +187,46 @@ initialize_config() {
     sed -i -e "s#^-gpufi_cycles_file.*\$#-gpufi_cycles_file ${_CYCLES_FILE}#" ${GPGPU_SIM_CONFIG_PATH}
 }
 
+_update_csv_file() {
+    csv_file_path="$(_get_gpufi_analysis_path)/results.csv"
+    run_id=$1
+    # Turn 0 to 1 and the opposite
+    success_msg_grep=$2
+    success_msg_grep=$((success_msg_grep ^ 1))
+    cycles_grep=$3
+    cycles_grep=$((cycles_grep ^ 1))
+    failed_msg_grep=$4
+    failed_msg_grep=$((failed_msg_grep ^ 1))
+
+    if [ ! -f "$csv_file_path" ]; then
+        echo "run_id,success,same_cycles,failed" >"$csv_file_path"
+    fi
+
+    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep}" >>"$csv_file_path"
+
+}
+
 # Parses resulting logs and determines successful execution.
 gather_results() {
-    loop_num=$1
+    loop_num=$1 # Used to locate the logs of the run
     tmp_dir=${TMP_DIR}${loop_num}
-    for file in $tmp_dir/${TMP_FILE}*; do
-        echo "Examining file $file"
-        # Done in gpufi_analyze_executable.sh
-        # if [[ "$_GPUFI_PROFILE" -eq 1 ]]; then
-        #     # Find start and end cycles for each kernel
-        #     grep -E "gpuFI: Kernel = [[:digit:]]+.+" $file | sort -t' ' -k 3 -g >${TMP_DIR}${1}/cycles.in
-        #     # TODO: parse Kernel = %s, max active regs = %u
-        #     # TODO: parse Kernel = %s used shaders
-        # fi
-        grep -iq "${_SUCCESS_MSG}" "$file" && success_msg_grep=0 || success_msg_grep=1
-        grep -i "${_CYCLES_MSG}" "$file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
-        grep -iq "${_FAILED_MSG}" "$file" && failed_msg_grep=0 || failed_msg_grep=1
+    for batch_num in $(seq 1 $_NUM_AVAILABLE_CORES); do
+        log_file="$tmp_dir/tmp.out${batch_num}"
+        config_file="$tmp_dir/gpgpusim.config${batch_num}"
+        echo "Examining file $log_file"
+        grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
+        grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
+        grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
 
         # Result consists of three numbers:
         # - Was the _SUCCESS_MSG found in the resulting log?
         # - Were the total cycles same as the reference execution?
         # - Was the _FAILED_MSG found in the resulting log?
         result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
+        run_id=$(_calculate_md5_hash "$config_file" "$log_file" "$CUDA_EXECUTABLE_PATH" "$CUDA_EXECUTABLE_ARGS")
+        if [ -n "$run_id" ]; then
+            _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
+        fi
         case $result in
         "001")
             # Success msg found, same total cycles, no failure
@@ -228,7 +246,7 @@ gather_results() {
             ;;
         *)
             # Any other combination is considered a crash
-            if grep -iq "${_FAULT_INJECTION_OCCURRED}" "$file"; then
+            if grep -iq "${_FAULT_INJECTION_OCCURRED}" "$log_file"; then
                 # Fault injection was performed, but then program crashed
                 NUM_RUNS=$((NUM_RUNS - 1))
                 _errors_due=$((_errors_due + 1))
@@ -244,7 +262,11 @@ gather_results() {
     echo "Finished gather_results"
 }
 
-parallel_execution() {
+# Execute a batch of batch_jobs in parallel and wait for them to finish.
+# Once complete, parse their logs and increment the counters appropriately.
+# For each batch, a new log directory is made with the loop number in it (e.g. logs3).
+# In it, you should find one log file and one config file per batch job (1 -_NUM_AVAILABLE_CORES).
+batch_execution() {
     batch_jobs=$1
     loop_num=$2
     tmp_dir=${TMP_DIR}${loop_num}
@@ -256,9 +278,9 @@ parallel_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
+        # timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
     done
-    echo "Waiting for loop $loop_num jobs (total: $batch_jobs) to complete"
+    echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
     wait
     echo "Done"
     echo "Gathering results"
@@ -275,17 +297,16 @@ parallel_execution() {
 }
 
 # Main script function.
-main() {
+run_campaign() {
     if [[ "$_GPUFI_PROFILE" -eq 1 ]] || [[ "$_GPUFI_PROFILE" -eq 2 ]] || [[ "$_GPUFI_PROFILE" -eq 3 ]]; then
         NUM_RUNS=1
     fi
     # max_retries to avoid flooding the system storage with logs infinitely if the user
-    # has wrong configuration and only Unclassified errors are returned
+    # has wrong configuration and only Unclassified errors are returned.
     max_retries=$((3))
     current_loop_num=$((1))
     mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
     while [ $NUM_RUNS -gt 0 ] && [ $max_retries -gt 0 ]; do
-        # echo "runs left ${NUM_RUNS}" # DEBUG
         max_retries=$((max_retries - 1))
         loop_start=$((current_loop_num))
         unset LAST_BATCH
@@ -299,13 +320,15 @@ main() {
             fi
             loop_end=$((loop_start + BATCH_RUNS - 1))
         fi
+
         for i in $(seq $loop_start $loop_end); do
-            parallel_execution $_NUM_AVAILABLE_CORES $i
+            echo "Runs left: ${NUM_RUNS} (Loop $i/$loop_end)" # DEBUG
+            batch_execution $_NUM_AVAILABLE_CORES $i
             current_loop_num=$((current_loop_num + 1))
         done
 
         if [[ -n ${LAST_BATCH+x} ]]; then
-            parallel_execution $LAST_BATCH $current_loop_num
+            batch_execution $LAST_BATCH $current_loop_num
             current_loop_num=$((current_loop_num + 1))
         fi
     done
@@ -391,7 +414,7 @@ read_executable_analysis_files() {
 }
 
 ### Script execution sequence ###
-# Parse command line arguments -- use <key>=<value> to override the flags mentioned above.
+# Parse command line arguments -- use <key>=<value> to override any variable declared above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)
     KEY_LENGTH=${#KEY}
@@ -402,5 +425,6 @@ done
 preliminary_checks
 read_params_from_gpgpusim_config
 read_executable_analysis_files
-main
+run_campaign
+
 exit 0

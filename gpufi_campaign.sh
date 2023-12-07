@@ -187,8 +187,20 @@ initialize_config() {
     sed -i -e "s#^-gpufi_cycles_file.*\$#-gpufi_cycles_file ${_CYCLES_FILE}#" ${GPGPU_SIM_CONFIG_PATH}
 }
 
+_archive_config_file() {
+    run_id=$1
+    config_file=$2
+    csv_results_path="$(_get_gpufi_analysis_path)/results"
+    csv_results_archive_path="$csv_results_path/configs"
+    mkdir -p "$csv_results_archive_path"
+    tar czfv "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
+    mv "${run_id}.tar.gz" "$csv_results_archive_path"
+}
 _update_csv_file() {
-    csv_file_path="$(_get_gpufi_analysis_path)/results.csv"
+    csv_results_path="$(_get_gpufi_analysis_path)/results"
+    mkdir -p "$csv_results_path"
+
+    csv_file_path="$csv_results_path/results.csv"
     run_id=$1
     # Turn 0 to 1 and the opposite
     success_msg_grep=$2
@@ -226,6 +238,7 @@ gather_results() {
         run_id=$(_calculate_md5_hash "$config_file" "$log_file" "$CUDA_EXECUTABLE_PATH" "$CUDA_EXECUTABLE_ARGS")
         if [ -n "$run_id" ]; then
             _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
+            _archive_config_file $run_id $config_file
         fi
         case $result in
         "001")

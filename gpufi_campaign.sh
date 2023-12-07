@@ -215,6 +215,7 @@ _update_csv_file() {
         echo "run_id,success,same_cycles,failed" >"$csv_file_path"
     fi
     echo "Updating results in $csv_file_path"
+    # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
     echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep}" >>"$csv_file_path"
 
 }

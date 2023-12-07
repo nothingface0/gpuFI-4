@@ -193,6 +193,7 @@ _archive_config_file() {
     csv_results_path="$(_get_gpufi_analysis_path)/results"
     csv_results_archive_path="$csv_results_path/configs"
     mkdir -p "$csv_results_archive_path"
+    echo "Archiving run $run_id config file to $csv_results_archive_path"
     tar czfv "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
     mv "${run_id}.tar.gz" "$csv_results_archive_path"
 }
@@ -213,7 +214,7 @@ _update_csv_file() {
     if [ ! -f "$csv_file_path" ]; then
         echo "run_id,success,same_cycles,failed" >"$csv_file_path"
     fi
-
+    echo "Updating results in $csv_file_path"
     echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep}" >>"$csv_file_path"
 
 }
@@ -291,7 +292,7 @@ batch_execution() {
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
-        # timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
+        timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
     done
     echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
     wait

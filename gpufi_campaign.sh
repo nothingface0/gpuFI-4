@@ -337,7 +337,13 @@ run_campaign() {
         fi
 
         for i in $(seq $loop_start $loop_end); do
-            echo "Runs left: ${NUM_RUNS} (Loop $i/$loop_end)" # DEBUG
+            seconds_left=$(((loop_end - i + 1) * _TIMEOUT_VALUE))
+            hours_left=$((seconds_left / 3600))
+            seconds_left=$((seconds_left - (hours_left * 3600)))
+            minutes_left=$((seconds_left / 60))
+            seconds_left=$((seconds_left - (minutes_left * 60)))
+
+            echo "Runs left: ${NUM_RUNS} (Loop $i/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
             batch_execution $_NUM_AVAILABLE_CORES $i
             current_loop_num=$((current_loop_num + 1))
         done

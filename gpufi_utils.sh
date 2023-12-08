@@ -53,3 +53,10 @@ _calculate_md5_hash() {
     fi
     echo -n "$(cat $path_to_gpgpu_sim_config)$(cat $path_to_output_log)${executable_path}${executable_args}" | md5sum | awk '{print $1}'
 }
+
+# Get the path to a unique directory in the same directory the executable is in
+# which is identified by the GPU_ID and the arguments the executable is run with,
+# after sanitization.
+_get_gpufi_analysis_path() {
+    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
+}

@@ -18,6 +18,7 @@
 
 set -e
 source gpufi_utils.sh
+
 # The full path of the executable to analyze
 CUDA_EXECUTABLE_PATH=
 
@@ -29,13 +30,6 @@ GPGPU_SIM_CONFIG_PATH=
 
 # The ID of the GPU the config corresponds to, e.g. SM7_QV100
 GPU_ID=
-
-# Get the path to a unique directory in the same directory the executable is in
-# which is identified by the GPU_ID and the arguments the executable is run with,
-# after sanitization.
-_get_gpufi_analysis_path() {
-    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
-}
 
 # Checks to do before running the executable analysis
 preliminary_checks() {

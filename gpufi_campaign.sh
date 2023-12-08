@@ -9,6 +9,7 @@
 
 # set -x
 source gpufi_utils.sh
+
 # Paths to files created from gpufi_analyze_executable.sh
 _EXECUTABLE_ANALYSIS_FILE=
 _KERNEL_ANALYSIS_FILE=
@@ -23,7 +24,7 @@ TMP_DIR=./logs
 CACHE_LOGS_DIR=./cache_logs
 TMP_FILE=tmp.out
 NUM_RUNS=1                             # How many runs to simulate of the given executable. Randomize injections on each run.
-DELETE_LOGS=0                          # if 1 then all logs will be deleted at the end of the script
+DELETE_LOGS=1                          # if 1 then all logs will be deleted at the end of the script
 _NUM_AVAILABLE_CORES=$(($(nproc) - 1)) # How many instances of the simulator to run in parallel
 # ---------------------------------------------- END ONE-TIME PARAMETERS ------------------------------------------------
 
@@ -367,10 +368,6 @@ run_campaign() {
 
 read_params_from_gpgpusim_config() {
     source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH >/dev/null 2>&1
-}
-
-_get_gpufi_analysis_path() {
-    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
 }
 
 preliminary_checks() {

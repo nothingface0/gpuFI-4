@@ -876,7 +876,12 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   // read the inst from the functional model
   const warp_inst_t *correct_instruction_p =
       m_gpu->gpgpu_ctx->ptx_fetch_inst(pc);
-
+  /*
+    No need to check for bitflips if there's no instruction at this address.
+   */
+  if (correct_instruction_p == NULL) {
+    return correct_instruction_p;
+  }
   // Keep track of injection
   std::vector<unsigned> instruction_bitflips;
   // Keep track of the L1I cache index in the l1i_data_bf_enabled vector

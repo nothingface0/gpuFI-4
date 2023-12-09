@@ -295,6 +295,7 @@ batch_execution() {
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
         cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
         timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
+        sleep 2 # Allow the simulator to properly pickup the config before we modify it.
     done
     echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
     wait

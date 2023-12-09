@@ -32,8 +32,8 @@ _get_timestamp() {
 }
 
 # Create a unique id for a specific run after it's complete, based on
-# the contents of the gpgpusim, the contents of the log file, the path to the executable and the args
-# it run with.
+# the contents of the gpgpusim, the contents of the log file, the contents of
+# the executable and the args it run with.
 _calculate_md5_hash() {
     path_to_gpgpu_sim_config=${1-:./gpgpusim.config}
     path_to_output_log=${2?no path to output log given}
@@ -51,7 +51,7 @@ _calculate_md5_hash() {
         echo "$executable_path is not a valid file"
         return
     fi
-    echo -n "$(cat $path_to_gpgpu_sim_config)$(cat $path_to_output_log)${executable_path}${executable_args}" | md5sum | awk '{print $1}'
+    echo -n "$(cat $path_to_gpgpu_sim_config)$(cat $path_to_output_log)$(cat $executable_path)${executable_args}" | md5sum | awk '{print $1}'
 }
 
 # Get the path to a unique directory in the same directory the executable is in

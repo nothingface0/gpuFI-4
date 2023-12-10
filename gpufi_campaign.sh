@@ -10,6 +10,9 @@
 # set -x
 source gpufi_utils.sh
 
+# Current script's directory absolute path.
+_SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+
 # Paths to files created from gpufi_analyze_executable.sh
 _EXECUTABLE_ANALYSIS_FILE=
 _KERNEL_ANALYSIS_FILE=
@@ -24,8 +27,8 @@ KERNEL_NAME=
 # override it if you want, by passing the _GPGPU_SIM_CONFIG_PATH=<path> to the
 # current script.
 _GPGPU_SIM_CONFIG_PATH=
-TMP_DIR=./logs
-CACHE_LOGS_DIR=./cache_logs
+TMP_DIR="$_SCRIPT_DIR/logs"
+CACHE_LOGS_DIR="$_SCRIPT_DIR/cache_logs"
 TMP_FILE=tmp.out
 NUM_RUNS=1                             # How many runs to simulate of the given executable. Randomize injections on each run.
 DELETE_LOGS=1                          # if 1 then all logs will be deleted at the end of the script
@@ -199,6 +202,10 @@ _archive_config_file() {
     csv_results_archive_path="$csv_results_path/configs"
     mkdir -p "$csv_results_archive_path"
     echo "Archiving run $run_id config file to $csv_results_archive_path"
+    if [ ! -f "$config_file" ]; then
+        echo "WARNING: $config_file not found, could not archive it"
+        return
+    fi
     tar czfv "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
     mv "${run_id}.tar.gz" "$csv_results_archive_path"
 }
@@ -291,13 +298,13 @@ batch_execution() {
     loop_num=$2
     tmp_dir=${TMP_DIR}${loop_num}
     echo "$(_get_timestamp): Loop $loop_num, batch jobs $batch_jobs"
-    mkdir -p $tmp_dir >/dev/null 2>&1
+    mkdir -p "$tmp_dir" >/dev/null 2>&1
     for i in $(seq 1 $batch_jobs); do
         echo "Starting loop $loop_num task $i/$batch_jobs"
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${_GPGPU_SIM_CONFIG_PATH}
-        cp ${_GPGPU_SIM_CONFIG_PATH} $tmp_dir/${_GPGPU_SIM_CONFIG_PATH}${i} # save state
+        cp "${_GPGPU_SIM_CONFIG_PATH}" "$tmp_dir/gpgpusim.config${i}" # save state
         timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
         sleep 2 # Allow the simulator to properly pickup the config before we modify it.
     done
@@ -308,12 +315,12 @@ batch_execution() {
     gather_results $loop_num
     echo "Done"
     if [ $DELETE_LOGS -eq 1 ]; then
-        rm _ptx* _cuobjdump_* _app_cuda* *.ptx f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
-        rm -r $tmp_dir/${loop_num} >/dev/null 2>&1 # comment out to debug output
+        rm -f "$_SCRIPT_DIR/_ptx*" "$_SCRIPT_DIR/_cuobjdump_*" "$_SCRIPT_DIR/_app_cuda*" "$_SCRIPT_DIR/*.ptx" "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
+        rm -rf "$tmp_dir" >/dev/null 2>&1 # comment out to debug output
     fi
     if [ $_GPUFI_PROFILE -ne 1 ]; then
         # clean intermediate logs anyway if _GPUFI_PROFILE != 1
-        rm -f _ptx* _cuobjdump_* _app_cuda* '*.ptx' f_tempfile_ptx gpgpu_inst_stats.txt >/dev/null 2>&1
+        rm -f "$_SCRIPT_DIR/_ptx*" "$_SCRIPT_DIR/_cuobjdump_*" "$_SCRIPT_DIR/_app_cuda*" "$_SCRIPT_DIR/*.ptx" "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
     fi
 }
 
@@ -326,7 +333,7 @@ run_campaign() {
     # has wrong configuration and only Unclassified errors are returned.
     max_retries=$((3))
     current_loop_num=$((1))
-    mkdir -p ${CACHE_LOGS_DIR} >/dev/null 2>&1
+    mkdir -p "$CACHE_LOGS_DIR" >/dev/null 2>&1
     while [ $NUM_RUNS -gt 0 ] && [ $max_retries -gt 0 ]; do
         max_retries=$((max_retries - 1))
         loop_start=$((current_loop_num))
@@ -383,11 +390,6 @@ preliminary_checks() {
 
     if [ ! -f "$CUDA_EXECUTABLE_PATH" ]; then
         echo "File $CUDA_EXECUTABLE_PATH does not exist, please provide a valid executable"
-        exit 1
-    fi
-
-    if [ -z "$_GPGPU_SIM_CONFIG_PATH" ]; then
-        echo "Please provide a valid gpgpusim.config"
         exit 1
     fi
 

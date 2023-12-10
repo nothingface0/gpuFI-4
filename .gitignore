@@ -67,9 +67,10 @@ _*
 *.ptxas
 logs*/
 
-
 # Temporary .env file
 .env
 
 # Logs
 cache_logs/
+
+gpgpusim.config

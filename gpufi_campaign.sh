@@ -366,7 +366,7 @@ run_campaign() {
             minutes_left=$((seconds_left / 60))
             seconds_left=$((seconds_left - (minutes_left * 60)))
 
-            echo "Runs left: ${NUM_RUNS} (Loop $i/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
+            echo "Runs left: ${NUM_RUNS} (Loop $loop_num/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
             batch_execution $_NUM_AVAILABLE_CORES $loop_num
             current_loop_num=$((current_loop_num + 1))
         done

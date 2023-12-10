@@ -254,7 +254,7 @@ gather_results() {
             # - Were the total cycles same as the reference execution?
             # - Was the _FAILED_MSG found in the resulting log?
             result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
-            run_id=$(_calculate_md5_hash "$config_file" "$log_file" "$CUDA_EXECUTABLE_PATH" "$CUDA_EXECUTABLE_ARGS")
+            run_id=$(_calculate_md5_hash "$config_file" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
             if [ -n "$run_id" ]; then
                 _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
                 _archive_config_file $run_id $config_file

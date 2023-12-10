@@ -308,11 +308,13 @@ batch_execution() {
     for i in $(seq 1 $batch_jobs); do
         echo "Starting loop $loop_num task $i/$batch_jobs"
         initialize_config
-        # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
-        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${_GPGPU_SIM_CONFIG_PATH}
+
+        # unique id for each run
+        run_id=$(_calculate_md5_hash "$_GPGPU_SIM_CONFIG_PATH" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
+        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id $run_id/" "$_GPGPU_SIM_CONFIG_PATH"
         cp "${_GPGPU_SIM_CONFIG_PATH}" "$tmp_dir/gpgpusim.config${i}" # save state
-        timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
-        sleep 2 # Allow the simulator to properly pickup the config before we modify it.
+        timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >"$tmp_dir/${TMP_FILE}${i}" 2>&1 &
+        sleep 2 # Allow the simulator to properly pick up the config before we modify it.
     done
     echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
     wait
@@ -357,7 +359,7 @@ run_campaign() {
             loop_end=$((loop_start + BATCH_RUNS - 1))
         fi
 
-        for i in $(seq $loop_start $loop_end); do
+        for loop_num in $(seq $loop_start $loop_end); do
             seconds_left=$(((loop_end - i + 1) * _TIMEOUT_VALUE))
             hours_left=$((seconds_left / 3600))
             seconds_left=$((seconds_left - (hours_left * 3600)))
@@ -365,7 +367,7 @@ run_campaign() {
             seconds_left=$((seconds_left - (minutes_left * 60)))
 
             echo "Runs left: ${NUM_RUNS} (Loop $i/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
-            batch_execution $_NUM_AVAILABLE_CORES $i
+            batch_execution $_NUM_AVAILABLE_CORES $loop_num
             current_loop_num=$((current_loop_num + 1))
         done
 

@@ -36,16 +36,17 @@ _get_timestamp() {
 # the contents of the gpgpusim, the contents of
 # the executable and the args it run with.
 _calculate_md5_hash() {
-    path_to_gpgpu_sim_config=${1-:./gpgpusim.config}
-    executable_path=${3?no executable path supplied}
-    executable_args=${4:- }
+    path_to_gpgpu_sim_config=${1?no gpgpusim config file supplied}
+    executable_path=${2?no executable path supplied}
+    executable_args=${3:- }
     if [ ! -f "$path_to_gpgpu_sim_config" ]; then
         return
     fi
     if [ ! -f "$executable_path" ]; then
         return
     fi
-    echo -n "$(cat $path_to_gpgpu_sim_config)$(cat $executable_path)${executable_args}" | md5sum | awk '{print $1}'
+    # Don't take gpufi_run_id into account.
+    echo -n "$(grep -Ev '\-gpufi_run_id.+' $path_to_gpgpu_sim_config)$(cat $executable_path)${executable_args}" | md5sum | awk '{print $1}'
 }
 
 # Given a GPU_ID, constructs the path to its gpgpusim.config file.

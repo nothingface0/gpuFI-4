@@ -239,20 +239,25 @@ gather_results() {
     for batch_num in $(seq 1 $_NUM_AVAILABLE_CORES); do
         log_file="$tmp_dir/tmp.out${batch_num}"
         config_file="$tmp_dir/gpgpusim.config${batch_num}"
-        echo "Examining file $log_file"
-        grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
-        grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
-        grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
+        if [ ! -f "$config_file" ]; then
+            echo "WARNING: $config_file could not be found!"
+            result="000"
+        else
+            echo "Examining file $log_file"
+            grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
+            grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
+            grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
 
-        # Result consists of three numbers:
-        # - Was the _SUCCESS_MSG found in the resulting log?
-        # - Were the total cycles same as the reference execution?
-        # - Was the _FAILED_MSG found in the resulting log?
-        result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
-        run_id=$(_calculate_md5_hash "$config_file" "$log_file" "$CUDA_EXECUTABLE_PATH" "$CUDA_EXECUTABLE_ARGS")
-        if [ -n "$run_id" ]; then
-            _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
-            _archive_config_file $run_id $config_file
+            # Result consists of three numbers:
+            # - Was the _SUCCESS_MSG found in the resulting log?
+            # - Were the total cycles same as the reference execution?
+            # - Was the _FAILED_MSG found in the resulting log?
+            result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
+            run_id=$(_calculate_md5_hash "$config_file" "$log_file" "$CUDA_EXECUTABLE_PATH" "$CUDA_EXECUTABLE_ARGS")
+            if [ -n "$run_id" ]; then
+                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
+                _archive_config_file $run_id $config_file
+            fi
         fi
         case $result in
         "001")
@@ -315,12 +320,12 @@ batch_execution() {
     gather_results $loop_num
     echo "Done"
     if [ $DELETE_LOGS -eq 1 ]; then
-        rm -f "$_SCRIPT_DIR/_ptx*" "$_SCRIPT_DIR/_cuobjdump_*" "$_SCRIPT_DIR/_app_cuda*" "$_SCRIPT_DIR/*.ptx" "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
+        rm -f "$_SCRIPT_DIR/_ptx"* "$_SCRIPT_DIR/_cuobjdump_"* "$_SCRIPT_DIR/_app_cuda"* "$_SCRIPT_DIR/"*.ptx "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
         rm -rf "$tmp_dir" >/dev/null 2>&1 # comment out to debug output
     fi
     if [ $_GPUFI_PROFILE -ne 1 ]; then
-        # clean intermediate logs anyway if _GPUFI_PROFILE != 1
-        rm -f "$_SCRIPT_DIR/_ptx*" "$_SCRIPT_DIR/_cuobjdump_*" "$_SCRIPT_DIR/_app_cuda*" "$_SCRIPT_DIR/*.ptx" "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
+        # clean temp files anyway if _GPUFI_PROFILE != 1
+        rm -f "$_SCRIPT_DIR/_ptx"* "$_SCRIPT_DIR/_cuobjdump_"* "$_SCRIPT_DIR/_app_cuda"* "$_SCRIPT_DIR/"*.ptx "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
     fi
 }
 

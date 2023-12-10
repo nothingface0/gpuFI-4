@@ -41,15 +41,12 @@ _calculate_md5_hash() {
     executable_path=${3?no executable path supplied}
     executable_args=${4:- }
     if [ ! -f "$path_to_gpgpu_sim_config" ]; then
-        echo "$path_to_gpgpu_sim_config is not a valid file"
         return
     fi
     if [ ! -f "$path_to_output_log" ]; then
-        echo "$path_to_output_log is not a valid file"
         return
     fi
     if [ ! -f "$executable_path" ]; then
-        echo "$executable_path is not a valid file"
         return
     fi
     echo -n "$(cat $path_to_gpgpu_sim_config)$(cat $path_to_output_log)$(cat $executable_path)${executable_args}" | md5sum | awk '{print $1}'

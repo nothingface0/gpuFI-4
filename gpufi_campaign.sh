@@ -235,8 +235,9 @@ _update_csv_file() {
 # Parses resulting logs and determines successful execution.
 gather_results() {
     loop_num=$1 # Used to locate the logs of the run
+    batch_jobs=$2
     tmp_dir=${TMP_DIR}${loop_num}
-    for batch_num in $(seq 1 $_NUM_AVAILABLE_CORES); do
+    for batch_num in $(seq 1 $batch_jobs); do
         log_file="$tmp_dir/tmp.out${batch_num}"
         config_file="$tmp_dir/gpgpusim.config${batch_num}"
         if [ ! -f "$config_file" ]; then
@@ -317,7 +318,9 @@ batch_execution() {
     wait
     echo "Done"
     echo "Gathering results"
-    gather_results $loop_num
+    # We need to pass batch_jobs to gather_results too,
+    # to know how many log files it's expecting to find.
+    gather_results $loop_num $batch_jobs
     echo "Done"
     if [ $DELETE_LOGS -eq 1 ]; then
         rm -f "$_SCRIPT_DIR/_ptx"* "$_SCRIPT_DIR/_cuobjdump_"* "$_SCRIPT_DIR/_app_cuda"* "$_SCRIPT_DIR/"*.ptx "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1

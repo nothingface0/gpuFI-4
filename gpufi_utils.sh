@@ -6,7 +6,7 @@
 # Function to sanitize args to a folder name
 # From here: https://stackoverflow.com/a/44811468/6562491
 # echoes "null" if no input given.
-_sanitize() {
+_sanitize_string() {
     local s="${*:-null}"     # receive input in first argument
     s="${s//[^[:alnum:]]/-}" # replace all non-alnum characters to -
     s="${s//+(-)/-}"         # convert multiple - to single -
@@ -66,7 +66,7 @@ _get_gpgpusim_config_path_from_gpu_id() {
 # which is identified by the GPU_ID and the arguments the executable is run with,
 # after sanitization.
 _get_gpufi_analysis_path() {
-    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize $CUDA_EXECUTABLE_ARGS)"
+    echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize_string $CUDA_EXECUTABLE_ARGS)"
 }
 
 # Copies the selected GPU_ID's gpgpusim.config file in the current directory

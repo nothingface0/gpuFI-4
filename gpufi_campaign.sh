@@ -13,13 +13,17 @@ source gpufi_utils.sh
 # Paths to files created from gpufi_analyze_executable.sh
 _EXECUTABLE_ANALYSIS_FILE=
 _KERNEL_ANALYSIS_FILE=
+# Used to identify which config to use under configs/tested-configs
 GPU_ID=
 KERNEL_NAME=
 # ---------------------------------------------- START ONE-TIME PARAMETERS ----------------------------------------------
 # needed by gpgpu-sim for real register usage on PTXPlus mode
 #export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.0
 
-GPGPU_SIM_CONFIG_PATH=
+# The config will be looked for in configs/tested configs, using GPU_ID. You *can*
+# override it if you want, by passing the _GPGPU_SIM_CONFIG_PATH=<path> to the
+# current script.
+_GPGPU_SIM_CONFIG_PATH=
 TMP_DIR=./logs
 CACHE_LOGS_DIR=./cache_logs
 TMP_FILE=tmp.out
@@ -162,30 +166,30 @@ initialize_config() {
     gpufi_l2_cache_bitflip_rand_n="${gpufi_l2_cache_bitflip_rand_n//$'\n'/:}"
     # ---------------------------------------------- END PER INJECTION CAMPAIGN PARAMETERS (_GPUFI_PROFILE=0) ------------------------------------------------
 
-    sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${COMPONENTS_TO_FLIP}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${_GPUFI_PROFILE}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${_TOTAL_CYCLES}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${PER_WARP}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${KERNEL_INDICES}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${BLOCKS_NUM}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${GPGPU_SIM_CONFIG_PATH}
-    sed -i -e "s#^-gpufi_cycles_file.*\$#-gpufi_cycles_file ${_CYCLES_FILE}#" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_components_to_flip.*$/-gpufi_components_to_flip ${COMPONENTS_TO_FLIP}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile ${_GPUFI_PROFILE}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${_TOTAL_CYCLES}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_thread_rand.*$/-gpufi_thread_rand ${gpufi_thread_rand}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_warp_rand.*$/-gpufi_warp_rand ${gpufi_warp_rand}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_total_cycle_rand.*$/-gpufi_total_cycle_rand ${gpufi_total_cycle_rand}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_register_rand_n.*$/-gpufi_register_rand_n ${gpufi_register_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_reg_bitflip_rand_n.*$/-gpufi_reg_bitflip_rand_n ${gpufi_reg_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_per_warp.*$/-gpufi_per_warp ${PER_WARP}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_kernel_n.*$/-gpufi_kernel_n ${KERNEL_INDICES}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_local_mem_bitflip_rand_n.*$/-gpufi_local_mem_bitflip_rand_n ${gpufi_local_mem_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_block_rand.*$/-gpufi_block_rand ${gpufi_block_rand}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_block_n.*$/-gpufi_block_n ${BLOCKS_NUM}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_shared_mem_bitflip_rand_n.*$/-gpufi_shared_mem_bitflip_rand_n ${gpufi_shared_mem_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1d_shader_rand_n.*$/-gpufi_l1d_shader_rand_n ${gpufi_l1d_shader_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1d_cache_bitflip_rand_n.*$/-gpufi_l1d_cache_bitflip_rand_n ${gpufi_l1d_cache_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1c_shader_rand_n.*$/-gpufi_l1c_shader_rand_n ${gpufi_l1c_shader_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1c_cache_bitflip_rand_n.*$/-gpufi_l1c_cache_bitflip_rand_n ${gpufi_l1c_cache_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1t_shader_rand_n.*$/-gpufi_l1t_shader_rand_n ${gpufi_l1t_shader_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1t_cache_bitflip_rand_n.*$/-gpufi_l1t_cache_bitflip_rand_n ${gpufi_l1t_cache_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1i_shader_rand_n.*$/-gpufi_l1i_shader_rand_n ${gpufi_l1i_shader_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l1i_cache_bitflip_rand_n.*$/-gpufi_l1i_cache_bitflip_rand_n ${gpufi_l1i_cache_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_l2_cache_bitflip_rand_n.*$/-gpufi_l2_cache_bitflip_rand_n ${gpufi_l2_cache_bitflip_rand_n}/" ${_GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s#^-gpufi_cycles_file.*\$#-gpufi_cycles_file ${_CYCLES_FILE}#" ${_GPGPU_SIM_CONFIG_PATH}
 }
 
 _archive_config_file() {
@@ -292,8 +296,8 @@ batch_execution() {
         echo "Starting loop $loop_num task $i/$batch_jobs"
         initialize_config
         # unique id for each run (e.g. r1b2: 1st run, 2nd execution on batch)
-        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${GPGPU_SIM_CONFIG_PATH}
-        cp ${GPGPU_SIM_CONFIG_PATH} $tmp_dir/${GPGPU_SIM_CONFIG_PATH}${i} # save state
+        sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id r${loop_num}b${i}/" ${_GPGPU_SIM_CONFIG_PATH}
+        cp ${_GPGPU_SIM_CONFIG_PATH} $tmp_dir/${_GPGPU_SIM_CONFIG_PATH}${i} # save state
         timeout $((_TIMEOUT_VALUE)) $CUDA_EXECUTABLE_PATH $CUDA_EXECUTABLE_ARGS >$tmp_dir/${TMP_FILE}${i} 2>&1 &
         sleep 2 # Allow the simulator to properly pickup the config before we modify it.
     done
@@ -368,7 +372,7 @@ run_campaign() {
 }
 
 read_params_from_gpgpusim_config() {
-    source gpufi_calculate_cache_sizes.sh $GPGPU_SIM_CONFIG_PATH >/dev/null 2>&1
+    source gpufi_calculate_cache_sizes.sh $_GPGPU_SIM_CONFIG_PATH >/dev/null 2>&1
 }
 
 preliminary_checks() {
@@ -382,13 +386,14 @@ preliminary_checks() {
         exit 1
     fi
 
-    if [ -z "$GPGPU_SIM_CONFIG_PATH" ]; then
+    if [ -z "$_GPGPU_SIM_CONFIG_PATH" ]; then
         echo "Please provide a valid gpgpusim.config"
         exit 1
     fi
 
-    if [ ! -f "$GPGPU_SIM_CONFIG_PATH" ]; then
-        echo "File $GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
+    if [ -n "$_GPGPU_SIM_CONFIG_PATH" ] && [ ! -f "$_GPGPU_SIM_CONFIG_PATH" ]; then
+        # A path to the config has been supplied, but the file does not exist
+        echo "File $_GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
         exit 1
     fi
 
@@ -432,7 +437,11 @@ read_executable_analysis_files() {
     fi
 }
 
-### Script execution sequence ###
+prepare_files() {
+    _copy_gpgpusim_config $GPU_ID
+}
+
+### Main script execution sequence ###
 # Parse command line arguments -- use <key>=<value> to override any variable declared above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)
@@ -442,6 +451,7 @@ for ARGUMENT in "$@"; do
 done
 
 preliminary_checks
+prepare_files
 read_params_from_gpgpusim_config
 read_executable_analysis_files
 run_campaign

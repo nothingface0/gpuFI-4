@@ -1,10 +1,14 @@
 #!/bin/bash
 
 # gpuFI helper script to analyze an executable before an injection campaign.
-# It takes in a combination of gpgpusim.config corresponding to a GPU, a CUDA executable
-# (must have SASS < sm_19 embedded) and its arguments
-# and runs it in order to analyse the resources it uses per kernel, in order
-# to configure the gpuFI campaigns accordingly.
+# It takes in a combination of a CUDA executable
+# (must have SASS < sm_19 embedded), its arguments and a GPU id (e.g. SM7_QV100)
+# and runs it in order to analyse the resources it uses per kernels and
+# configure the gpuFI campaigns accordingly.
+#
+# Analysis consists of running the executable twice: once with gpufi_profile=3,
+# to get a baseline execution (total cycles and a timeout value) and another
+# with gpufi_profile=1 (to get the used resources per kernel).
 #
 # The script will create a .gpufi directory in the same directory the executable is in,
 # with a <GPU_ID>/<CUDA_EXECUTABLE_ARGS sanitized> subdirectory, where the analysis output
@@ -13,7 +17,6 @@
 # Called as following:
 # bash analyze_executable.sh CUDA_EXECUTABLE_PATH=<path to executable> \
 #                           CUDA_EXECUTABLE_ARGS="args in double quotes please" \
-#                           GPGPU_SIM_CONFIG_PATH=<path to gpgpusim.config> \
 #                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to, e.g. SM7_QV100>
 
 set -e
@@ -25,11 +28,12 @@ CUDA_EXECUTABLE_PATH=
 # The arguments that the executable needs in order to run
 CUDA_EXECUTABLE_ARGS=
 
-# The full path to the gpgpusim.config file to use
-GPGPU_SIM_CONFIG_PATH=
-
 # The ID of the GPU the config corresponds to, e.g. SM7_QV100
 GPU_ID=
+
+# The full path to the gpgpusim.config file to use. Will be detected automatically,
+# using the GPU_ID, but can also be overriden from the script arguments.
+_GPGPU_SIM_CONFIG_PATH=
 
 # Checks to do before running the executable analysis
 preliminary_checks() {
@@ -39,11 +43,11 @@ preliminary_checks() {
         exit 1
     fi
 
-    if [ ! -f "$GPGPU_SIM_CONFIG_PATH" ]; then
-        echo "File $GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
+    if [ -n "$_GPGPU_SIM_CONFIG_PATH" ] && [ ! -f "$_GPGPU_SIM_CONFIG_PATH" ]; then
+        # A path to the config has been supplied, but the file does not exist
+        echo "File $_GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
         exit 1
     fi
-
     if ! _is_gpu_id_valid $GPU_ID; then
         echo "No valid GPU_ID was given, please provide a valid GPU id, e.g. SM7_QV100"
         exit 1
@@ -84,31 +88,31 @@ check_gpufi_profile() {
     target_value=$1
     # Make sure that gpufi_profile is found in the config file
     gpufi_profile_regex="^[[:space:]]*-gpufi_profile[[:space:]]+([0-9])"
-    if ! grep -E $gpufi_profile_regex "$GPGPU_SIM_CONFIG_PATH" --only-matching >/dev/null; then
-        echo "No gpufi_profile parameter found in $GPGPU_SIM_CONFIG_PATH"
+    if ! grep -E $gpufi_profile_regex "$_GPGPU_SIM_CONFIG_PATH" --only-matching >/dev/null; then
+        echo "No gpufi_profile parameter found in $_GPGPU_SIM_CONFIG_PATH"
         exit 1
     fi
 
     # Get the gpufi_profile value from the config
-    gpufi_profile=$(cat $GPGPU_SIM_CONFIG_PATH | gawk -v pat=$gpufi_profile_regex 'match($0, pat, a) {print a[1]}')
+    gpufi_profile=$(cat $_GPGPU_SIM_CONFIG_PATH | gawk -v pat=$gpufi_profile_regex 'match($0, pat, a) {print a[1]}')
     if [ $gpufi_profile -ne $target_value ]; then
         echo "gpufi_profile must be $target_value for analysing the executable"
         exit 1
     fi
 }
 
-# Change the gpufi_profile parameter in the GPGPU_SIM_CONFIG_PATH file
+# Change the gpufi_profile parameter in the _GPGPU_SIM_CONFIG_PATH file
 change_gpufi_profile_normal() {
-    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 3/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 3/" ${_GPGPU_SIM_CONFIG_PATH}
 }
 change_gpufi_profile_profiling() {
-    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 1/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_profile.*$/-gpufi_profile 1/" ${_GPGPU_SIM_CONFIG_PATH}
 }
 
 # Execute cuda executable, store output to file, count time.
 execute_executable() {
     # Copy the config file just in case
-    cp "$GPGPU_SIM_CONFIG_PATH" "$(dirname $(_get_gpufi_analysis_path))/$(basename $GPGPU_SIM_CONFIG_PATH)"
+    cp "$_GPGPU_SIM_CONFIG_PATH" "$(dirname $(_get_gpufi_analysis_path))/$(basename $_GPGPU_SIM_CONFIG_PATH)"
 
     # Time the execution
     SECONDS=0
@@ -139,7 +143,7 @@ parse_executable_output() {
     export TOTAL_CYCLES
     TOTAL_CYCLES=$(grep "gpu_tot_sim_cycle" "$output_log" | tail -1 | gawk -v pat="gpu_tot_sim_cycle = ([0-9]+)" 'match($0, pat, a) {print a[1]}')
     export TIMEOUT_VALUE
-    TIMEOUT_VALUE=$((CUDA_EXECUTABLE_EXECUTION_TIME * 4))
+    TIMEOUT_VALUE=$((CUDA_EXECUTABLE_EXECUTION_TIME))
     regex_mangled_name="(_Z[0-9_[:alnum:]]+)"
     export KERNEL_NAMES
     KERNEL_NAMES=$(grep -E "kernel_name = $regex_mangled_name" "$output_log" | uniq | gawk -v pat="kernel_name = $regex_mangled_name" 'match($0, pat, a) {print a[1]}')
@@ -197,11 +201,14 @@ parse_executable_output() {
 }
 
 # Create an analysis file for the specific executable: cycles total, timeout expected
+# This gets called after execution with gpufi_profile=3, i.e. a clean execution,
+# so the TIMEOUT_VALUE might be a bit underestimated, which is why we multiply it
+# by some factor to allow for some fluctuation in execution time.
 create_per_executable_analysis_file() {
     rm -rf "$(_get_gpufi_analysis_path)/executable_analysis.sh"
     {
         echo "_TOTAL_CYCLES=${TOTAL_CYCLES}"
-        echo "_TIMEOUT_VALUE=${TIMEOUT_VALUE}"
+        echo "_TIMEOUT_VALUE=$((TIMEOUT_VALUE * 5))"
     } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 
@@ -316,7 +323,7 @@ _create_per_kernel_cycles_txt() {
 
 # Modify the config's last cycle. Needed (with gpufi_profile=1) to print the kernel stats at the right time.
 modify_total_cycles() {
-    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${GPGPU_SIM_CONFIG_PATH}
+    sed -i -e "s/^-gpufi_last_cycle.*$/-gpufi_last_cycle ${TOTAL_CYCLES}/" ${_GPGPU_SIM_CONFIG_PATH}
 }
 
 # Create an empty file which signals that analysis has run.
@@ -324,9 +331,14 @@ finalize_analysis() {
     touch "$(_get_gpufi_analysis_path)/.analysis_complete"
 }
 
+prepare_files() {
+    _copy_gpgpusim_config $GPU_ID
+}
+
 ### Main script
 declare -a analysis_steps=(
     preliminary_checks
+    prepare_files
     create_directories
     change_gpufi_profile_normal
     execute_executable

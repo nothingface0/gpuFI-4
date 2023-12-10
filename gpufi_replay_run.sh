@@ -10,6 +10,7 @@ source gpufi_utils.sh
 # Complete command for CUDA executable
 CUDA_EXECUTABLE_PATH=
 CUDA_EXECUTABLE_ARGS=""
+# Needed to locate the archive of the configs
 GPU_ID=
 RUN_ID=
 _OUTPUT_LOG=
@@ -37,15 +38,18 @@ preliminary_checks() {
 
     if [ ! -d "$(_get_gpufi_analysis_path)" ]; then
         echo "Could not find the executable's analysis path: $(_get_gpufi_analysis_path)"
+        exit 1
     fi
 
     if [ -z "$RUN_ID" ] || [ ${#RUN_ID} -ne 32 ]; then
         echo "${#RUN_ID}"
         echo "Please provide a valid md5sum for RUN_ID"
+        exit 1
     fi
 
     if [ ! -f "$(_get_gpufi_analysis_path)/results/configs/$RUN_ID.tar.gz" ]; then
         echo "Run ID $RUN_ID not found"
+        exit 1
     fi
 
     if [ -z "$_OUTPUT_LOG" ]; then
@@ -67,6 +71,16 @@ run_simulator() {
     "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >$_OUTPUT_LOG
 }
 
+verify_run_id() {
+    md5hash=$(_calculate_md5_hash "gpgpusim.config" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
+    if [ "$md5hash" != "$RUN_ID" ]; then
+        echo "Could not verify run id for run $RUN_ID"
+        exit 1
+    else
+        echo "Successfully verified run $RUN_ID"
+    fi
+}
+
 ### Script execution sequence ###
 # Parse command line arguments -- use <key>=<value> to override any variable declared above.
 for ARGUMENT in "$@"; do
@@ -78,4 +92,5 @@ done
 
 preliminary_checks
 extract_config
+verify_run_id
 run_simulator

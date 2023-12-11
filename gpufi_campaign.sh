@@ -270,7 +270,7 @@ gather_results() {
         config_file="$tmp_dir/gpgpusim.config${batch_num}"
         if [ ! -f "$config_file" ]; then
             echo "WARNING: $config_file could not be found!"
-            result="0000"
+            result="000"
         else
             echo "Examining file $log_file"
             grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
@@ -287,7 +287,7 @@ gather_results() {
             # - Were the total cycles same as the reference execution?
             # - Was the _FAILED_MSG found in the resulting log?
             # - Was a syntax error found in the resulting log? This might be due to a SASS instruction that the SASS parser does not recognize
-            result="${success_msg_grep}${cycles_grep}${failed_msg_grep}${syntax_error_msg_grep}"
+            result="${success_msg_grep}${cycles_grep}${failed_msg_grep}"
             run_id=$(_calculate_md5_hash "$config_file" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
             if [ -n "$run_id" ]; then
                 _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep

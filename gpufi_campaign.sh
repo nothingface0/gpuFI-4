@@ -401,7 +401,7 @@ run_campaign() {
             minutes_left=$((seconds_left / 60))
             seconds_left=$((seconds_left - (minutes_left * 60)))
 
-            echo -n "Runs left: ${NUM_RUNS} (Loop $loop_num/$loop_end) (About "
+            echo -n "Runs left: ${NUM_RUNS} (Batch $loop_num/$loop_end) (About "
             if [ $hours_left -gt 0 ]; then
                 echo -n "${hours_left}h:"
             fi

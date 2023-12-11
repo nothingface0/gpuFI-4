@@ -80,8 +80,9 @@ _CYCLES_MSG="gpu_tot_sim_cycle ="
 # Campaign runtime variables
 _errors_masked=0
 _errors_performance=0
-_errors_sdc=0 # Silent data corruption
-_errors_due=0 # Detected unrecoverable error (crash)
+_errors_sdc=0          # Silent data corruption
+_errors_due=0          # Detected unrecoverable error (crash)
+_avg_timeout_seconds=0 # Average time that each batch takes to finish execution, only used for user information.
 
 # ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (_GPUFI_PROFILE=0) ----------------------------------------------
 # gpuFI profile to run. Possible values:
@@ -313,6 +314,7 @@ batch_execution() {
         run_id=$(_calculate_md5_hash "$_GPGPU_SIM_CONFIG_PATH" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id $run_id/" "$_GPGPU_SIM_CONFIG_PATH"
         cp "${_GPGPU_SIM_CONFIG_PATH}" "$tmp_dir/gpgpusim.config${i}" # save state
+        # Don't use the updated average timeout, use the pessimistic max time calculated during analysis.
         timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >"$tmp_dir/${TMP_FILE}${i}" 2>&1 &
         sleep 2 # Allow the simulator to properly pick up the config before we modify it.
     done
@@ -339,14 +341,14 @@ run_campaign() {
     if [[ "$_GPUFI_PROFILE" -eq 1 ]] || [[ "$_GPUFI_PROFILE" -eq 2 ]] || [[ "$_GPUFI_PROFILE" -eq 3 ]]; then
         NUM_RUNS=1
     fi
-    # max_retries to avoid flooding the system storage with logs infinitely if the user
+    # _max_retries to avoid flooding the system storage with logs infinitely if the user
     # has wrong configuration and only Unclassified errors are returned.
-    max_retries=$((3))
-    current_loop_num=$((1))
+    _max_retries=$((3))
+    _current_loop_num=$((1))
     mkdir -p "$CACHE_LOGS_DIR" >/dev/null 2>&1
-    while [ $NUM_RUNS -gt 0 ] && [ $max_retries -gt 0 ]; do
-        max_retries=$((max_retries - 1))
-        loop_start=$((current_loop_num))
+    while [ $NUM_RUNS -gt 0 ] && [ $_max_retries -gt 0 ]; do
+        _max_retries=$((_max_retries - 1))
+        loop_start=$((_current_loop_num))
         unset LAST_BATCH
         if [ "$_NUM_AVAILABLE_CORES" -gt "$NUM_RUNS" ]; then
             _NUM_AVAILABLE_CORES=${NUM_RUNS}
@@ -360,23 +362,30 @@ run_campaign() {
         fi
 
         for loop_num in $(seq $loop_start $loop_end); do
-            seconds_left=$(((loop_end - i + 1) * _TIMEOUT_VALUE))
+            seconds_left=$(((loop_end - i + 1) * _avg_timeout_seconds))
             hours_left=$((seconds_left / 3600))
             seconds_left=$((seconds_left - (hours_left * 3600)))
             minutes_left=$((seconds_left / 60))
             seconds_left=$((seconds_left - (minutes_left * 60)))
 
             echo "Runs left: ${NUM_RUNS} (Loop $loop_num/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
+            # Reset internal timer
+            SECONDS=0
             batch_execution $_NUM_AVAILABLE_CORES $loop_num
-            current_loop_num=$((current_loop_num + 1))
+            _batch_execution_s=$SECONDS
+            _current_loop_num=$((_current_loop_num + 1))
+
+            # Update average timeout (moving average)
+            _avg_timeout_seconds=$((_avg_timeout_seconds + (_batch_execution_s - _avg_timeout_seconds) / (_current_loop_num)))
+
         done
 
         if [[ -n ${LAST_BATCH+x} ]]; then
-            batch_execution $LAST_BATCH $current_loop_num
-            current_loop_num=$((current_loop_num + 1))
+            batch_execution $LAST_BATCH $_current_loop_num
+            _current_loop_num=$((_current_loop_num + 1))
         fi
     done
-    if [[ $max_retries -eq 0 ]]; then
+    if [[ $_max_retries -eq 0 ]]; then
         echo "Probably \"${CUDA_EXECUTABLE_PATH}\" was not able to run! Please make sure the execution with GPGPU-Sim works!"
     else
         echo "Masked: ${_errors_masked} (performance = ${_errors_performance})"
@@ -439,6 +448,9 @@ preliminary_checks() {
 read_executable_analysis_files() {
     base_analysis_path=$(_get_gpufi_analysis_path)
     source "$base_analysis_path/executable_analysis.sh"
+
+    _avg_timeout_seconds=$_TIMEOUT_VALUE # Initialize the average as the max timeout
+
     if [ $KERNEL_INDICES -eq 0 ]; then
         source "$base_analysis_path/merged_kernel_analysis.sh"
         _CYCLES_FILE="$base_analysis_path/merged_cycles.txt"

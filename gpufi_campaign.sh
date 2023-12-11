@@ -365,7 +365,7 @@ run_campaign() {
         fi
 
         for loop_num in $(seq $loop_start $loop_end); do
-            seconds_left=$(((loop_end - i + 1) * _avg_timeout_seconds))
+            seconds_left=$(((loop_end - loop_num + 1) * _avg_timeout_seconds))
             hours_left=$((seconds_left / 3600))
             seconds_left=$((seconds_left - (hours_left * 3600)))
             minutes_left=$((seconds_left / 60))

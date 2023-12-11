@@ -328,10 +328,10 @@ batch_execution() {
     batch_jobs=$1
     loop_num=$2
     tmp_dir=${TMP_DIR}${loop_num}
-    echo "$(_get_timestamp): Loop $loop_num, batch jobs $batch_jobs"
+    echo "$(_get_timestamp): Starting batch #$loop_num ($batch_jobs jobs)"
     mkdir -p "$tmp_dir" >/dev/null 2>&1
     for i in $(seq 1 $batch_jobs); do
-        echo "Starting loop $loop_num task $i/$batch_jobs"
+        echo "Starting batch #$loop_num job $i/$batch_jobs"
         initialize_config
 
         # unique id for each run
@@ -347,12 +347,12 @@ batch_execution() {
         _running_pids+=($_child_pid) # Keep track of background PIDs
         sleep 1                      # Allow the simulator to properly pick up the config before we modify it.
     done
-    echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
+    echo -n "Waiting for batch #$loop_num jobs to complete..."
     wait
+    echo "Done."
     # Clear running PIDs
     _running_pids=()
-    echo "Done"
-    echo "Gathering results"
+    echo "Batch #$loop_num complete. Gathering results..."
     # We need to pass batch_jobs to gather_results too,
     # to know how many log files it's expecting to find.
     gather_results $loop_num $batch_jobs
@@ -394,14 +394,20 @@ run_campaign() {
         fi
 
         for loop_num in $(seq $loop_start $loop_end); do
+            # Calculate approximate time left
             seconds_left=$(((loop_end - loop_num + 1) * _avg_timeout_seconds))
             hours_left=$((seconds_left / 3600))
             seconds_left=$((seconds_left - (hours_left * 3600)))
             minutes_left=$((seconds_left / 60))
             seconds_left=$((seconds_left - (minutes_left * 60)))
 
-            echo "Runs left: ${NUM_RUNS} (Loop $loop_num/$loop_end) (About ${hours_left}h:${minutes_left}m)" # DEBUG
-            # Reset internal timer
+            echo -n "Runs left: ${NUM_RUNS} (Loop $loop_num/$loop_end) (About "
+            if [ $hours_left -gt 0 ]; then
+                echo -n "${hours_left}h:"
+            fi
+            echo "${minutes_left}m)"
+            # Reset internal timer to count seconds it takes
+            # a single batch of jobs to complete.
             SECONDS=0
             batch_execution $_NUM_AVAILABLE_CORES $loop_num
             _batch_execution_s=$SECONDS

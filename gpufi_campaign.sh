@@ -82,6 +82,7 @@ _errors_masked=0
 _errors_performance=0
 _errors_sdc=0          # Silent data corruption
 _errors_due=0          # Detected unrecoverable error (crash)
+_errors_syntax=0       # Injected instructions not recognized by sass parser
 _avg_timeout_seconds=0 # Average time that each batch takes to finish execution, only used for user information.
 # _max_retries to avoid flooding the system storage with logs infinitely if the user
 # has wrong configuration and only Unclassified errors are returned.
@@ -247,13 +248,15 @@ _update_csv_file() {
     cycles_grep=$((cycles_grep ^ 1))
     failed_msg_grep=$4
     failed_msg_grep=$((failed_msg_grep ^ 1))
+    syntax_error_msg_grep=$5
+    syntax_error_msg_grep=$((syntax_error_msg_grep ^ 1))
 
     if [ ! -f "$csv_file_path" ]; then
-        echo "run_id,success,same_cycles,failed" >"$csv_file_path"
+        echo "run_id,success,same_cycles,failed,syntax_error" >"$csv_file_path"
     fi
     echo "Updating results in $csv_file_path"
     # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
-    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep}" >>"$csv_file_path"
+    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep}" >>"$csv_file_path"
 
 }
 
@@ -267,21 +270,27 @@ gather_results() {
         config_file="$tmp_dir/gpgpusim.config${batch_num}"
         if [ ! -f "$config_file" ]; then
             echo "WARNING: $config_file could not be found!"
-            result="000"
+            result="0000"
         else
             echo "Examining file $log_file"
             grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
             grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
             grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
+            grep -iq "syntax error near" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
+
+            if [ $syntax_error_msg_grep -ne 0 ]; then
+                _errors_syntax=$((_errors_syntax + 1))
+            fi
 
             # Result consists of three numbers:
             # - Was the _SUCCESS_MSG found in the resulting log?
             # - Were the total cycles same as the reference execution?
             # - Was the _FAILED_MSG found in the resulting log?
-            result=${success_msg_grep}${cycles_grep}${failed_msg_grep}
+            # - Was a syntax error found in the resulting log? This might be due to a SASS instruction that the SASS parser does not recognize
+            result="${success_msg_grep}${cycles_grep}${failed_msg_grep}${syntax_error_msg_grep}"
             run_id=$(_calculate_md5_hash "$config_file" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
             if [ -n "$run_id" ]; then
-                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep
+                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep
                 _archive_config_file $run_id $config_file
             fi
         fi
@@ -429,6 +438,9 @@ run_campaign() {
         echo "Masked: ${_errors_masked} (performance = ${_errors_performance})"
         echo "SDCs: ${_errors_sdc}"
         echo "DUEs: ${_errors_due}"
+        echo
+        echo "-----Misc-----"
+        echo "Syntax: ${_errors_syntax}"
 
         _sum_errors=$((_errors_due + _errors_sdc + _errors_masked))
         if [ $_total_runs -ne $_sum_errors ]; then

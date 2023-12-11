@@ -341,6 +341,9 @@ run_campaign() {
     if [[ "$_GPUFI_PROFILE" -eq 1 ]] || [[ "$_GPUFI_PROFILE" -eq 2 ]] || [[ "$_GPUFI_PROFILE" -eq 3 ]]; then
         NUM_RUNS=1
     fi
+    # Keep a copy for later checks
+    _total_runs=$NUM_RUNS
+
     # _max_retries to avoid flooding the system storage with logs infinitely if the user
     # has wrong configuration and only Unclassified errors are returned.
     _max_retries=$((3))
@@ -391,7 +394,13 @@ run_campaign() {
         echo "Masked: ${_errors_masked} (performance = ${_errors_performance})"
         echo "SDCs: ${_errors_sdc}"
         echo "DUEs: ${_errors_due}"
+
+        _sum_errors=$((_errors_due + _errors_sdc + _errors_masked))
+        if [ $_total_runs -ne $_sum_errors ]; then
+            echo "WARNING: Total runs requested ($_total_runs) don't match sum of errors ($_sum_errors)"
+        fi
     fi
+
     if [[ "$DELETE_LOGS" -eq 1 ]]; then
         rm -r ${CACHE_LOGS_DIR} >/dev/null 2>&1 # comment out to debug cache logs
     fi

@@ -2134,7 +2134,9 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
 
         ss.str(std::string());
         ss.clear();
-        ss << std::hex << instr_binary_bitflipped;
+        // Front fill with zeroes to match the size of the original instruction.
+        ss << std::setfill('0') << std::setw(instr_hex.size()) << std::right
+           << std::hex << instr_binary_bitflipped;
         std::string instr_hex_bitflipped = ss.str();
         std::string instr_hex_bitflipped_swapped =
             swap_instruction(instr_hex_bitflipped);

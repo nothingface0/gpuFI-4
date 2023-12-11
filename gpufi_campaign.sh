@@ -83,6 +83,10 @@ _errors_performance=0
 _errors_sdc=0          # Silent data corruption
 _errors_due=0          # Detected unrecoverable error (crash)
 _avg_timeout_seconds=0 # Average time that each batch takes to finish execution, only used for user information.
+# _max_retries to avoid flooding the system storage with logs infinitely if the user
+# has wrong configuration and only Unclassified errors are returned.
+_max_retries=$((3))
+_running_pids=()
 
 # ---------------------------------------------- START PER INJECTION CAMPAIGN PARAMETERS (_GPUFI_PROFILE=0) ----------------------------------------------
 # gpuFI profile to run. Possible values:
@@ -112,6 +116,26 @@ KERNEL_INDICES=0
 
 # in how many blocks (smems) to inject the bit flip
 BLOCKS_NUM=1
+
+# SIGINT handler to kill running processes if force-stopped
+_handle_sigint() {
+    echo -n "Received SIGINT. "
+    if [ ${#_running_pids} -gt 0 ]; then
+        echo -n "Killing running processes:"
+        for pid in "${_running_pids[@]}"; do
+            if ps --pid $pid | grep -q $pid; then
+                echo -n " $pid"
+                kill $pid >/dev/null 2>&1
+            fi
+        done
+        echo -n ". "
+    fi
+    echo "Exiting."
+    exit 0
+}
+
+# Attach to SIGINT
+trap _handle_sigint SIGINT
 
 # Function which initializes variables based on user config and edits the gpgpusim.config file.
 initialize_config() {
@@ -316,10 +340,17 @@ batch_execution() {
         cp "${_GPGPU_SIM_CONFIG_PATH}" "$tmp_dir/gpgpusim.config${i}" # save state
         # Don't use the updated average timeout, use the pessimistic max time calculated during analysis.
         timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >"$tmp_dir/${TMP_FILE}${i}" 2>&1 &
-        sleep 2 # Allow the simulator to properly pick up the config before we modify it.
+        _timeout_pid=$!
+        sleep 1
+        # Store the actual cuda executable PID
+        _child_pid=$(ps -o pid= --ppid "$_timeout_pid")
+        _running_pids+=($_child_pid) # Keep track of background PIDs
+        sleep 1                      # Allow the simulator to properly pick up the config before we modify it.
     done
     echo "Waiting for loop #$loop_num jobs to complete (total: $batch_jobs)"
     wait
+    # Clear running PIDs
+    _running_pids=()
     echo "Done"
     echo "Gathering results"
     # We need to pass batch_jobs to gather_results too,
@@ -343,11 +374,9 @@ run_campaign() {
     fi
     # Keep a copy for later checks
     _total_runs=$NUM_RUNS
-
-    # _max_retries to avoid flooding the system storage with logs infinitely if the user
-    # has wrong configuration and only Unclassified errors are returned.
-    _max_retries=$((3))
+    # Loop counter
     _current_loop_num=$((1))
+
     mkdir -p "$CACHE_LOGS_DIR" >/dev/null 2>&1
     while [ $NUM_RUNS -gt 0 ] && [ $_max_retries -gt 0 ]; do
         _max_retries=$((_max_retries - 1))

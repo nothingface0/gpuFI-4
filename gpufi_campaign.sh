@@ -278,7 +278,7 @@ gather_results() {
             grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
             grep -iq "syntax error near" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
 
-            if [ $syntax_error_msg_grep -ne 0 ]; then
+            if [ $syntax_error_msg_grep -eq 0 ]; then
                 _errors_syntax=$((_errors_syntax + 1))
             fi
 

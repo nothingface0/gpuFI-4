@@ -363,9 +363,11 @@ batch_execution() {
     echo -n "Waiting for batch #$loop_num jobs to complete..."
     wait
     echo "Done."
-    # Clear running PIDs
-    _running_pids=()
+    sleep 2          # Play it safe
+    _running_pids=() # Clear running PIDs
+
     echo "Batch #$loop_num complete. Gathering results..."
+
     # We need to pass batch_jobs to gather_results too,
     # to know how many log files it's expecting to find.
     gather_results $loop_num $batch_jobs

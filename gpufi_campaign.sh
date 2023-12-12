@@ -288,7 +288,11 @@ gather_results() {
             # - Was the _FAILED_MSG found in the resulting log?
             # - Was a syntax error found in the resulting log? This might be due to a SASS instruction that the SASS parser does not recognize
             result="${success_msg_grep}${cycles_grep}${failed_msg_grep}"
-            run_id=$(_calculate_md5_hash "$config_file" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
+            run_id=$(gawk -v pat="^-gpufi_run_id[[:space:]]+([0-9a-f]{32})" 'match($0, pat, a){print a[1]}' <"$config_file")
+            run_id_validate=$(_calculate_md5_hash "$config_file" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
+            if [ "$run_id" != "$run_id_validate" ]; then
+                echo "WARNING: Run id validation failed when parsing $config_file. Expected $run_id_validate, read $run_id"
+            fi
             if [ -n "$run_id" ]; then
                 _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep
                 _archive_config_file $run_id $config_file

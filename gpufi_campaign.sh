@@ -486,7 +486,7 @@ read_params_from_gpgpusim_config() {
 
 preliminary_checks() {
     if [ -z "$CUDA_EXECUTABLE_PATH" ]; then
-        echo "Please provide a valid CUDA executable to run"
+        echo "Please provide a CUDA executable to run via the CUDA_EXECUTABLE_PATH argument."
         exit 1
     fi
 

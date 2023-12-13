@@ -377,7 +377,7 @@ batch_execution() {
         # Store the actual cuda executable PID
         _child_pid=$(ps -o pid= --ppid "$_timeout_pid")
         _running_pids+=($_child_pid) # Keep track of background PIDs
-        sleep 1                      # Allow the simulator to properly pick up the config before we modify it.
+        sleep 5                      # Allow the simulator to properly pick up the config before we modify it.
     done
     echo -n "Waiting for batch #$loop_num jobs to complete..."
     wait

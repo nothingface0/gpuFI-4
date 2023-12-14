@@ -2157,15 +2157,25 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
           gpuFI TODO: This may fail to parse the injected SASS. How will we
           parse the failure?
         */
-        char *ptxplus_str =
-            gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                "_cuobjdump_1.ptx", "_cuobjdump_1.elf", "_cuobjdump_1.sass");
+        // Copy the context and the recognizer because not doing so
+        // affects the original context and affects all execution.
+        gpgpu_context temp_gpgpu_context;
+        ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
+        GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
 
+        temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
+        temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
+
+        char *ptxplus_str = temp_gpgpu_context.ptxinfo
+                                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                                    "_cuobjdump_1.ptx", "_cuobjdump_1.elf",
+                                    "_cuobjdump_1.sass");
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
-        symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(ptxplus_str, 1);
+        symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
+            ptxplus_str, 1);
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);

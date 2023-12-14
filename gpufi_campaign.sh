@@ -255,8 +255,8 @@ _update_csv_file() {
     syntax_error_msg_grep=$((syntax_error_msg_grep ^ 1))
     tag_bitflip_grep=$6
     tag_bitflip_grep=$((tag_bitflip_grep ^ 1))
-    data_bitflip_grep=$7
-    data_bitflip_grep=$((data_bitflip_grep ^ 1))
+    l1i_data_bitflip_grep=$7
+    l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
     false_l1i_hit_grep=$8
     false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
 
@@ -265,7 +265,7 @@ _update_csv_file() {
     fi
     echo "Updating results in $csv_file_path"
     # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
-    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${data_bitflip_grep},${false_l1i_hit_grep}" >>"$csv_file_path"
+    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep}" >>"$csv_file_path"
 
 }
 

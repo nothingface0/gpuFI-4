@@ -1114,8 +1114,8 @@ void shader_core_ctx::fetch() {
           address_type pc;
           pc = m_warp[warp_id]->get_pc();
           address_type ppc = pc + PROGRAM_MEM_START;
-          unsigned nbytes = 16;       // ???
-          unsigned offset_in_block =  // TODO: See how this calculation works
+          unsigned nbytes = 16;
+          unsigned offset_in_block =
               pc & (m_config->m_L1I_config.get_line_sz() - 1);
 
           // Make sure that the bytes we ask to be stored at offset, do not

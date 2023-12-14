@@ -1,5 +1,5 @@
 #!/bin/bash
-env_type=${1:-debug}
+env_type=${1:-release}
 # Source this script in order to setup for gpuFI/GPGPU-Sim execution
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-11.0 # For supporting register usage of latest cards

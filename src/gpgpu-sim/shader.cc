@@ -977,7 +977,7 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
     std::cout << "gpuFI: Cycle "
               << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle << ", Shader "
               << m_sid << ", Cluster " << m_cluster->get_cluster_id()
-              << ", warp " << warp_id << ", getting instruction with pc=" << pc
+              << ", warp " << warp_id << ", decoding instruction with pc=" << pc
               << " injected at " << instruction_bitflips.size() << " bit(s)"
               << std::endl;
 

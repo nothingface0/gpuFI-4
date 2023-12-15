@@ -3,6 +3,7 @@
 # The script will try to limit the search in the kernel whose name is provided.
 # If the instruction is found multiple times, *all* of them are replaced.
 # gpuFI TODO: Find the end of the kernel to limit the search even more
+set -e
 
 # The full path to the CUDA executable to inject
 app_binary_path=$1
@@ -44,6 +45,14 @@ fi
 
 # Find where the kernel starts
 # gpuFI TODO: Find the end of the kernel to limit the search even more.
+# gpuFI TODO: This does not actually find the start of the kernel data 100% correctly,
+# as in the case where there are many kernels, their names are all bundled together, and then
+# all the instructions of all the kernels follow.
+# An idea would be to know the first instruction + the offset of the last kernel instruction.
+#kernel_info=$(readelf --symbols srad | grep $kernel_name)
+#kernel_address=$((16#$(echo $kernel_info | cut -d' ' -f2)))
+#kernel_size=$(($(echo $kernel_info | cut -d' ' -f3)))
+
 kernel_byte_offset_in_file=$(grep --byte-offset --only-matching --text "nv.info.$kernel_name" "$app_binary_path" | cut -d':' -f 1)
 
 full_binary_dump=$(xxd -c 0 -p "$app_binary_path")

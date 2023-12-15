@@ -87,6 +87,7 @@ _num_errors_syntax=0     # Injected instructions not recognized by sass parser
 _num_tag_bitflips=0      # Accumulate number of tag bitflips detected, for printing a summary
 _num_false_l1i_hit=0     # L1I tag bitlfips that lead to a HIT
 _num_l1i_data_bitflips=0 # Accumulate number of data bitlips detected, for printing a summary
+_num_l1i_different_misses=0
 # _max_retries to avoid flooding the system storage with logs infinitely if the user
 # has wrong configuration and only Unclassified errors are returned.
 _max_retries=$((3))
@@ -259,13 +260,15 @@ _update_csv_file() {
     l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
     false_l1i_hit_grep=$8
     false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
+    different_l1i_misses=$8
+    different_l1i_misses=$((different_l1i_misses ^ 1))
 
     if [ ! -f "$csv_file_path" ]; then
-        echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit" >"$csv_file_path"
+        echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"
     fi
     echo "Updating results in $csv_file_path"
     # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
-    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep}" >>"$csv_file_path"
+    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
 
 }
 
@@ -289,6 +292,7 @@ gather_results() {
             grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
             grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
             grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
+            grep -iq "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${_L1I_CACHE_TOTAL_MISSES}" && different_l1i_misses=0 || different_l1i_misses=1
 
             # Was a syntax error found in the resulting log? This might be due to a resulting SASS instruction
             # that the SASS parser does not recognize.
@@ -306,6 +310,9 @@ gather_results() {
             if [ $data_bitflip_grep -eq 0 ]; then
                 _num_l1i_data_bitflips=$((_num_l1i_data_bitflips + 1))
             fi
+            if [ $different_l1i_misses -eq 0 ]; then
+                _num_l1i_different_misses=$((_num_l1i_different_misses + 1))
+            fi
 
             # Result consists of three numbers:
             # - Was the _SUCCESS_MSG found in the resulting log?
@@ -320,7 +327,7 @@ gather_results() {
                 echo "WARNING: Run id validation failed when parsing $config_file. Expected $run_id_validate, read $run_id"
             fi
             if [ -n "$run_id" ]; then
-                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep
+                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
                 _archive_config_file $run_id $config_file
             fi
         fi

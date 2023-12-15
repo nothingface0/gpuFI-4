@@ -147,6 +147,8 @@ parse_executable_output() {
     regex_mangled_name="(_Z[0-9_[:alnum:]]+)"
     export KERNEL_NAMES
     KERNEL_NAMES=$(grep -E "kernel_name = $regex_mangled_name" "$output_log" | uniq | gawk -v pat="kernel_name = $regex_mangled_name" 'match($0, pat, a) {print a[1]}')
+    export L1I_CACHE_TOTAL_MISSES
+    L1I_CACHE_TOTAL_MISSES=$(grep "L1I_total_cache_misses" "$output_log" | tail -1 | gawk -v pat="L1I_total_cache_misses = ([0-9]+)" 'match($0, pat, a) {print a[1]}')
 
     # We need:
     # - Per GPU config+executable+args: cycles total, timeout
@@ -209,6 +211,7 @@ create_per_executable_analysis_file() {
     {
         echo "_TOTAL_CYCLES=${TOTAL_CYCLES}"
         echo "_TIMEOUT_VALUE=$((TIMEOUT_VALUE * 5))"
+        echo "_L1I_CACHE_TOTAL_MISSES=${L1I_CACHE_TOTAL_MISSES}"
     } >>"$(_get_gpufi_analysis_path)/executable_analysis.sh"
 }
 

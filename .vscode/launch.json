@@ -33,6 +33,73 @@
       }
     },
     {
+      "name": "Debug GPGPU-Sim - SM7: QV100 - kmeans",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../gpu-rodinia/cuda/kmeans/kmeans",
+      "args": [
+        "-i",
+        "${workspaceFolder}/../gpu-rodinia/data/kmeans/800_34.txt"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "setupenv",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "text": "source ${workspaceFolder}/.gdbinit" },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+            "ignoreFailures": false
+          },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "Debug GPGPU-Sim - SM7: QV100 - srad_v1",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../gpu-rodinia/cuda/srad/srad_v1/srad",
+      "args": [
+        "2",
+        "0.5",
+        "128",
+        "128",
+        "${workspaceFolder}/../gpu-rodinia/data/srad/image.pgm"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "setupenv",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "text": "source ${workspaceFolder}/.gdbinit" },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+            "ignoreFailures": false
+          },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    {
       "name": "Debug cuobjdump_to_ptxplus",
       "type": "cppdbg",
       "linux": {

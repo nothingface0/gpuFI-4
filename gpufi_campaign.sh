@@ -236,7 +236,7 @@ _archive_config_file() {
         echo "WARNING: $config_file not found, could not archive it"
         return
     fi
-    tar czfv "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
+    tar czf "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
     mv "${run_id}.tar.gz" "$csv_results_archive_path"
 }
 _update_csv_file() {
@@ -483,6 +483,7 @@ run_campaign() {
         echo "Tag bitflips that flipped valid data in the cache: ${_num_tag_bitflips}"
         echo "Tag bitflips (L1I) that lead to a HIT: ${_num_false_l1i_hit}"
         echo "Data bitflips that resulted in reading a false instruction: ${_num_l1i_data_bitflips}"
+        echo "L1I cache misses altered: ${_num_l1i_different_misses}"
         _sum_errors=$((_errors_due + _errors_sdc + _errors_masked))
         if [ $_total_runs -ne $_sum_errors ]; then
             echo "WARNING: Total runs requested ($_total_runs) don't match sum of errors ($_sum_errors)"

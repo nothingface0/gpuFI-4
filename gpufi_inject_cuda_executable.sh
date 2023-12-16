@@ -7,8 +7,11 @@ set -e
 
 # The full path to the CUDA executable to inject
 app_binary_path=$1
+# The full path of the injected CUDA executable to output
 app_binary_path_out=$2
+# The instruction (in hex, without 0x) to look for and replace.
 original_instruction_hex=$3
+# The instruction (in hex, without 0x) to replace the original instruction with.
 injected_instruction_hex=$4
 
 # The kernel name will be used to limit the search in the

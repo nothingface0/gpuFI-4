@@ -851,7 +851,7 @@ class gpgpu_sim : public gpgpu_t {
                          const std::string &injected_instruction_hex,
                          const std::string &kernel_name);
   const std::string get_injected_executable_filepath() {
-    return app_binary_path + "_injected";
+    return app_binary_path + "_injected_" + m_config.gpufi_run_id;
   };
 
   std::string swap_instruction(std::string instr_hex);

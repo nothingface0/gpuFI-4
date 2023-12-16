@@ -2053,7 +2053,7 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
 void gpgpu_sim::cuobjdump_injected_executable() {
   std::string command = "$CUDA_INSTALL_PATH/bin/cuobjdump -ptx -elf -sass ";
   command += get_injected_executable_filepath() +
-             " > _cuobjdump_complete_output_injected";
+             " > _cuobjdump_complete_output_injected_" + m_config.gpufi_run_id;
   std::cout << "gpuFI: Running command \"" << command << "\"" << std::endl;
   int result = system(command.c_str());
   if (result) {
@@ -2071,6 +2071,7 @@ void gpgpu_sim::cuobjdump_parse_output(const std::string &cuobjdump_filename) {
   FILE *cuobjdump_in;
   cuobjdump_in = fopen(cuobjdump_filename.c_str(), "r");
   struct cuobjdump_parser parser;
+  strncpy(parser.filename_postfix, m_config.gpufi_run_id, 32);
   std::list<cuobjdumpSection *> cuobjdumpSectionList;
   parser.elfserial = 1;
   parser.ptxserial = 1;
@@ -2143,11 +2144,16 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         std::cout << "gpuFI: Resulting injected instruction: 0x"
                   << instr_hex_bitflipped << ", swapped: 0x"
                   << instr_hex_bitflipped_swapped << std::endl;
+
         inject_executable(instr_hex_swapped, instr_hex_bitflipped_swapped,
                           kernel_name);
+
         // Create _complete_cuobjdmp
         cuobjdump_injected_executable();
-        cuobjdump_parse_output("_cuobjdump_complete_output_injected");
+        std::string cuobjdump_output_filename =
+            "_cuobjdump_complete_output_injected_";
+        cuobjdump_output_filename.append(m_config.gpufi_run_id);
+        cuobjdump_parse_output(cuobjdump_output_filename);
 
         // Convert to ptxplus and read it into a char*
         /*
@@ -2162,14 +2168,16 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         gpgpu_context temp_gpgpu_context;
         ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
         GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
-
         temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
         temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
+        std::string base_filename = "_cuobjdump_1_";
+        base_filename.append(m_config.gpufi_run_id);
 
-        char *ptxplus_str = temp_gpgpu_context.ptxinfo
-                                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                                    "_cuobjdump_1.ptx", "_cuobjdump_1.elf",
-                                    "_cuobjdump_1.sass");
+        char *ptxplus_str =
+            temp_gpgpu_context.ptxinfo
+                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                    base_filename + ".ptx", base_filename + ".elf",
+                    base_filename + ".sass");
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates

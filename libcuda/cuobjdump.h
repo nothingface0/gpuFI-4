@@ -7,6 +7,8 @@
 typedef void *yyscan_t;
 struct cuobjdump_parser {
   yyscan_t scanner;
+  // gpuFI: Filename postfix to identify injected files
+  char filename_postfix[33] = "";
   int elfserial;
   int ptxserial;
   FILE *ptxfile;

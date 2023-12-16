@@ -2168,7 +2168,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         gpgpu_context temp_gpgpu_context;
         ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
         GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
-        ptxinfo_data temp_ptxinfo_data = *(gpgpu_context->ptxinfo);
+        ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
         temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
         temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
         temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;

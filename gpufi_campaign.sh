@@ -288,7 +288,7 @@ gather_results() {
             grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
             grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
             grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
-            grep -iq "syntax error near" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
+            grep -iqE "(syntax error near)|(parse error)" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
             grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
             grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
             grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1

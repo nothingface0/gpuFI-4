@@ -2165,13 +2165,22 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         */
         // Copy the context and the recognizer because not doing so
         // affects the original context and affects all execution.
-        gpgpu_context temp_gpgpu_context;
+        gpgpu_context temp_gpgpu_context = gpgpu_context();
+        // temp_gpgpu_context.s_g_pc_to_insn = gpgpu_ctx->s_g_pc_to_insn;
         ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
         GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
         ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
+        cuda_runtime_api temp_cuda_runtime_api = *(gpgpu_ctx->api);
+        cuda_sim temp_cuda_sim = *(gpgpu_ctx->func_sim);
+        cuda_device_runtime temp_cuda_device_runtime =
+            *(gpgpu_ctx->device_runtime);
+
         temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
         temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
         temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;
+        temp_gpgpu_context.api = &temp_cuda_runtime_api;
+        // temp_gpgpu_context.func_sim = &temp_cuda_sim;
+        temp_gpgpu_context.device_runtime = &temp_cuda_device_runtime;
         std::string base_filename = "_cuobjdump_1_";
         base_filename.append(m_config.gpufi_run_id);
 
@@ -2190,6 +2199,8 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
         assert(ptx_instr != NULL);
+        // gpuFI TODO: assert that the instruction's SASS source matches the
+        // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
         delete ptx;

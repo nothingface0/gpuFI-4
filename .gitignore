@@ -71,6 +71,6 @@ logs*/
 .env
 
 # Logs
-cache_logs/
-
+.gpufi_cache_logs/
+.gpufi_execution_logs/
 gpgpusim.config

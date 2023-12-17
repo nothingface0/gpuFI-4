@@ -78,7 +78,7 @@ emptylines	:	emptylines NEWLINE
 
 section :	PTXHEADER {
 				addCuobjdumpSection(0, cuobjdumpSectionList);
-				if (parser->filename_postfix != ""){
+				if (parser->filename_postfix[0] != 0){
 					snprintf(parser->filename, 1024, "_cuobjdump_%d_%s.ptx", parser->ptxserial++, parser->filename_postfix);
 				} else {
 					snprintf(parser->filename, 1024, "_cuobjdump_%d.ptx", parser->ptxserial++);
@@ -90,7 +90,7 @@ section :	PTXHEADER {
 			}
 		|	ELFHEADER {
 				addCuobjdumpSection(1, cuobjdumpSectionList);
-				if (parser->filename_postfix != ""){
+				if (parser->filename_postfix[0] != 0){
 					snprintf(parser->filename, 1024, "_cuobjdump_%d_%s.elf", parser->elfserial, parser->filename_postfix);
 				} else {
 					snprintf(parser->filename, 1024, "_cuobjdump_%d.elf", parser->elfserial);
@@ -99,7 +99,7 @@ section :	PTXHEADER {
 				setCuobjdumpelffilename(parser->filename, cuobjdumpSectionList);
 			} headerinfo compressedkeyword identifier elfcode {
 				fclose(parser->elffile);
-				if (parser->filename_postfix != ""){
+				if (parser->filename_postfix[0] != 0){
 					snprintf(parser->filename, 1024, "_cuobjdump_%d_%s.sass", parser->elfserial++, parser->filename_postfix);
 				} else {
 					snprintf(parser->filename, 1024, "_cuobjdump_%d.sass", parser->elfserial++);

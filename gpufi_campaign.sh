@@ -27,8 +27,8 @@ KERNEL_NAME=
 # override it if you want, by passing the _GPGPU_SIM_CONFIG_PATH=<path> to the
 # current script.
 _GPGPU_SIM_CONFIG_PATH=
-TMP_DIR="$_SCRIPT_DIR/logs"
-CACHE_LOGS_DIR="$_SCRIPT_DIR/cache_logs"
+TMP_DIR="$_SCRIPT_DIR/.gpufi_execution_logs"
+CACHE_LOGS_DIR="$_SCRIPT_DIR/.gpufi_cache_logs"
 TMP_FILE=tmp.out
 NUM_RUNS=1                             # How many runs to simulate of the given executable. Randomize injections on each run.
 DELETE_LOGS=1                          # if 1 then all logs will be deleted at the end of the script
@@ -274,14 +274,13 @@ _update_csv_file() {
 
 # Parses resulting logs and determines successful execution.
 gather_results() {
-    loop_num=$1 # Used to locate the logs of the run
-    batch_jobs=$2
-    tmp_dir=${TMP_DIR}${loop_num}
-    for batch_num in $(seq 1 $batch_jobs); do
-        log_file="$tmp_dir/tmp.out${batch_num}"
-        config_file="$tmp_dir/gpgpusim.config${batch_num}"
-        if [ ! -f "$config_file" ]; then
-            echo "WARNING: $config_file could not be found!"
+    run_ids=${*?No run_ids array supplied}
+    run_ids=($run_ids)
+    for run_id in "${run_ids[@]}"; do
+        log_file="$TMP_DIR/${run_id}.log"
+        config_file="$TMP_DIR/${run_id}.config"
+        if [ ! -f "$config_file" ] || [ ! -f "$log_file" ]; then
+            echo "WARNING: $config_file or $log_file missing!"
             result="000"
         else
             echo "Examining file $log_file"
@@ -373,41 +372,42 @@ gather_results() {
 batch_execution() {
     batch_jobs=$1
     loop_num=$2
-    tmp_dir=${TMP_DIR}${loop_num}
+    current_bach_run_ids=()
     echo "$(_get_timestamp): Starting batch #$loop_num ($batch_jobs jobs)"
-    mkdir -p "$tmp_dir" >/dev/null 2>&1
+    mkdir -p "$TMP_DIR" >/dev/null 2>&1
     for i in $(seq 1 $batch_jobs); do
         echo "Starting batch #$loop_num job $i/$batch_jobs"
         initialize_config
 
         # unique id for each run
         run_id=$(_calculate_md5_hash "$_GPGPU_SIM_CONFIG_PATH" "$CUDA_EXECUTABLE_PATH" "$(_sanitize_string $CUDA_EXECUTABLE_ARGS)")
+        current_bach_run_ids+=($run_id)
         sed -i -e "s/^-gpufi_run_id.*$/-gpufi_run_id $run_id/" "$_GPGPU_SIM_CONFIG_PATH"
-        cp "${_GPGPU_SIM_CONFIG_PATH}" "$tmp_dir/gpgpusim.config${i}" # save state
-        # Don't use the updated average timeout, use the pessimistic max time calculated during analysis.
-        timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >"$tmp_dir/${TMP_FILE}${i}" 2>&1 &
-        _timeout_pid=$!
-        sleep 1
-        # Store the actual cuda executable PID
-        _child_pid=$(ps -o pid= --ppid "$_timeout_pid")
-        _running_pids+=($_child_pid) # Keep track of background PIDs
-        sleep 5                      # Allow the simulator to properly pick up the config before we modify it.
+        cp "${_GPGPU_SIM_CONFIG_PATH}" "$TMP_DIR/${run_id}.config" # save state
+        # # Don't use the updated average timeout, use the pessimistic max time calculated during analysis.
+        # timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >"$TMP_DIR/${run_id}.log" 2>&1 &
+        # _timeout_pid=$!
+        # sleep 1
+        # # Store the actual cuda executable PID
+        # _child_pid=$(ps -o pid= --ppid "$_timeout_pid")
+        # _running_pids+=($_child_pid) # Keep track of background PIDs
+        # sleep 5                      # Allow the simulator to properly pick up the config before we modify it.
     done
     echo -n "Waiting for batch #$loop_num jobs to complete..."
     wait
     echo "Done."
-    sleep 2          # Play it safe
+    # sleep 2          # Play it safe
     _running_pids=() # Clear running PIDs
 
     echo "Batch #$loop_num complete. Gathering results..."
 
     # We need to pass batch_jobs to gather_results too,
     # to know how many log files it's expecting to find.
-    gather_results $loop_num $batch_jobs
+    gather_results "${current_bach_run_ids[*]}"
     echo "Done"
     if [ $DELETE_LOGS -eq 1 ]; then
         rm -f "$_SCRIPT_DIR/_ptx"* "$_SCRIPT_DIR/_cuobjdump_"* "$_SCRIPT_DIR/_app_cuda"* "$_SCRIPT_DIR/"*.ptx "$_SCRIPT_DIR/f_tempfile_ptx" "$_SCRIPT_DIR/gpgpu_inst_stats.txt" >/dev/null 2>&1
-        rm -rf "$tmp_dir" >/dev/null 2>&1 # comment out to debug output
+        rm -rf "$TMP_DIR" >/dev/null 2>&1 # comment out to debug output
     fi
     if [ $_GPUFI_PROFILE -ne 1 ]; then
         # clean temp files anyway if _GPUFI_PROFILE != 1

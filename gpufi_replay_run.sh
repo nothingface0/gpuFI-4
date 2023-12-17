@@ -82,6 +82,15 @@ verify_run_id() {
 }
 
 ### Script execution sequence ###
+declare -a steps=(preliminary_checks
+    extract_config
+    verify_run_id
+    run_simulator)
+
+for step in "${analysis_steps[@]}"; do
+    eval "do_${step}=1"
+done
+
 # Parse command line arguments -- use <key>=<value> to override any variable declared above.
 for ARGUMENT in "$@"; do
     KEY=$(echo "$ARGUMENT" | cut -f1 -d=)
@@ -90,7 +99,15 @@ for ARGUMENT in "$@"; do
     eval "$KEY=\"$VALUE\""
 done
 
-preliminary_checks
-extract_config
-verify_run_id
-run_simulator
+# The actual replay procedure.
+# For each step, check if the appropriate flag is enabled.
+for step in "${steps[@]}"; do
+    step_flag_name=do_$step
+    if [ "${!step_flag_name}" -ne 0 ]; then
+        echo "Replay step: $step"
+        # Run the actual function
+        eval "$step"
+    else
+        echo "Skipping step: $step"
+    fi
+done

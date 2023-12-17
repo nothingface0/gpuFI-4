@@ -58,8 +58,8 @@ class gpgpu_context {
   void print_simulation_time();
   int gpgpu_opencl_ptx_sim_main_perf(kernel_info_t *grid);
   void cuobjdumpParseBinary(unsigned int handle);
-  class symbol_table *gpgpu_ptx_sim_load_ptx_from_string(const char *p,
-                                                         unsigned source_num);
+  class symbol_table *gpgpu_ptx_sim_load_ptx_from_string(
+      const char *p, unsigned source_num, const char *postfix = 0);
   class symbol_table *gpgpu_ptx_sim_load_ptx_from_filename(
       const char *filename);
   void gpgpu_ptx_info_load_from_filename(const char *filename,

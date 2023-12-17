@@ -2185,7 +2185,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
-            ptxplus_str, 1);
+            ptxplus_str, 1, m_config.gpufi_run_id);
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);

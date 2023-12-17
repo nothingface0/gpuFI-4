@@ -167,9 +167,13 @@ char *ptxinfo_data::gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
 }
 
 symbol_table *gpgpu_context::gpgpu_ptx_sim_load_ptx_from_string(
-    const char *p, unsigned source_num) {
+    const char *p, unsigned source_num, const char *postfix) {
   char buf[1024];
-  snprintf(buf, 1024, "_%u.ptx", source_num);
+  if (postfix != 0) {
+    snprintf(buf, 1024, "_%u_%s.ptx", source_num, postfix);
+  } else {
+    snprintf(buf, 1024, "_%u.ptx", source_num);
+  }
   if (g_save_embedded_ptx) {
     FILE *fp = fopen(buf, "w");
     fprintf(fp, "%s", p);

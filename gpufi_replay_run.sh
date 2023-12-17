@@ -87,7 +87,7 @@ declare -a steps=(preliminary_checks
     verify_run_id
     run_simulator)
 
-for step in "${analysis_steps[@]}"; do
+for step in "${steps[@]}"; do
     eval "do_${step}=1"
 done
 

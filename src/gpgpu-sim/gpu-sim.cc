@@ -2165,36 +2165,37 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         */
         // Copy the context and the recognizer because not doing so
         // affects the original context and affects all execution.
-        gpgpu_context temp_gpgpu_context = gpgpu_context();
-        // temp_gpgpu_context.s_g_pc_to_insn = gpgpu_ctx->s_g_pc_to_insn;
-        ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
-        GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
-        ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
-        cuda_runtime_api temp_cuda_runtime_api = *(gpgpu_ctx->api);
-        cuda_sim temp_cuda_sim = *(gpgpu_ctx->func_sim);
-        cuda_device_runtime temp_cuda_device_runtime =
-            *(gpgpu_ctx->device_runtime);
+        // gpgpu_context temp_gpgpu_context = gpgpu_context();
+        // ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
+        // GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
+        // ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
+        // cuda_runtime_api temp_cuda_runtime_api = *(gpgpu_ctx->api);
+        // cuda_sim temp_cuda_sim = *(gpgpu_ctx->func_sim);
+        // cuda_device_runtime temp_cuda_device_runtime =
+        //     *(gpgpu_ctx->device_runtime);
 
-        temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
-        temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
-        temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;
-        temp_gpgpu_context.api = &temp_cuda_runtime_api;
+        // temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
+        // temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
+        // temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;
+        // temp_gpgpu_context.api = &temp_cuda_runtime_api;
         // temp_gpgpu_context.func_sim = &temp_cuda_sim;
-        temp_gpgpu_context.device_runtime = &temp_cuda_device_runtime;
+        // temp_gpgpu_context.device_runtime = &temp_cuda_device_runtime;
         std::string base_filename = "_cuobjdump_1_";
         base_filename.append(m_config.gpufi_run_id);
 
         char *ptxplus_str =
-            temp_gpgpu_context.ptxinfo
-                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                    base_filename + ".ptx", base_filename + ".elf",
-                    base_filename + ".sass");
+            gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                base_filename + ".ptx", base_filename + ".elf",
+                base_filename + ".sass");
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
-        symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
+        // gpuFI TODO: Is it safe to always use source num 1?
+
+        symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
+        return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
@@ -2203,6 +2204,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
+        basic_block_t *old_block = ptx->m_basic_block;
         delete ptx;
         /*
           This memory will be freed on cache line replacement
@@ -2212,6 +2214,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
+        ptx->assign_bb(old_block);  // gpuFI: Not sure if needed
       }
     }
   } else {
@@ -2275,8 +2278,6 @@ void find_active_kernels_and_threads(
 
       // We're only interested in cores that are currently active.
       if (shader_core_ctx->get_not_completed()) {
-        //  printf("shader idx=%u on cluster=%u with warp size=%u\n",
-        //  shd_core_idx, cluster_idx, shader_core_ctx->get_warp_size());
         kernel_info_t *k = shader_core_ctx->get_kernel();
 
         // Populate the active_kernels_names map, with all unique kernels
@@ -2288,11 +2289,6 @@ void find_active_kernels_and_threads(
           active_kernels_names[k->get_uid()] = kernel_name_cpy;
         }
 
-        //  printf("HMMMMM Shader %u bind to kernel %u \'%s\'\n",
-        //  shader_core_ctx->get_sid(), k->get_uid(), k->name().c_str());
-        //  std::vector<std::vector<ptx_thread_info*>>
-        //  warp_threads_vector;
-
         // Iterate over all warps of the SIMT core.
         for (unsigned warp_idx = 0;
              warp_idx < simt_core_cluster->get_config()->max_warps_per_shader;
@@ -2301,13 +2297,8 @@ void find_active_kernels_and_threads(
 
           // We're interested in those who are still running.
           if (!shd_warp->done_exit()) {
-            //  printf("warp id =%u\n", shd_warp->get_warp_id());
             unsigned m_warp_id = shd_warp->get_warp_id();
             unsigned m_warp_size = shd_warp->get_warp_size();
-
-            //  printf("shader idx=%u on cluster=%u with warp
-            //  size=%u\n", shd_core_idx, cluster_idx,
-            //  shd_warp->get_warp_size());
 
             // Vector to keep all threads in a warp.
             std::vector<ptx_thread_info *> threads_vector;
@@ -2321,7 +2312,6 @@ void find_active_kernels_and_threads(
               // If there is an active thread in the warp, push it to the
               // threads_vector.
               if (ptx_thread_info != NULL && !ptx_thread_info->is_done()) {
-                //  printf("m_warp_id=%u\n",m_warp_id);
                 threads_vector.push_back(ptx_thread_info);
               }
             }
@@ -2360,11 +2350,9 @@ void get_all_active_threads(
                     std::vector<std::vector<ptx_thread_info *>>>::iterator
            kernel_iterator = active_threads_map.begin();
        kernel_iterator != active_threads_map.end(); ++kernel_iterator) {
-    //  printf("Kernel: %u\n", kernel_iterator->first);
-
     // Kernels have been specified for injection, and the first entry is *not*
-    // "0", "0" meaning "inject all running kernels". Check if current kernel is
-    // targeted for bitflip, else skip to the next.
+    // "0", with "0" meaning "inject all running kernels". Check if current
+    // kernel is targeted for bitflip, else skip to the next.
     if (kernels_to_bitflip.size() > 0 && kernels_to_bitflip[0] != 0 &&
         std::find(kernels_to_bitflip.begin(), kernels_to_bitflip.end(),
                   kernel_iterator->first) == kernels_to_bitflip.end()) {
@@ -2398,11 +2386,9 @@ void get_all_active_threads_by_warps(
                     std::vector<std::vector<ptx_thread_info *>>>::iterator
            kernel_iterator = active_threads_map.begin();
        kernel_iterator != active_threads_map.end(); ++kernel_iterator) {
-    //  printf("Kernel: %u\n", kernel_iterator->first);
-
     // Kernels have been specified for injection, and the first entry is *not*
-    // "0", "0" meaning "inject all running kernels". Check if current kernel is
-    // targeted for bitflip, else skip to the next.
+    // "0", with "0" meaning "inject all running kernels". Check if current
+    // kernel is targeted for bitflip, else skip to the next.
     if (kernels_to_bitflip.size() > 0 && kernels_to_bitflip[0] != 0) {
       if (std::find(kernels_to_bitflip.begin(), kernels_to_bitflip.end(),
                     kernel_iterator->first) == kernels_to_bitflip.end()) {
@@ -2413,14 +2399,11 @@ void get_all_active_threads_by_warps(
     for (std::vector<std::vector<ptx_thread_info *>>::iterator warp_iterator =
              kernel_iterator->second.begin();
          warp_iterator != kernel_iterator->second.end(); ++warp_iterator) {
-      //  printf("Warp size: %u\n", warp_iterator->size());
       active_warps.push_back(*warp_iterator);
-      //  printf("warp size=%u\n",(*warp_iterator).size());
     }
   }
 }
 
-// ?????????
 void find_active_shared_memories(
     std::vector<memory_space *> &shared_memories,
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>
@@ -2442,9 +2425,6 @@ void find_active_shared_memories(
          itW != itK->second.end(); ++itW) {
       for (std::vector<ptx_thread_info *>::iterator itT = itW->begin();
            itT != itW->end(); ++itT) {
-        //      printf("Thread uid=%u Thread hw tid=%u, cta hwid=%u, cta
-        //      uid=%u\n", (*itT)->get_uid(), (*itT)->get_hw_tid(),
-        //      (*itT)->get_hw_ctaid(), (*itT)->get_cta_uid());
         shared_memory_map[(*itT)->get_cta_uid()] = (*itT)->m_shared_mem;
       }
     }

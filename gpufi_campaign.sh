@@ -291,7 +291,7 @@ gather_results() {
             grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
             grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
             grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
-            grep -iq "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${_L1I_CACHE_TOTAL_MISSES}" && different_l1i_misses=0 || different_l1i_misses=1
+            grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${_L1I_CACHE_TOTAL_MISSES}" && different_l1i_misses=0 || different_l1i_misses=1
 
             # Was a syntax error found in the resulting log? This might be due to a resulting SASS instruction
             # that the SASS parser does not recognize.

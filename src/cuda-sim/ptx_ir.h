@@ -1446,7 +1446,8 @@ class function_info {
   // parameter size for device kernels
   int m_args_aligned_size;
 
-  addr_t m_n;  // offset in m_instr_mem (used in do_pdom)
+  addr_t m_n;              // offset in m_instr_mem (used in do_pdom)
+  friend class gpgpu_sim;  // gpuFI: allow setting some vars
 };
 
 class arg_buffer_t {

@@ -2187,6 +2187,33 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
             gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
                 base_filename + ".ptx", base_filename + ".elf",
                 base_filename + ".sass");
+
+        // Make a copy of all kernels' m_start_PC here, to fix whatever
+        // re-calculations gpgpu_ptx_sim_load_ptx_from_string does
+        std::map<const void *, unsigned> kernels_PC;
+        std::map<const void *, ptx_instruction **> kernels_instr_mem;
+        std::map<const void *, std::vector<const symbol *>> kernels_args;
+        std::map<const void *, std::list<ptx_instruction *>> kernels_instr;
+        std::map<const void *, std::vector<basic_block_t *>>
+            kernels_basic_blocks;
+        std::map<const void *, std::vector<std::pair<size_t, unsigned>>>
+            kernels_param_configs;
+        std::map<const void *, function_info *> &all_kernels =
+            gpgpu_ctx->the_gpgpusim->the_context->m_kernel_lookup;
+        for (std::map<const void *, function_info *>::iterator iter =
+                 all_kernels.begin();
+             iter != all_kernels.end(); ++iter) {
+          char *k_name = (char *)iter->first;
+          function_info *k_function = iter->second;
+
+          kernels_PC[k_name] = k_function->m_start_PC;
+          kernels_instr_mem[k_name] = k_function->m_instr_mem;
+          kernels_instr[k_name] = k_function->m_instructions;
+          kernels_param_configs[k_name] = k_function->m_param_configs;
+          kernels_basic_blocks[k_name] = k_function->m_basic_blocks;
+          kernels_args[k_name] = k_function->m_args;
+        }
+
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
@@ -2195,7 +2222,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
 
         symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
-        return ptx;
+        // return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
@@ -2205,16 +2232,33 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
         basic_block_t *old_block = ptx->m_basic_block;
+        int old_instr_mem_index = ptx->m_instr_mem_index;
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
+        ptx->m_instr_mem_index = old_instr_mem_index;
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
         ptx->assign_bb(old_block);  // gpuFI: Not sure if needed
+
+        // Replace data in kernels
+        for (std::map<const void *, function_info *>::iterator iter =
+                 all_kernels.begin();
+             iter != all_kernels.end(); ++iter) {
+          char *k_name = (char *)iter->first;
+          function_info *k_function = iter->second;
+
+          // k_function->m_start_PC = kernels_PC[k_name];
+          k_function->m_instr_mem = kernels_instr_mem[k_name];
+          k_function->m_instructions = kernels_instr[k_name];
+          k_function->m_args = kernels_args[k_name];
+          k_function->m_param_configs = kernels_param_configs[k_name];
+          k_function->m_basic_blocks = kernels_basic_blocks[k_name];
+        }
       }
     }
   } else {

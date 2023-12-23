@@ -309,7 +309,7 @@ gather_results() {
             if [ $data_bitflip_grep -eq 0 ]; then
                 _num_l1i_data_bitflips=$((_num_l1i_data_bitflips + 1))
             fi
-            if [ $different_l1i_misses -eq 0 ]; then
+            if [ $different_l1i_misses -eq 1 ]; then
                 _num_l1i_different_misses=$((_num_l1i_different_misses + 1))
             fi
 

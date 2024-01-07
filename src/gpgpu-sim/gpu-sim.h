@@ -371,6 +371,8 @@ extern bool g_interactive_debugger_enabled;
 
 class gpgpu_sim_config : public power_config,
                          public gpgpu_functional_sim_config {
+  friend class shader_core_ctx;
+
  public:
   gpgpu_sim_config(gpgpu_context *ctx)
       : m_shader_config(ctx), m_memory_config(ctx) {
@@ -423,6 +425,8 @@ class gpgpu_sim_config : public power_config,
 
   // gpuFI
   bool gpufi_l1i_cache_bitflips_ignore_mshr;
+  unsigned gpufi_total_cycle_rand;
+  unsigned gpufi_l1i_cache_bitflip_rand_n;
 
  private:
   void init_clock_domains(void);
@@ -450,7 +454,7 @@ class gpgpu_sim_config : public power_config,
 
   unsigned gpufi_thread_rand;
   unsigned gpufi_warp_rand;
-  unsigned gpufi_total_cycle_rand;
+
   char *gpufi_register_rand_n;
   char *gpufi_reg_bitflip_rand_n;
   bool gpufi_per_warp;
@@ -468,7 +472,6 @@ class gpgpu_sim_config : public power_config,
   char *gpufi_l1t_shader_rand_n;
   char *gpufi_l1t_cache_bitflip_rand_n;
   char *gpufi_l1i_shader_rand_n;
-  char *gpufi_l1i_cache_bitflip_rand_n;
   char *gpufi_l2_cache_bitflip_rand_n;
   // gpuFI end
 
@@ -857,6 +860,7 @@ class gpgpu_sim : public gpgpu_t {
   std::string swap_instruction(std::string instr_hex);
   void cuobjdump_injected_executable();
   void cuobjdump_parse_output(const std::string &cuobjdump_filename);
+  friend class exec_shader_core_ctx;
   // gpuFI end
 
   // performance counter for stalls due to congestion.

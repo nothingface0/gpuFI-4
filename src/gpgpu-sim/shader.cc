@@ -884,94 +884,16 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
   }
   // Keep track of injection
   std::vector<unsigned> instruction_bitflips;
+  const unsigned injection_cycle = m_gpu->m_config.gpufi_total_cycle_rand;
   // Keep track of the L1I cache index in the l1i_data_bf_enabled vector
-  int l1i_index = -1;
-  /*
-    Check if any of the active data bitflips apply for the currently decoded
-    instruction.
-    Only check those *not* coming from the MSHR, i.e. check only in the case of
-    a cache HIT.
-  */
-  if (m_gpu->get_config().gpufi_l1i_cache_bitflips_ignore_mshr || !from_mshr) {
-    /*
-      i represents the index of a cache that has active bitflips. It does
-      not represent an actual index or a pointer to a cache.
-    */
-    for (int i = 0; i < m_gpu->l1i_with_data_bf_enabled.size(); i++) {
-      // Find the next L1I with a data bitflip
-      if (m_gpu->l1i_with_data_bf_enabled[i] == false) continue;
-      // Check if it belongs to the current cluster & core
-      if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
-          m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
-        // Absolute address in DRAM
-        address_type absolute_pc = pc + PROGRAM_MEM_START;
-        /*
-          Unique incremental cache line index that the instruction is cached in.
-        */
-        unsigned instr_cache_line_location;
-        // Non-sectored cache, so mask does not play a role.
-        mem_access_sector_mask_t mask = mem_access_sector_mask_t();
-        enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
-            absolute_pc, instr_cache_line_location, mask, false);
-        /*
-          Extra check for HIT. Probably unnecessary, considering we've only
-          allowed this to run for cases of HIT.
-        */
-        if (probe_status == HIT || probe_status == HIT_RESERVED) {
-          // Check if instr_cache_line_location is injected
-          for (int bf_enabled_idx = 0;
-               bf_enabled_idx < m_gpu->l1i_data_bf_enabled[i].size();
-               bf_enabled_idx++) {
-            /*
-              Skip inactive bitflips (i.e. deactivated by a cache line being
-              replaced)
-            */
-            if (!m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx]) {
-              continue;
-            }
-            /*
-              Make sure that the injected cache line is the same as the one
-              where the instruction is cached
-            */
-            if (m_gpu->l1i_data_bf_line_index[i][bf_enabled_idx] ==
-                instr_cache_line_location) {
-              /*
-                Bit offset in cache line of the starting bit of the cached
-                instruction. Use the byte offset of the address.
-              */
-              unsigned instr_cache_line_bit_offset_start =
-                  (absolute_pc & (m_L1I->m_config.get_line_sz() - 1)) * 8;
-              /*
-                Bit offset in cache line of the final bit of the cached
-                instruction.
-              */
-              unsigned instr_cache_line_bit_offset_stop =
-                  instr_cache_line_bit_offset_start +
-                  (correct_instruction_p->isize * 8) - 1;
-              /*
-                If bitflip bit offset is within the instruction start/stop,
-                change the instruction.
-              */
-              if (m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] >=
-                      instr_cache_line_bit_offset_start &&
-                  m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] <=
-                      instr_cache_line_bit_offset_stop) {
-                l1i_index = i;
-                instruction_bitflips.push_back(
-                    m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] -
-                    instr_cache_line_bit_offset_start);
-                std::cout << "gpuFI: Instruction at absolute addr="
-                          << absolute_pc << ", stored at cache block="
-                          << instr_cache_line_location << ", injected at bit "
-                          << m_gpu->l1i_data_bf_line_offset[i][bf_enabled_idx] -
-                                 instr_cache_line_bit_offset_start
-                          << std::endl;
-              }
-            }
-          }
-        }
-      }
-    }
+  if ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >=
+           injection_cycle - 200 &&
+       m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle <=
+           injection_cycle + 200) &&
+      m_sid == 0 && m_cluster->get_cluster_id() == 0) {
+    std::cout << "gpuFI: !!!!!!!! OMG" << std::endl;
+    instruction_bitflips.push_back(
+        m_gpu->m_config.gpufi_l1i_cache_bitflip_rand_n);
   }
   if (instruction_bitflips.size() > 0) {
     std::cout << "gpuFI: Cycle "
@@ -981,17 +903,19 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
               << " injected at " << instruction_bitflips.size() << " bit(s)"
               << std::endl;
 
-    assert(l1i_index >= 0);
     // gpuFI: Try to find bitflipped instruction in map, else
     // create it.
-    if (m_gpu->l1i_pc_to_injected_instruction[l1i_index].find(pc) ==
-        m_gpu->l1i_pc_to_injected_instruction[l1i_index].end()) {
-      m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc] =
+    if (m_gpu->l1i_pc_to_injected_instruction.size() < 1) {
+      m_gpu->l1i_pc_to_injected_instruction.push_back(
+          std::map<address_type, ptx_instruction *>());
+    }
+    if (m_gpu->l1i_pc_to_injected_instruction[0].find(pc) ==
+        m_gpu->l1i_pc_to_injected_instruction[0].end()) {
+      m_gpu->l1i_pc_to_injected_instruction[0][pc] =
           m_gpu->get_injected_instruction(pc, instruction_bitflips,
                                           get_kernel()->get_name());
     }
-    return m_gpu->l1i_pc_to_injected_instruction[l1i_index][pc];
-    // return correct_instruction_p;
+    return m_gpu->l1i_pc_to_injected_instruction[0][pc];
   } else {
     return correct_instruction_p;
   }

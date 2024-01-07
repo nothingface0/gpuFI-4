@@ -721,7 +721,7 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          &gpufi_l1t_cache_bitflip_rand_n, "TODO", "0");
   option_parser_register(opp, "-gpufi_l1i_shader_rand_n", OPT_CSTR,
                          &gpufi_l1i_shader_rand_n, "TODO", "0");
-  option_parser_register(opp, "-gpufi_l1i_cache_bitflip_rand_n", OPT_CSTR,
+  option_parser_register(opp, "-gpufi_l1i_cache_bitflip_rand_n", OPT_INT32,
                          &gpufi_l1i_cache_bitflip_rand_n, "TODO", "0");
   option_parser_register(
       opp, "-gpufi_l1i_cache_bitflips_ignore_mshr", OPT_BOOL,
@@ -2599,8 +2599,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
   char *l1_cache_bitflip_rand_n =
       l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_cache_bitflip_rand_n
       : l1_cache_type == L1C_CACHE ? m_config.gpufi_l1c_cache_bitflip_rand_n
-      : l1_cache_type == L1T_CACHE ? m_config.gpufi_l1t_cache_bitflip_rand_n
-                                   : m_config.gpufi_l1i_cache_bitflip_rand_n;
+                                   : m_config.gpufi_l1t_cache_bitflip_rand_n;
   // Read which SIMT cores to flip from config.
   char *l1_shader_rand_n =
       l1_cache_type == L1D_CACHE   ? m_config.gpufi_l1d_shader_rand_n

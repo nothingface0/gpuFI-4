@@ -29,6 +29,37 @@ class gpgpu_context {
     device_runtime = new cuda_device_runtime(this);
     stats = new ptx_stats(this);
   }
+  // gpuFI copy constructor
+  gpgpu_context(const gpgpu_context *original_ctx) {
+    g_global_allfiles_symbol_table = NULL;
+    sm_next_access_uid = 0;
+    warp_inst_sm_next_uid = 0;
+    operand_info_sm_next_uid = 1;
+    kernel_info_m_next_uid = 1;
+    g_num_ptx_inst_uid = 0;
+    g_ptx_cta_info_uid = 1;
+    symbol_sm_next_uid = 1;
+    function_info_sm_next_uid = 1;
+    debug_tensorcore = 0;
+    api = new cuda_runtime_api(this);
+    ptxinfo = new ptxinfo_data(original_ctx->ptxinfo);
+    ptx_parser = new ptx_recognizer(original_ctx->ptx_parser);
+    the_gpgpusim = new GPGPUsim_ctx(this);
+    func_sim = new cuda_sim(original_ctx->func_sim);
+    device_runtime = new cuda_device_runtime(this);
+    // stats = new ptx_stats(this);
+    ptx_parser->g_shader_core_config =
+        original_ctx->ptx_parser->g_shader_core_config;
+  };
+  ~gpgpu_context() {
+    delete api;
+    delete ptxinfo;
+    delete ptx_parser;
+    delete the_gpgpusim;
+    delete func_sim;
+    delete device_runtime;
+    delete stats;
+  };
   // global list
   symbol_table *g_global_allfiles_symbol_table;
   const char *g_filename;

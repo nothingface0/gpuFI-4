@@ -52,6 +52,22 @@ class GPGPUsim_ctx {
     the_context = NULL;
     gpgpu_ctx = ctx;
   }
+  GPGPUsim_ctx(const GPGPUsim_ctx *original_gpgpusim_ctx) {
+    g_sim_active = false;
+    g_sim_done = true;
+    break_limit = false;
+    g_sim_lock = PTHREAD_MUTEX_INITIALIZER;
+
+    g_the_gpu_config = NULL;
+    g_the_gpu = NULL;
+    g_stream_manager = NULL;
+    the_cude_device = NULL;
+    the_context = NULL;
+    gpgpu_ctx = original_gpgpusim_ctx->gpgpu_ctx;
+    g_the_gpu_config =
+        new gpgpu_sim_config(original_gpgpusim_ctx->g_the_gpu_config);
+  }
+  ~GPGPUsim_ctx() { delete g_the_gpu_config; }
 
   // struct gpgpu_ptx_sim_arg *grid_params;
 

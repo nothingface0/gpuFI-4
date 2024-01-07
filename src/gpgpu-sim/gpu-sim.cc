@@ -2155,66 +2155,54 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         cuobjdump_output_filename.append(m_config.gpufi_run_id);
         cuobjdump_parse_output(cuobjdump_output_filename);
 
-        // Convert to ptxplus and read it into a char*
-        /*
-          gpuFI TODO: Is it safe to assume the filenames?
-          gpuFI TODO: Is it safe to call the class method? Maybe it updates
-            some variable for the whole context that shouldn't be updated?
-          gpuFI TODO: This may fail to parse the injected SASS. How will we
-          parse the failure?
-        */
         // Copy the context and the recognizer because not doing so
         // affects the original context and affects all execution.
-        // gpgpu_context temp_gpgpu_context = gpgpu_context();
-        // ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
-        // GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
-        // ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
-        // cuda_runtime_api temp_cuda_runtime_api = *(gpgpu_ctx->api);
-        // cuda_sim temp_cuda_sim = *(gpgpu_ctx->func_sim);
-        // cuda_device_runtime temp_cuda_device_runtime =
-        //     *(gpgpu_ctx->device_runtime);
+        gpgpu_context temp_gpgpu_context = gpgpu_context(gpgpu_ctx);
 
-        // temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
-        // temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
-        // temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;
-        // temp_gpgpu_context.api = &temp_cuda_runtime_api;
-        // temp_gpgpu_context.func_sim = &temp_cuda_sim;
-        // temp_gpgpu_context.device_runtime = &temp_cuda_device_runtime;
         std::string base_filename = "_cuobjdump_1_";
         base_filename.append(m_config.gpufi_run_id);
 
         char *ptxplus_str =
-            gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                base_filename + ".ptx", base_filename + ".elf",
-                base_filename + ".sass");
+            temp_gpgpu_context.ptxinfo
+                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                    base_filename + ".ptx", base_filename + ".elf",
+                    base_filename + ".sass");
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         // gpuFI TODO: Is it safe to always use source num 1?
 
-        symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
+        symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
-        return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
         assert(ptx_instr != NULL);
+        // return ptx;
         // gpuFI TODO: assert that the instruction's SASS source matches the
         // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
         basic_block_t *old_block = ptx->m_basic_block;
+        int old_scheduler_id = ptx->m_scheduler_id;
+        unsigned int old_warp_id = ptx->m_warp_id;
+        unsigned int old_dynamic_warp_id = ptx->m_dynamic_warp_id;
+        const core_config *old_core_config = ptx->m_config;
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
+        ptx->m_config = gpgpu_ctx->ptx_parser->g_shader_core_config;
+        ptx->m_dynamic_warp_id = old_dynamic_warp_id;
+        ptx->m_warp_id = old_warp_id;
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
         ptx->assign_bb(old_block);  // gpuFI: Not sure if needed
+        ptx->m_scheduler_id = old_scheduler_id;
       }
     }
   } else {

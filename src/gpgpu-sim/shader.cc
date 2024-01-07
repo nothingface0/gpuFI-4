@@ -892,6 +892,31 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
     Only check those *not* coming from the MSHR, i.e. check only in the case of
     a cache HIT.
   */
+  static bool has_parsing_run = false;
+  if (has_parsing_run == false &&
+      m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle >=
+          m_gpu->m_config.gpufi_total_cycle_rand - 1000 &&
+      m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle <=
+          m_gpu->m_config.gpufi_total_cycle_rand + 1000) {
+    std::string base_filename = "_cuobjdump_1_";
+    base_filename.append(m_gpu->m_config.gpufi_run_id);
+
+    char *ptxplus_str = m_gpu->gpgpu_ctx->ptxinfo
+                            ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                                base_filename + ".ptx", base_filename + ".elf",
+                                base_filename + ".sass");
+    // Parse PTXPLUS into a symbol_table.
+    symbol_table *symtab;
+    // gpuFI TODO: Is it safe to call the class method? Maybe it updates
+    // some variable for the whole context that shouldn't be updated?
+    // gpuFI TODO: Is it safe to always use source num 1?
+
+    symtab = m_gpu->gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
+        ptxplus_str, 1, m_gpu->m_config.gpufi_run_id);
+    has_parsing_run = true;
+    std::cout << "gpuFI: !!! Parsed " << base_filename << " at cycle "
+              << m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle << std::endl;
+  }
   if (m_gpu->get_config().gpufi_l1i_cache_bitflips_ignore_mshr || !from_mshr) {
     /*
       i represents the index of a cache that has active bitflips. It does
@@ -906,7 +931,8 @@ const warp_inst_t *exec_shader_core_ctx::get_next_inst(unsigned warp_id,
         // Absolute address in DRAM
         address_type absolute_pc = pc + PROGRAM_MEM_START;
         /*
-          Unique incremental cache line index that the instruction is cached in.
+          Unique incremental cache line index that the instruction is cached
+          in.
         */
         unsigned instr_cache_line_location;
         // Non-sectored cache, so mask does not play a role.

@@ -371,6 +371,8 @@ extern bool g_interactive_debugger_enabled;
 
 class gpgpu_sim_config : public power_config,
                          public gpgpu_functional_sim_config {
+  friend class exec_shader_core_ctx;
+
  public:
   gpgpu_sim_config(gpgpu_context *ctx)
       : m_shader_config(ctx), m_memory_config(ctx) {
@@ -702,7 +704,7 @@ class gpgpu_sim : public gpgpu_t {
 
   //// configuration parameters ////
   const gpgpu_sim_config &m_config;
-
+  friend class exec_shader_core_ctx;
   const struct cudaDeviceProp *m_cuda_properties;
   // const shader_core_config *m_shader_config;
   // const memory_config *m_memory_config;

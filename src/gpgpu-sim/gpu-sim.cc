@@ -2193,9 +2193,9 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // some variable for the whole context that shouldn't be updated?
         // gpuFI TODO: Is it safe to always use source num 1?
 
+        return ptx;
         symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
-        return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);

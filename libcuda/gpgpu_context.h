@@ -44,10 +44,10 @@ class gpgpu_context {
     api = new cuda_runtime_api(this);
     ptxinfo = new ptxinfo_data(original_ctx->ptxinfo);
     ptx_parser = new ptx_recognizer(original_ctx->ptx_parser);
-    the_gpgpusim = new GPGPUsim_ctx(this);
+    the_gpgpusim = new GPGPUsim_ctx(original_ctx->the_gpgpusim);
     func_sim = new cuda_sim(original_ctx->func_sim);
     device_runtime = new cuda_device_runtime(this);
-    // stats = new ptx_stats(this);
+    stats = new ptx_stats(this);
     ptx_parser->g_shader_core_config =
         original_ctx->ptx_parser->g_shader_core_config;
   };

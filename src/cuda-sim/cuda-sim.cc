@@ -1792,11 +1792,15 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
         break;
       }
     }
-    // std::cout << "gpuFI: "
-    //           << "Thread " << get_uid() << " of Core id " << core_id
-    //           << ", Cluster " << cluster_id
-    //           << " getting injected instruction with PC=" << pc << std::endl;
     assert(l1i_index >= 0);
+    std::cout << "gpuFI: "
+              << "Thread " << get_uid() << " of Core id " << core_id
+              << ", Cluster " << cluster_id
+              << " getting injected instruction with PC=" << pc << "("
+              << m_core->get_gpu()
+                     ->l1i_pc_to_injected_instruction[l1i_index][pc]
+                     ->get_source_str()
+              << ")" << std::endl;
   }
   const ptx_instruction *pI =
       inst.m_is_injected

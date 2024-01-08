@@ -2158,7 +2158,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // Copy the context and the recognizer because not doing so
         // affects the original context and affects all execution.
         gpgpu_context temp_gpgpu_context = gpgpu_context(gpgpu_ctx);
-
+        std::vector<operand_info> original_operands = ptx->m_operands;
         std::string base_filename = "_cuobjdump_1_";
         base_filename.append(m_config.gpufi_run_id);
 
@@ -2172,37 +2172,41 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         // gpuFI TODO: Is it safe to always use source num 1?
-
         symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
         assert(ptx_instr != NULL);
-        // return ptx;
+        // return ptx; // gpuFI: test
         // gpuFI TODO: assert that the instruction's SASS source matches the
         // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
-        basic_block_t *old_block = ptx->m_basic_block;
-        int old_scheduler_id = ptx->m_scheduler_id;
-        unsigned int old_warp_id = ptx->m_warp_id;
-        unsigned int old_dynamic_warp_id = ptx->m_dynamic_warp_id;
-        const core_config *old_core_config = ptx->m_config;
+
+        basic_block_t *old_block = ptx->m_basic_block;  // gpuFI: test
+        int old_scheduler_id = ptx->m_scheduler_id;     // gpuFI: test
+        unsigned int old_warp_id = ptx->m_warp_id;      // gpuFI: test
+        unsigned int old_dynamic_warp_id =
+            ptx->m_dynamic_warp_id;                          // gpuFI: test
+        const core_config *old_core_config = ptx->m_config;  // gpuFI: test
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
-        ptx->m_config = gpgpu_ctx->ptx_parser->g_shader_core_config;
-        ptx->m_dynamic_warp_id = old_dynamic_warp_id;
-        ptx->m_warp_id = old_warp_id;
+        ptx->m_config = old_core_config;  // gpuFI: test
+        // ptx->m_config =
+        //     gpgpu_ctx->ptx_parser->g_shader_core_config;  // gpuFI: test
+        ptx->m_dynamic_warp_id = old_dynamic_warp_id;  // gpuFI: test
+        ptx->m_warp_id = old_warp_id;                  // gpuFI: test
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
-        ptx->assign_bb(old_block);  // gpuFI: Not sure if needed
-        ptx->m_scheduler_id = old_scheduler_id;
+        ptx->assign_bb(old_block);               // gpuFI: test
+        ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
+        ptx->m_operands = original_operands;     // gpuFI: test
       }
     }
   } else {

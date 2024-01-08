@@ -1122,6 +1122,9 @@ class ptx_instruction : public warp_inst_t {
     return false;
   }
 
+ public:
+  std::vector<operand_info> m_operands;
+
  private:
   void set_opcode_and_latency();
   void set_bar_type();
@@ -1140,7 +1143,6 @@ class ptx_instruction : public warp_inst_t {
   int m_pred_mod;
   int m_opcode;
   const symbol *m_label;
-  std::vector<operand_info> m_operands;
   operand_info m_return_var;
 
   std::list<int> m_options;

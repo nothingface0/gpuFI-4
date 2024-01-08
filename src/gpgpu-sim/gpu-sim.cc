@@ -2098,10 +2098,9 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
       // Get the 1st capture group from the match
       std::string instr_hex = match[1].str();
       if (instr_hex.size() > 0) {
-        std::cout << "gpuFI: Command=" << ptx->get_source_str()
+        std::cout << "gpuFI: PTXPLUS Instruction " << ptx->get_source_str()
                   << " matches pattern " << regexp_pattern
                   << ". Matched str=" << instr_hex << std::endl;
-        // gpuFI TODO: Search for instr_hex in the executable.
         /*
           The binary instruction read from the source file
           is always expected to be "0x" + 16 hex characters (including
@@ -2195,7 +2194,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
 
         symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
-        return ptx;
+        // return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);

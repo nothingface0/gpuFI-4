@@ -854,19 +854,6 @@ class operand_info {
   }
   addr_t get_const_mem_offset() const { return m_const_mem_offset; }
   bool is_non_arch_reg() const { return m_is_non_arch_reg; }
-
- private:
-  gpgpu_context *gpgpu_ctx;
-  unsigned m_uid;
-  bool m_valid;
-  bool m_vector;
-  enum operand_type m_type;
-  bool m_immediate_address;
-  enum _memory_space_t m_addr_space;
-  int m_operand_lohi;
-  int m_double_operand_type;
-  bool m_operand_neg;
-  addr_t m_const_mem_offset;
   union {
     int m_int;
     unsigned int m_unsigned;
@@ -879,6 +866,19 @@ class operand_info {
     const symbol *m_symbolic;
     const symbol **m_vector_symbolic;
   } m_value;
+  unsigned m_uid;
+
+ private:
+  gpgpu_context *gpgpu_ctx;
+  bool m_valid;
+  bool m_vector;
+  enum operand_type m_type;
+  bool m_immediate_address;
+  enum _memory_space_t m_addr_space;
+  int m_operand_lohi;
+  int m_double_operand_type;
+  bool m_operand_neg;
+  addr_t m_const_mem_offset;
 
   int m_addr_offset;
 

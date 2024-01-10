@@ -2098,7 +2098,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
       // Get the 1st capture group from the match
       std::string instr_hex = match[1].str();
       if (instr_hex.size() > 0) {
-        std::cout << "gpuFI: Command=" << ptx->get_source_str()
+        std::cout << "gpuFI: PTXPLUS instruction " << ptx->get_source_str()
                   << " matches pattern " << regexp_pattern
                   << ". Matched str=" << instr_hex << std::endl;
         // gpuFI TODO: Search for instr_hex in the executable.
@@ -2184,28 +2184,38 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
 
-        // basic_block_t *old_block = ptx->m_basic_block;  // gpuFI: test
-        // int old_scheduler_id = ptx->m_scheduler_id;     // gpuFI: test
-        // unsigned int old_warp_id = ptx->m_warp_id;      // gpuFI: test
-        // unsigned int old_dynamic_warp_id =
-        //     ptx->m_dynamic_warp_id;                          // gpuFI: test
-        // const core_config *old_core_config = ptx->m_config;  // gpuFI: test
+        basic_block_t *old_block = ptx->m_basic_block;  // gpuFI: test
+        int old_scheduler_id = ptx->m_scheduler_id;     // gpuFI: test
+        unsigned int old_warp_id = ptx->m_warp_id;      // gpuFI: test
+        unsigned int old_dynamic_warp_id =
+            ptx->m_dynamic_warp_id;                          // gpuFI: test
+        const core_config *old_core_config = ptx->m_config;  // gpuFI: test
+
+        /* gpuFI: test */
+        ptx->m_operands[2] = ptx_instr->m_operands[2];
+        ptx->m_operands[2].m_uid = original_operands[2].m_uid;
+        ptx->m_is_injected = true;
+        return ptx;
+
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
-        // ptx->m_config = old_core_config;  // gpuFI: test
+        ptx->m_config = old_core_config;  // gpuFI: test
         // ptx->m_config =
         //     gpgpu_ctx->ptx_parser->g_shader_core_config;  // gpuFI: test
-        // ptx->m_dynamic_warp_id = old_dynamic_warp_id;  // gpuFI: test
-        // ptx->m_warp_id = old_warp_id;                  // gpuFI: test
+        ptx->m_dynamic_warp_id = old_dynamic_warp_id;  // gpuFI: test
+        ptx->m_warp_id = old_warp_id;                  // gpuFI: test
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
-        // ptx->assign_bb(old_block);               // gpuFI: test
-        // ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
+        ptx->assign_bb(old_block);               // gpuFI: test
+        ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
+        // original_operands[2] = ptx->m_operands[2];  // gpuFI: test
+        original_operands[2].m_value =
+            ptx->m_operands[2].m_value;       // gpuFI: test
         ptx->m_operands = original_operands;  // gpuFI: test
       }
     }

@@ -31,7 +31,8 @@ class gpgpu_context {
   }
   // gpuFI copy constructor
   gpgpu_context(const gpgpu_context *original_ctx) {
-    g_global_allfiles_symbol_table = NULL;
+    g_global_allfiles_symbol_table =
+        original_ctx->g_global_allfiles_symbol_table;
     sm_next_access_uid = 0;
     warp_inst_sm_next_uid = 0;
     operand_info_sm_next_uid = 1;

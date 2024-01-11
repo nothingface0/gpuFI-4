@@ -106,11 +106,10 @@ symbol_table *gpgpu_context::init_parser(const char *ptx_filename) {
         new symbol_table("global_allfiles", 0, NULL, this);
     ptx_parser->g_global_symbol_table = ptx_parser->g_current_symbol_table =
         g_global_allfiles_symbol_table;
+  } else {
+    ptx_parser->g_global_symbol_table = ptx_parser->g_current_symbol_table =
+        g_global_allfiles_symbol_table;
   }
-  /*else {
-      g_global_symbol_table = g_current_symbol_table = new
-  symbol_table("global",0,g_global_allfiles_symbol_table);
-  }*/
 
 #define DEF(X, Y) g_ptx_token_decode[X] = Y;
 #include "ptx_parser_decode.def"

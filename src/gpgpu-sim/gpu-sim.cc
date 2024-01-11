@@ -2191,11 +2191,11 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
             ptx->m_dynamic_warp_id;                          // gpuFI: test
         const core_config *old_core_config = ptx->m_config;  // gpuFI: test
 
-        /* gpuFI: test */
-        ptx->m_operands[2] = ptx_instr->m_operands[2];
-        ptx->m_operands[2].m_uid = original_operands[2].m_uid;
-        ptx->m_is_injected = true;
-        return ptx;
+        // /* gpuFI: test */
+        // ptx->m_operands[2] = ptx_instr->m_operands[2];
+        // ptx->m_operands[2].m_uid = original_operands[2].m_uid;
+        // ptx->m_is_injected = true;
+        // return ptx;
 
         delete ptx;
         /*
@@ -2213,10 +2213,10 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         ptx->pre_decode();
         ptx->assign_bb(old_block);               // gpuFI: test
         ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
-        // original_operands[2] = ptx->m_operands[2];  // gpuFI: test
-        original_operands[2].m_value =
-            ptx->m_operands[2].m_value;       // gpuFI: test
-        ptx->m_operands = original_operands;  // gpuFI: test
+        // // original_operands[2] = ptx->m_operands[2];  // gpuFI: test
+        // original_operands[2].m_value =
+        //     ptx->m_operands[2].m_value;       // gpuFI: test
+        // ptx->m_operands = original_operands;  // gpuFI: test
       }
     }
   } else {

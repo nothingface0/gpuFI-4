@@ -353,6 +353,7 @@ class symbol_table {
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+  std::string m_scope_name;
 
  private:
   unsigned m_reg_allocator;
@@ -365,7 +366,6 @@ class symbol_table {
 
   symbol_table *m_parent;
   ptx_version m_ptx_version;
-  std::string m_scope_name;
   std::map<std::string, symbol *>
       m_symbols;  // map from name of register to pointers to the registers
   std::map<type_info_key, type_info *, type_info_key_compare> m_types;

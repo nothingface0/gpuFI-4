@@ -106,9 +106,11 @@ symbol_table *gpgpu_context::init_parser(const char *ptx_filename) {
         new symbol_table("global_allfiles", 0, NULL, this);
     ptx_parser->g_global_symbol_table = ptx_parser->g_current_symbol_table =
         g_global_allfiles_symbol_table;
-  } else {
-    ptx_parser->g_global_symbol_table = ptx_parser->g_current_symbol_table =
-        g_global_allfiles_symbol_table;
+    // gpuFI
+    if (g_original_global_allfiles_symbol_table != NULL) {
+      ptx_parser->g_original_global_symbol_table =
+          g_original_global_allfiles_symbol_table;
+    }
   }
 
 #define DEF(X, Y) g_ptx_token_decode[X] = Y;
@@ -677,6 +679,12 @@ void ptx_recognizer::add_double_operand(const char *d1, const char *d2) {
   const symbol *s1 = g_current_symbol_table->lookup(d1);
   const symbol *s2 = g_current_symbol_table->lookup(d2);
   parse_assert(s1 != NULL && s2 != NULL, "component(s) missing declarations.");
+  s1 = g_original_global_symbol_table
+           ->m_symbols[g_current_symbol_table->m_scope_name]
+           ->lookup(d1);
+  s2 = g_original_global_symbol_table
+           ->m_symbols[g_current_symbol_table->m_scope_name]
+           ->lookup(d2);
   g_operands.push_back(operand_info(s1, s2, gpgpu_ctx));
 }
 
@@ -894,6 +902,9 @@ void ptx_recognizer::add_scalar_operand(const char *identifier) {
       parse_error(msg.c_str());
     }
   }
+  s = g_original_global_symbol_table
+          ->m_symbols[g_current_symbol_table->m_scope_name]
+          ->lookup(identifier);
   g_operands.push_back(operand_info(s, gpgpu_ctx));
 }
 
@@ -904,6 +915,9 @@ void ptx_recognizer::add_neg_pred_operand(const char *identifier) {
     s = g_current_symbol_table->add_variable(
         identifier, NULL, 1, gpgpu_ctx->g_filename, ptx_get_lineno(scanner));
   }
+  s = g_original_global_symbol_table
+          ->m_symbols[g_current_symbol_table->m_scope_name]
+          ->lookup(identifier);
   operand_info op(s, gpgpu_ctx);
   op.set_neg_pred();
   g_operands.push_back(op);
@@ -917,6 +931,9 @@ void ptx_recognizer::add_address_operand(const char *identifier, int offset) {
         std::string("operand \"") + identifier + "\" has no declaration.";
     parse_error(msg.c_str());
   }
+  s = g_original_global_symbol_table
+          ->m_symbols[g_current_symbol_table->m_scope_name]
+          ->lookup(identifier);
   g_operands.push_back(operand_info(s, offset, gpgpu_ctx));
 }
 

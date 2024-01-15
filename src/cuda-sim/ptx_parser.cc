@@ -1065,7 +1065,8 @@ void ptx_recognizer::add_scalar_operand(const char *identifier) {
             ->lookup(identifier);
     // gpuFI: Check that the symbol exists in the original symbol table, it's
     // possible that the symbol read from the newly injected binary did not
-    // exist previously (e.g. r3 + bitflip --> r35)
+    // exist previously (e.g. r3 + bitflip --> r35).
+    // gpuFI TODO: Is this the best idea to proceed? At least it doesn't crash.
     if (s == NULL) {
       s = s_backup;
     }

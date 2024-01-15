@@ -354,6 +354,7 @@ class symbol_table {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   std::string m_scope_name;
+  std::map<std::string, symbol_table *> m_function_symtab_lookup;
 
  private:
   unsigned m_reg_allocator;
@@ -372,7 +373,6 @@ class symbol_table {
   std::list<symbol *> m_globals;
   std::list<symbol *> m_consts;
   std::map<std::string, function_info *> m_function_info_lookup;
-  std::map<std::string, symbol_table *> m_function_symtab_lookup;
 
   // Jin: handle instruction group for cdp
   unsigned m_inst_group_id;

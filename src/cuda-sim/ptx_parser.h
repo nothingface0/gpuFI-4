@@ -55,7 +55,6 @@ class ptx_recognizer {
     g_global_symbol_table = NULL;
     g_original_global_symbol_table = NULL;
     g_current_symbol_table = NULL;
-    g_original_current_symbol_table = NULL;
     g_last_symbol = NULL;
     g_error_detected = 0;
     g_entry_func_param_index = 0;
@@ -82,7 +81,6 @@ class ptx_recognizer {
     g_global_symbol_table = NULL;
     g_original_global_symbol_table = NULL;
     g_current_symbol_table = NULL;
-    g_original_current_symbol_table = NULL;
     g_last_symbol = NULL;
     g_error_detected = 0;
     g_entry_func_param_index = 0;
@@ -124,10 +122,12 @@ class ptx_recognizer {
   unsigned g_const_alloc;
   unsigned g_max_regs_per_thread;
   symbol_table *g_global_symbol_table;
-  symbol_table *g_original_global_symbol_table;  // gpuFI: Copy of the original
-                                                 // symbol table
+  /*
+    gpuFI: Copy of the symbol table of the main gpgpu_context object, to be used
+    when looking up existing symbols when parsing the new, injected executable.
+  */
+  symbol_table *g_original_global_symbol_table;
   symbol_table *g_current_symbol_table;
-  symbol_table *g_original_current_symbol_table;
   symbol *g_last_symbol;
   std::list<ptx_instruction *> g_instructions;
   int g_error_detected;

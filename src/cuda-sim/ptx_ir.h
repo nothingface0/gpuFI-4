@@ -330,6 +330,9 @@ class symbol_table {
   addr_t get_global_next() { return m_global_next; }
   addr_t get_local_next() { return m_local_next; }
   addr_t get_tex_next() { return m_tex_next; }
+  std::map<std::string, symbol_table *> &get_function_symtab_lookup() {
+    return m_function_symtab_lookup;
+  }
   std::map<std::string, symbol *> &get_symbols() { return m_symbols; }
   void alloc_shared(unsigned num_bytes) { m_shared_next += num_bytes; }
   void alloc_sstarr(unsigned num_bytes) { m_sstarr_next += num_bytes; }
@@ -353,8 +356,6 @@ class symbol_table {
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
-  std::string m_scope_name;
-  std::map<std::string, symbol_table *> m_function_symtab_lookup;
 
  private:
   unsigned m_reg_allocator;
@@ -367,12 +368,14 @@ class symbol_table {
 
   symbol_table *m_parent;
   ptx_version m_ptx_version;
+  std::string m_scope_name;
   std::map<std::string, symbol *>
       m_symbols;  // map from name of register to pointers to the registers
   std::map<type_info_key, type_info *, type_info_key_compare> m_types;
   std::list<symbol *> m_globals;
   std::list<symbol *> m_consts;
   std::map<std::string, function_info *> m_function_info_lookup;
+  std::map<std::string, symbol_table *> m_function_symtab_lookup;
 
   // Jin: handle instruction group for cdp
   unsigned m_inst_group_id;
@@ -854,6 +857,19 @@ class operand_info {
   }
   addr_t get_const_mem_offset() const { return m_const_mem_offset; }
   bool is_non_arch_reg() const { return m_is_non_arch_reg; }
+
+ private:
+  gpgpu_context *gpgpu_ctx;
+  unsigned m_uid;
+  bool m_valid;
+  bool m_vector;
+  enum operand_type m_type;
+  bool m_immediate_address;
+  enum _memory_space_t m_addr_space;
+  int m_operand_lohi;
+  int m_double_operand_type;
+  bool m_operand_neg;
+  addr_t m_const_mem_offset;
   union {
     int m_int;
     unsigned int m_unsigned;
@@ -866,19 +882,6 @@ class operand_info {
     const symbol *m_symbolic;
     const symbol **m_vector_symbolic;
   } m_value;
-  unsigned m_uid;
-
- private:
-  gpgpu_context *gpgpu_ctx;
-  bool m_valid;
-  bool m_vector;
-  enum operand_type m_type;
-  bool m_immediate_address;
-  enum _memory_space_t m_addr_space;
-  int m_operand_lohi;
-  int m_double_operand_type;
-  bool m_operand_neg;
-  addr_t m_const_mem_offset;
 
   int m_addr_offset;
 
@@ -1122,9 +1125,6 @@ class ptx_instruction : public warp_inst_t {
     return false;
   }
 
- public:
-  std::vector<operand_info> m_operands;
-
  private:
   void set_opcode_and_latency();
   void set_bar_type();
@@ -1143,6 +1143,7 @@ class ptx_instruction : public warp_inst_t {
   int m_pred_mod;
   int m_opcode;
   const symbol *m_label;
+  std::vector<operand_info> m_operands;
   operand_info m_return_var;
 
   std::list<int> m_options;

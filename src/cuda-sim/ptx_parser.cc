@@ -527,7 +527,8 @@ void ptx_recognizer::add_constptr(const char *identifier1,
     // want to change the original s1.
     const symbol *s2_backup = s2;
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(identifier2);
     if (s2 == NULL) {
       s2 = s2_backup;
@@ -702,10 +703,12 @@ void ptx_recognizer::add_double_operand(const char *d1, const char *d2) {
     const symbol *s1_backup = s1;
     const symbol *s2_backup = s2;
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d2);
     if (s1 == NULL) {
       s1 = s1_backup;
@@ -729,7 +732,8 @@ void ptx_recognizer::add_1vector_operand(const char *d1) {
     const symbol *s1_backup = s1;
 
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     // gpuFI TODO: If identifiers d1 was modified by a bitflip, their
     // equivalent symbols may NOT exist in the original global symbol table, add
@@ -751,10 +755,12 @@ void ptx_recognizer::add_2vector_operand(const char *d1, const char *d2) {
     const symbol *s1_backup = s1;
     const symbol *s2_backup = s2;
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d2);
     // gpuFI TODO: If identifiers d1 to d2 were modified by a bitflip, their
     // equivalent symbols may NOT exist in the original global symbol table, add
@@ -776,13 +782,16 @@ void ptx_recognizer::add_3vector_operand(const char *d1, const char *d2,
   // value
   if (g_original_global_symbol_table != NULL) {
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d2);
     s3 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d3);
     // gpuFI TODO: If identifiers d1 to d3 were modified by a bitflip, their
     // equivalent symbols may NOT exist in the original global symbol table, add
@@ -805,22 +814,26 @@ void ptx_recognizer::add_4vector_operand(const char *d1, const char *d2,
   // gpuFI: lookup symbol in original gpgpu_context, in order to get correct
   // value
   if (g_original_global_symbol_table != NULL) {
-    null_op =
-        g_original_global_symbol_table
-            ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
-            ->lookup("_");
+    null_op = g_original_global_symbol_table
+                  ->get_function_symtab_lookup()[g_current_symbol_table
+                                                     ->get_scope_name()]
+                  ->lookup("_");
 
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d2);
     s3 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d3);
     s4 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d4);
     // gpuFI TODO: If identifiers d1 to d4 were modified by a bitflip, their
     // equivalent symbols may NOT exist in the original global symbol table, add
@@ -852,33 +865,41 @@ void ptx_recognizer::add_8vector_operand(const char *d1, const char *d2,
   // gpuFI: lookup symbol in original gpgpu_context, in order to get correct
   // value
   if (g_original_global_symbol_table != NULL) {
-    null_op =
-        g_original_global_symbol_table
-            ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
-            ->lookup("_");
+    null_op = g_original_global_symbol_table
+                  ->get_function_symtab_lookup()[g_current_symbol_table
+                                                     ->get_scope_name()]
+                  ->lookup("_");
     s1 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d1);
     s2 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d2);
     s3 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d3);
     s4 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d4);
     s5 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d5);
     s6 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d6);
     s7 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d7);
     s8 = g_original_global_symbol_table
-             ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+             ->get_function_symtab_lookup()[g_current_symbol_table
+                                                ->get_scope_name()]
              ->lookup(d8);
     // gpuFI TODO: If identifiers d1 to d8 were modified by a bitflip, their
     // equivalent symbols may NOT exist in the original global symbol table, add
@@ -939,14 +960,16 @@ void ptx_recognizer::change_memory_addr_space(const char *identifier) {
       // gpuFI TODO: If the identifier is modified a bitflip, the equivalent
       // symbol may not exist in the original symtab and NULL is returned, add a
       // check here.
-      parse_assert(g_original_global_symbol_table
-                           ->m_function_symtab_lookup[g_current_symbol_table
-                                                          ->m_scope_name]
-                           ->lookup(identifier) != NULL,
-                   "Constant was not defined.");
+      parse_assert(
+          g_original_global_symbol_table
+                  ->get_function_symtab_lookup()[g_current_symbol_table
+                                                     ->get_scope_name()]
+                  ->lookup(identifier) != NULL,
+          "Constant was not defined.");
       g_operands.back().set_const_mem_offset(
           g_original_global_symbol_table
-              ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+              ->get_function_symtab_lookup()[g_current_symbol_table
+                                                 ->get_scope_name()]
               ->lookup(identifier)
               ->get_address());
     } else {
@@ -1061,7 +1084,8 @@ void ptx_recognizer::add_scalar_operand(const char *identifier) {
   if (g_original_global_symbol_table != NULL) {
     const symbol *s_backup = s;
     s = g_original_global_symbol_table
-            ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+            ->get_function_symtab_lookup()[g_current_symbol_table
+                                               ->get_scope_name()]
             ->lookup(identifier);
     // gpuFI: Check that the symbol exists in the original symbol table, it's
     // possible that the symbol read from the newly injected binary did not
@@ -1087,7 +1111,8 @@ void ptx_recognizer::add_neg_pred_operand(const char *identifier) {
     const symbol *s_backup = s;
 
     s = g_original_global_symbol_table
-            ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+            ->get_function_symtab_lookup()[g_current_symbol_table
+                                               ->get_scope_name()]
             ->lookup(identifier);
     if (s == NULL) {
       s = s_backup;
@@ -1112,7 +1137,8 @@ void ptx_recognizer::add_address_operand(const char *identifier, int offset) {
     const symbol *s_backup = s;
 
     s = g_original_global_symbol_table
-            ->m_function_symtab_lookup[g_current_symbol_table->m_scope_name]
+            ->get_function_symtab_lookup()[g_current_symbol_table
+                                               ->get_scope_name()]
             ->lookup(identifier);
     if (s == NULL) {
       s = s_backup;

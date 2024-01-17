@@ -2178,7 +2178,6 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
         assert(ptx_instr != NULL);
-        // return ptx; // gpuFI: test
         // gpuFI TODO: assert that the instruction's SASS source matches the
         // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
@@ -2191,21 +2190,13 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
             ptx->m_dynamic_warp_id;                          // gpuFI: test
         const core_config *old_core_config = ptx->m_config;  // gpuFI: test
 
-        // /* gpuFI: test */
-        // ptx->m_operands[2] = ptx_instr->m_operands[2];
-        // ptx->m_operands[2].m_uid = original_operands[2].m_uid;
-        // ptx->m_is_injected = true;
-        // return ptx;
-
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
-        ptx->m_config = old_core_config;  // gpuFI: test
-        // ptx->m_config =
-        //     gpgpu_ctx->ptx_parser->g_shader_core_config;  // gpuFI: test
+        ptx->m_config = old_core_config;               // gpuFI: test
         ptx->m_dynamic_warp_id = old_dynamic_warp_id;  // gpuFI: test
         ptx->m_warp_id = old_warp_id;                  // gpuFI: test
         ptx->set_PC(pc);
@@ -2213,17 +2204,13 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         ptx->pre_decode();
         ptx->assign_bb(old_block);               // gpuFI: test
         ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
-        // // original_operands[2] = ptx->m_operands[2];  // gpuFI: test
-        // original_operands[2].m_value =
-        //     ptx->m_operands[2].m_value;       // gpuFI: test
-        // ptx->m_operands = original_operands;  // gpuFI: test
       }
     }
   } else {
     std::cout << "gpuFI: Error! No SASS instruction found in ptx_instruction's "
                  "m_source!"
               << std::endl;
-    // gpuFI TODO: maybe throw an exception.
+    // gpuFI TODO: maybe throw an exception? Probably not needed?
   }
 
   ptx->m_is_injected = true;
@@ -2255,11 +2242,11 @@ unsigned cycles_txt_lines;
 std::vector<unsigned> cycles_txt;
 
 /*
-gpuFI: Function that checks all warps on all SIMT cores for active threads,
-storing them in the active_threads_map, where the key is the kernel id, and the
-value is a 2D vector indexed by core and thread id.
+  gpuFI: Function that checks all warps on all SIMT cores for active threads,
+  storing them in the active_threads_map, where the key is the kernel id, and
+  the value is a 2D vector indexed by core and thread id.
 
-Populates active_kernels_names in the process.
+  Populates active_kernels_names in the process.
 */
 void find_active_kernels_and_threads(
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>

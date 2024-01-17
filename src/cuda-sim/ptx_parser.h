@@ -53,6 +53,7 @@ class ptx_recognizer {
     g_const_alloc = 1;
     g_max_regs_per_thread = 0;
     g_global_symbol_table = NULL;
+    g_original_global_symbol_table = NULL;
     g_current_symbol_table = NULL;
     g_last_symbol = NULL;
     g_error_detected = 0;
@@ -61,6 +62,33 @@ class ptx_recognizer {
     g_debug_ir_generation = false;
     gpgpu_ctx = ctx;
   }
+  ptx_recognizer(const ptx_recognizer *original_ptx_recognizer)
+      : g_return_var(original_ptx_recognizer->gpgpu_ctx) {
+    scanner = NULL;
+    g_size = -1;
+    g_add_identifier_cached__identifier = NULL;
+    g_alignment_spec = -1;
+    g_var_type = NULL;
+    g_opcode = -1;
+    g_space_spec = undefined_space;
+    g_ptr_spec = undefined_space;
+    g_scalar_type_spec = -1;
+    g_vector_spec = -1;
+    g_extern_spec = 0;
+    g_func_decl = 0;
+    g_ident_add_uid = 0;
+    g_const_alloc = 1;
+    g_global_symbol_table = NULL;
+    g_original_global_symbol_table = NULL;
+    g_current_symbol_table = NULL;
+    g_last_symbol = NULL;
+    g_error_detected = 0;
+    g_entry_func_param_index = 0;
+    g_func_info = NULL;
+    g_debug_ir_generation = false;
+    gpgpu_ctx = original_ptx_recognizer->gpgpu_ctx;
+    g_max_regs_per_thread = original_ptx_recognizer->g_max_regs_per_thread;
+  };
   // global list
   yyscan_t scanner;
 #define PTX_LINEBUF_SIZE (4 * 1024)
@@ -94,6 +122,11 @@ class ptx_recognizer {
   unsigned g_const_alloc;
   unsigned g_max_regs_per_thread;
   symbol_table *g_global_symbol_table;
+  /*
+    gpuFI: Copy of the symbol table of the main gpgpu_context object, to be used
+    when looking up existing symbols when parsing the new, injected executable.
+  */
+  symbol_table *g_original_global_symbol_table;
   symbol_table *g_current_symbol_table;
   symbol *g_last_symbol;
   std::list<ptx_instruction *> g_instructions;

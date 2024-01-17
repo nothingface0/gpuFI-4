@@ -2098,7 +2098,7 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
       // Get the 1st capture group from the match
       std::string instr_hex = match[1].str();
       if (instr_hex.size() > 0) {
-        std::cout << "gpuFI: PTXPLUS Instruction " << ptx->get_source_str()
+        std::cout << "gpuFI: PTXPLUS instruction " << ptx->get_source_str()
                   << " matches pattern " << regexp_pattern
                   << ". Matched str=" << instr_hex << std::endl;
         /*
@@ -2154,47 +2154,25 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         cuobjdump_output_filename.append(m_config.gpufi_run_id);
         cuobjdump_parse_output(cuobjdump_output_filename);
 
-        // Convert to ptxplus and read it into a char*
-        /*
-          gpuFI TODO: Is it safe to assume the filenames?
-          gpuFI TODO: Is it safe to call the class method? Maybe it updates
-            some variable for the whole context that shouldn't be updated?
-          gpuFI TODO: This may fail to parse the injected SASS. How will we
-          parse the failure?
-        */
         // Copy the context and the recognizer because not doing so
         // affects the original context and affects all execution.
-        // gpgpu_context temp_gpgpu_context = gpgpu_context();
-        // ptx_recognizer temp_ptx_recognizer = *(gpgpu_ctx->ptx_parser);
-        // GPGPUsim_ctx temp_GPGPUsim_ctx = *(gpgpu_ctx->the_gpgpusim);
-        // ptxinfo_data temp_ptxinfo_data = *(gpgpu_ctx->ptxinfo);
-        // cuda_runtime_api temp_cuda_runtime_api = *(gpgpu_ctx->api);
-        // cuda_sim temp_cuda_sim = *(gpgpu_ctx->func_sim);
-        // cuda_device_runtime temp_cuda_device_runtime =
-        //     *(gpgpu_ctx->device_runtime);
-
-        // temp_gpgpu_context.ptx_parser = &temp_ptx_recognizer;
-        // temp_gpgpu_context.the_gpgpusim = &temp_GPGPUsim_ctx;
-        // temp_gpgpu_context.ptxinfo = &temp_ptxinfo_data;
-        // temp_gpgpu_context.api = &temp_cuda_runtime_api;
-        // temp_gpgpu_context.func_sim = &temp_cuda_sim;
-        // temp_gpgpu_context.device_runtime = &temp_cuda_device_runtime;
+        gpgpu_context temp_gpgpu_context = gpgpu_context(gpgpu_ctx);
+        std::vector<operand_info> original_operands = ptx->m_operands;
         std::string base_filename = "_cuobjdump_1_";
         base_filename.append(m_config.gpufi_run_id);
 
         char *ptxplus_str =
-            gpgpu_ctx->ptxinfo->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                base_filename + ".ptx", base_filename + ".elf",
-                base_filename + ".sass");
+            temp_gpgpu_context.ptxinfo
+                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                    base_filename + ".ptx", base_filename + ".elf",
+                    base_filename + ".sass");
         // Parse PTXPLUS into a symbol_table.
         symbol_table *symtab;
         // gpuFI TODO: Is it safe to call the class method? Maybe it updates
         // some variable for the whole context that shouldn't be updated?
         // gpuFI TODO: Is it safe to always use source num 1?
-
-        symtab = gpgpu_ctx->gpgpu_ptx_sim_load_ptx_from_string(
+        symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
             ptxplus_str, 1, m_config.gpufi_run_id);
-        // return ptx;
         auto ptx_instr = symtab->get_symbols()[kernel_name]
                              ->get_pc()
                              ->get_instruction_from_m_instructions(pc);
@@ -2203,24 +2181,35 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // expected injected source.
         std::cout << "gpuFI: Parsed injected instruction PTXPLUS source is: "
                   << ptx_instr->get_source() << std::endl;
-        basic_block_t *old_block = ptx->m_basic_block;
+
+        basic_block_t *old_block = ptx->m_basic_block;  // gpuFI: test
+        int old_scheduler_id = ptx->m_scheduler_id;     // gpuFI: test
+        unsigned int old_warp_id = ptx->m_warp_id;      // gpuFI: test
+        unsigned int old_dynamic_warp_id =
+            ptx->m_dynamic_warp_id;                          // gpuFI: test
+        const core_config *old_core_config = ptx->m_config;  // gpuFI: test
+
         delete ptx;
         /*
           This memory will be freed on cache line replacement
           (see: accept_fetch_response).
         */
         ptx = new ptx_instruction(*ptx_instr);
+        ptx->m_config = old_core_config;               // gpuFI: test
+        ptx->m_dynamic_warp_id = old_dynamic_warp_id;  // gpuFI: test
+        ptx->m_warp_id = old_warp_id;                  // gpuFI: test
         ptx->set_PC(pc);
         // Calculate all the required instruction's attributes.
         ptx->pre_decode();
-        ptx->assign_bb(old_block);  // gpuFI: Not sure if needed
+        ptx->assign_bb(old_block);               // gpuFI: test
+        ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
       }
     }
   } else {
     std::cout << "gpuFI: Error! No SASS instruction found in ptx_instruction's "
                  "m_source!"
               << std::endl;
-    // gpuFI TODO: maybe throw an exception.
+    // gpuFI TODO: maybe throw an exception? Probably not needed?
   }
 
   ptx->m_is_injected = true;
@@ -2252,11 +2241,11 @@ unsigned cycles_txt_lines;
 std::vector<unsigned> cycles_txt;
 
 /*
-gpuFI: Function that checks all warps on all SIMT cores for active threads,
-storing them in the active_threads_map, where the key is the kernel id, and the
-value is a 2D vector indexed by core and thread id.
+  gpuFI: Function that checks all warps on all SIMT cores for active threads,
+  storing them in the active_threads_map, where the key is the kernel id, and
+  the value is a 2D vector indexed by core and thread id.
 
-Populates active_kernels_names in the process.
+  Populates active_kernels_names in the process.
 */
 void find_active_kernels_and_threads(
     tr1_hash_map<unsigned, std::vector<std::vector<ptx_thread_info *>>>

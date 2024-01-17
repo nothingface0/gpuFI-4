@@ -35,7 +35,13 @@ class gpgpu_context;
 typedef void* yyscan_t;
 class ptxinfo_data {
  public:
-  ptxinfo_data(gpgpu_context* ctx) { gpgpu_ctx = ctx; }
+  ptxinfo_data(gpgpu_context* ctx) { gpgpu_ctx = ctx; };
+  // gpuFI copy constructor
+  ptxinfo_data(const ptxinfo_data* original_ptxinfo_data) {
+    gpgpu_ctx = original_ptxinfo_data->gpgpu_ctx;
+    g_keep_intermediate_files =
+        original_ptxinfo_data->g_keep_intermediate_files;
+  };
   yyscan_t scanner;
   char linebuf[PTXINFO_LINEBUF_SIZE];
   unsigned col;

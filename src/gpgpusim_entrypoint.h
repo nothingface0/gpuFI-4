@@ -52,6 +52,8 @@ class GPGPUsim_ctx {
     the_context = NULL;
     gpgpu_ctx = ctx;
   }
+  GPGPUsim_ctx(const GPGPUsim_ctx *original_gpgpusim_ctx);
+  ~GPGPUsim_ctx() { delete g_the_gpu_config; }
 
   // struct gpgpu_ptx_sim_arg *grid_params;
 

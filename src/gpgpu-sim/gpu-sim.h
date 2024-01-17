@@ -377,6 +377,12 @@ class gpgpu_sim_config : public power_config,
     m_valid = false;
     gpgpu_ctx = ctx;
   }
+  gpgpu_sim_config(const gpgpu_sim_config *original_config)
+      : m_shader_config(original_config->m_shader_config),
+        m_memory_config(original_config->m_memory_config) {
+    m_valid = false;
+    gpgpu_ctx = original_config->gpgpu_ctx;
+  }
   void reg_options(class OptionParser *opp);
   void init() {
     gpu_stat_sample_freq = 10000;

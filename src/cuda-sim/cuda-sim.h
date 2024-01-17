@@ -134,6 +134,34 @@ class cuda_sim {
     g_debug_pc = 0xBEEF1518;
     gpgpu_ctx = ctx;
   }
+  // gpuFI copy constructor
+  cuda_sim(const cuda_sim *original_cuda_sim) {
+    g_ptx_sim_num_insn = 0;
+    g_ptx_kernel_count =
+        -1;  // used for classification stat collection purposes
+    g_inst_classification_stat = NULL;
+    g_inst_op_classification_stat = NULL;
+    g_assemble_code_next_pc = 0;
+    ptx_tex_regs = NULL;
+    g_ptx_thread_info_delete_count = 0;
+    g_ptx_thread_info_uid_next = 1;
+    g_debug_pc = 0xBEEF1518;
+    gpgpu_ctx = original_cuda_sim->gpgpu_ctx;
+    opcode_latency_int = original_cuda_sim->opcode_latency_int;
+    opcode_latency_fp = original_cuda_sim->opcode_latency_fp;
+    opcode_latency_dp = original_cuda_sim->opcode_latency_dp;
+    opcode_latency_sfu = original_cuda_sim->opcode_latency_sfu;
+    opcode_latency_tensor = original_cuda_sim->opcode_latency_tensor;
+    opcode_initiation_int = original_cuda_sim->opcode_initiation_int;
+    opcode_initiation_fp = original_cuda_sim->opcode_initiation_fp;
+    opcode_initiation_dp = original_cuda_sim->opcode_initiation_dp;
+    opcode_initiation_sfu = original_cuda_sim->opcode_initiation_sfu;
+    opcode_initiation_tensor = original_cuda_sim->opcode_initiation_tensor;
+    cdp_latency_str = original_cuda_sim->cdp_latency_str;
+    g_ptx_sim_mode = original_cuda_sim->g_ptx_sim_mode;
+    g_ptx_sim_mode = original_cuda_sim->gpgpu_param_num_shaders;
+    g_cuda_launch_blocking = original_cuda_sim->g_cuda_launch_blocking;
+  };
   // global variables
   char *opcode_latency_int;
   char *opcode_latency_fp;

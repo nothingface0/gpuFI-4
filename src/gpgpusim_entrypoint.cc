@@ -42,6 +42,21 @@
 
 static int sg_argc = 3;
 static const char *sg_argv[] = {"", "-config", "gpgpusim.config"};
+GPGPUsim_ctx::GPGPUsim_ctx(const GPGPUsim_ctx *original_gpgpusim_ctx) {
+  g_sim_active = false;
+  g_sim_done = true;
+  break_limit = false;
+  g_sim_lock = PTHREAD_MUTEX_INITIALIZER;
+
+  g_the_gpu_config = NULL;
+  g_the_gpu = NULL;
+  g_stream_manager = NULL;
+  the_cude_device = NULL;
+  the_context = NULL;
+  gpgpu_ctx = original_gpgpusim_ctx->gpgpu_ctx;
+  g_the_gpu_config =
+      new gpgpu_sim_config(original_gpgpusim_ctx->g_the_gpu_config);
+};
 
 void *gpgpu_sim_thread_sequential(void *ctx_ptr) {
   gpgpu_context *ctx = (gpgpu_context *)ctx_ptr;

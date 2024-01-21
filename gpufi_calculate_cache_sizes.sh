@@ -25,7 +25,7 @@ cache_bits_and_size_calculations() {
     regex_num_sub_partitions="^-gpgpu_n_sub_partition_per_mchannel[[:space:]]*([0-9]+)"
 
     # Find cache config in gpgpusim.config w/ gawk
-    parsed_regex=$(cat "$CONFIG_FILE" | gawk -v pat="$cache_config_regex" 'match($0, pat, a) {print a[1], a[2], a[3], a[4]}')
+    parsed_regex=$(gawk -v pat="$cache_config_regex" 'match($0, pat, a) {print a[1], a[2], a[3], a[4]}' <"$CONFIG_FILE")
     parsed_arr=(${parsed_regex// / })                              # Split with spaces.
     [[ ${parsed_arr[0]} = "S" ]] && is_sectored=1 || is_sectored=0 # Check if sectored.
 
@@ -60,7 +60,7 @@ cache_bits_and_size_calculations() {
     # Size calculation, not taking into account caches which are present in multiple
     # memory controllers (i.e. L2)
     if [[ $is_sectored -ne 0 ]]; then
-        num_sectors=$(cat src/abstract_hardware_model.h | gawk -v pat="SECTOR_CHUNCK_SIZE[[:space:]]*=[[:space:]]*([0-9]+);" 'match($0, pat, a) {print a[1]}')
+        num_sectors=$(gawk -v pat="SECTOR_CHUNCK_SIZE[[:space:]]*=[[:space:]]*([0-9]+);" 'match($0, pat, a) {print a[1]}' <src/abstract_hardware_model.h)
         echo "Number of sectors=$num_sectors"
         total_bits=$(((bytes_per_line * 8) * associativity * sets))
         # Assume one tag field per sector, i.e. divide total cache lines by sector size.
@@ -70,8 +70,8 @@ cache_bits_and_size_calculations() {
     fi
 
     if [[ $has_sub_partitions -ne 0 ]]; then
-        num_mem_controllers=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}')
-        num_sub_partitions=$(cat $CONFIG_FILE | gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}')
+        num_mem_controllers=$(gawk -v pat=$regex_num_mem_controllers 'match($0, pat, a) {print a[1]}' <$CONFIG_FILE)
+        num_sub_partitions=$(gawk -v pat=$regex_num_sub_partitions 'match($0, pat, a) {print a[1]}' <$CONFIG_FILE)
 
         echo "Number of mem controllers="$num_mem_controllers
         echo "Number of partitions per controller="$num_sub_partitions

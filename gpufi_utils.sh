@@ -3,6 +3,12 @@
 # gpuFI Utils: helper functions for other scripts.
 # This script is meant to be sourced by other scripts, not run directly.
 
+# The messages expected to be found inside each simulator's execution log
+# and signify whether the final data are the same with the golden execution of
+# the benchmark.
+_SUCCESS_MSG='Test PASSED'
+_FAILED_MSG='Test FAILED'
+
 # Function to sanitize args to a folder name
 # From here: https://stackoverflow.com/a/44811468/6562491
 # echoes "null" if no input given.
@@ -80,4 +86,78 @@ _copy_gpgpusim_config() {
     else
         cp "$_GPGPU_SIM_CONFIG_PATH" "$SCRIPT_DIR/gpgpusim.config"
     fi
+}
+
+# Examine a given execution log file and assess the execution results.
+# Exports the resulting variables.
+# Also requires the _TOTAL_CYCLES that the executable is expected to run for and the
+# _L1I_CACHE_TOTAL_MISSES (calculated during the executable_analysis script)
+_examine_log_file() {
+    log_file=$1
+    total_cycles=${2?Expected total cycles not specified}
+    l1i_cache_total_misses=${3?L1I Cache expected misses not specified}
+
+    grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
+    grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=0 || cycles_grep=1
+    grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
+    grep -iqE "(syntax error)|(parse error)" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
+    grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
+    grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
+    grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
+    grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && different_l1i_misses=0 || different_l1i_misses=1
+
+    export success_msg_grep
+    export cycles_grep
+    export failed_msg_grep
+    export syntax_error_msg_grep
+    export tag_bitflip_grep
+    export data_bitflip_grep
+    export false_l1i_hit_grep
+    export different_l1i_misses
+}
+
+# Updates the results.csv file, given the variables exported from the _examine_log_file function.
+_update_csv_file() {
+    csv_results_path="$(_get_gpufi_analysis_path)/results"
+    mkdir -p "$csv_results_path"
+
+    csv_file_path="$csv_results_path/results.csv"
+    run_id=$1
+    # Turn 0 to 1 and the opposite, it's clearer if each flag is "1" if the event it's
+    # describing happened.
+    success_msg_grep=$2
+    success_msg_grep=$((success_msg_grep ^ 1))
+    cycles_grep=$3
+    cycles_grep=$((cycles_grep ^ 1))
+    failed_msg_grep=$4
+    failed_msg_grep=$((failed_msg_grep ^ 1))
+    syntax_error_msg_grep=$5
+    syntax_error_msg_grep=$((syntax_error_msg_grep ^ 1))
+    tag_bitflip_grep=$6
+    tag_bitflip_grep=$((tag_bitflip_grep ^ 1))
+    l1i_data_bitflip_grep=$7
+    l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
+    false_l1i_hit_grep=$8
+    false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
+    different_l1i_misses=$8
+    different_l1i_misses=$((different_l1i_misses ^ 1))
+
+    # Flag to control whether we should check if the run_id exists in the csv file, in order
+    # to replace it or not.
+    replace_exising_run=${9:-1}
+
+    if [ ! -f "$csv_file_path" ]; then
+        echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"
+    fi
+    echo "Updating results in $csv_file_path"
+    # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
+    if [ $replace_exising_run -ne 0 ]; then
+        if grep "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
+            echo "$run_id already exists in results.csv, updating existing entry"
+            sed -Ei "s/^${run_id}(,[01]){8}/${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}/" "$(_get_gpufi_analysis_path)/results/results.csv"
+        fi
+    else
+        echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
+    fi
+
 }

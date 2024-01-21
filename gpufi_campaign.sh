@@ -64,8 +64,6 @@ _TIMEOUT_VALUE=
 _CYCLES_FILE=
 _MAX_REGISTERS_USED=
 _SHADERS_USED=
-_SUCCESS_MSG='Test PASSED'
-_FAILED_MSG='Test FAILED'
 
 # lmem and smem values are taken from gpgpu-sim ptx output per kernel
 # e.g. GPGPU-Sim PTX: Kernel '_Z9vectorAddPKdS0_Pdi' : regs=8, lmem=0, smem=0, cmem=380
@@ -239,38 +237,6 @@ _archive_config_file() {
     tar czf "${run_id}.tar.gz" -C "$(dirname $config_file)" "$(basename $config_file)"
     mv "${run_id}.tar.gz" "$csv_results_archive_path"
 }
-_update_csv_file() {
-    csv_results_path="$(_get_gpufi_analysis_path)/results"
-    mkdir -p "$csv_results_path"
-
-    csv_file_path="$csv_results_path/results.csv"
-    run_id=$1
-    # Turn 0 to 1 and the opposite
-    success_msg_grep=$2
-    success_msg_grep=$((success_msg_grep ^ 1))
-    cycles_grep=$3
-    cycles_grep=$((cycles_grep ^ 1))
-    failed_msg_grep=$4
-    failed_msg_grep=$((failed_msg_grep ^ 1))
-    syntax_error_msg_grep=$5
-    syntax_error_msg_grep=$((syntax_error_msg_grep ^ 1))
-    tag_bitflip_grep=$6
-    tag_bitflip_grep=$((tag_bitflip_grep ^ 1))
-    l1i_data_bitflip_grep=$7
-    l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
-    false_l1i_hit_grep=$8
-    false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
-    different_l1i_misses=$8
-    different_l1i_misses=$((different_l1i_misses ^ 1))
-
-    if [ ! -f "$csv_file_path" ]; then
-        echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"
-    fi
-    echo "Updating results in $csv_file_path"
-    # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
-    echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
-
-}
 
 # Parses resulting logs and determines successful execution.
 gather_results() {
@@ -284,14 +250,7 @@ gather_results() {
             result="000"
         else
             echo "Examining file $log_file"
-            grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
-            grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${_TOTAL_CYCLES}" && cycles_grep=0 || cycles_grep=1
-            grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
-            grep -iqE "(syntax error)|(parse error)" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
-            grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
-            grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
-            grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
-            grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${_L1I_CACHE_TOTAL_MISSES}" && different_l1i_misses=0 || different_l1i_misses=1
+            _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
 
             # Was a syntax error found in the resulting log? This might be due to a resulting SASS instruction
             # that the SASS parser does not recognize.

@@ -104,7 +104,7 @@ _examine_log_file() {
     grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
     grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
     grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
-    grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && different_l1i_misses=0 || different_l1i_misses=1
+    grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && different_l1i_misses=1 || different_l1i_misses=0
 
     export success_msg_grep
     export cycles_grep
@@ -152,7 +152,7 @@ _update_csv_file() {
     echo "Updating results in $csv_file_path"
     # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
     if [ $replace_exising_run -ne 0 ]; then
-        if grep "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
+        if grep -q "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
             echo "$run_id already exists in results.csv, updating existing entry"
             sed -Ei "s/^${run_id}(,[01]){8}/${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}/" "$(_get_gpufi_analysis_path)/results/results.csv"
         fi

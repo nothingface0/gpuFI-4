@@ -1,11 +1,13 @@
 #!/bin/bash
 
-# gpuFI script for replaying all the runs for a specific executable
-# that show different execution cycles, even though there's no
-# effective bitflip taking place.
+# gpuFI helper script for automatic recalculation of the results.csv
+# entries, based on the execution logs of each run.
 #
-# This is more of a workaround,
-# until a solution is found.
+# Given the executable path, args and gpu_id, it finds results.csv,
+# reads each run_id then tries to find the equivalent .log file in the
+# current directory (or .gpufi_execution_logs). Then, it re-runs the
+# _examine_log_file function, and updates the csv for each run.
+# This is to clean up after messes you've made.
 
 source gpufi_utils.sh
 
@@ -64,11 +66,24 @@ find_run_list() {
 update_results() {
     # Get values from executable analysis file
     source "$(_get_gpufi_analysis_path)/executable_analysis.sh"
+    first_line=1
     while read -r line; do
-        run_id=$(echo $line | gawk -v pat="^([a-f0-9]{32}),$" 'match($0, pat, a) {print a[1]}')
-        echo "Examining run $run_id"
-        # _examine_log_file "${run_id}.log" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
-        # _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
+
+	# Skip first line
+	if [ $first_line -eq 1 ]; then
+	    first_line=0
+	    continue
+	fi
+        run_id=$(echo $line | cut -d',' -f1)
+	if [ -f "./${run_id}.log" ]; then
+	    log_file="./${run_id}.log"
+	elif [ -f "./.gpufi_execution_logs/${run_id}.log" ]; then
+	    log_file="./.gpufi_execution_logs/${run_id}.log"
+	else
+	    continue
+	fi
+        _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
+        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
     done <"$(_get_gpufi_analysis_path)/results/results.csv"
 }
 

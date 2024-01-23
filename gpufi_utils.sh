@@ -139,12 +139,12 @@ _update_csv_file() {
     l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
     false_l1i_hit_grep=$8
     false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
-    different_l1i_misses=$8
+    different_l1i_misses=$9
     different_l1i_misses=$((different_l1i_misses ^ 1))
 
     # Flag to control whether we should check if the run_id exists in the csv file, in order
     # to replace it or not.
-    replace_exising_run=${9:-1}
+    replace_exising_run=${10:-1}
 
     if [ ! -f "$csv_file_path" ]; then
         echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"

@@ -97,14 +97,14 @@ _examine_log_file() {
     total_cycles=${2?Expected total cycles not specified}
     l1i_cache_total_misses=${3?L1I Cache expected misses not specified}
 
-    grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=0 || success_msg_grep=1
-    grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=0 || cycles_grep=1
-    grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=0 || failed_msg_grep=1
-    grep -iqE "(syntax error)|(parse error)" "$log_file" && syntax_error_msg_grep=0 || syntax_error_msg_grep=1
-    grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=0 || tag_bitflip_grep=1
-    grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=0 || data_bitflip_grep=1
-    grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=0 || false_l1i_hit_grep=1
-    grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && different_l1i_misses=1 || different_l1i_misses=0
+    grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=1 || success_msg_grep=0
+    grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=1 || cycles_grep=0
+    grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=1 || failed_msg_grep=0
+    grep -iqE "(syntax error)|(parse error)" "$log_file" && syntax_error_msg_grep=1 || syntax_error_msg_grep=0
+    grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=1 || tag_bitflip_grep=0
+    grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=1 || data_bitflip_grep=0
+    grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=1 || false_l1i_hit_grep=0
+    grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && l1i_misses_grep=1 || l1i_misses_grep=0
 
     export success_msg_grep
     export cycles_grep
@@ -113,7 +113,7 @@ _examine_log_file() {
     export tag_bitflip_grep
     export data_bitflip_grep
     export false_l1i_hit_grep
-    export different_l1i_misses
+    export l1i_misses_grep
 }
 
 # Updates the results.csv file, given the variables exported from the _examine_log_file function.
@@ -123,24 +123,17 @@ _update_csv_file() {
 
     csv_file_path="$csv_results_path/results.csv"
     run_id=$1
-    # Turn 0 to 1 and the opposite, it's clearer if each flag is "1" if the event it's
-    # describing happened.
+
     success_msg_grep=$2
-    success_msg_grep=$((success_msg_grep ^ 1))
     cycles_grep=$3
-    cycles_grep=$((cycles_grep ^ 1))
     failed_msg_grep=$4
-    failed_msg_grep=$((failed_msg_grep ^ 1))
     syntax_error_msg_grep=$5
-    syntax_error_msg_grep=$((syntax_error_msg_grep ^ 1))
     tag_bitflip_grep=$6
-    tag_bitflip_grep=$((tag_bitflip_grep ^ 1))
     l1i_data_bitflip_grep=$7
-    l1i_data_bitflip_grep=$((l1i_data_bitflip_grep ^ 1))
     false_l1i_hit_grep=$8
-    false_l1i_hit_grep=$((false_l1i_hit_grep ^ 1))
-    different_l1i_misses=$9
-    different_l1i_misses=$((different_l1i_misses ^ 1))
+    l1i_misses_grep=$9
+    # Inverse logic for this flag, it's 1 when the misses were different
+    different_l1i_misses=$((l1i_misses_grep ^ 1))
 
     # Flag to control whether we should check if the run_id exists in the csv file, in order
     # to replace it or not.

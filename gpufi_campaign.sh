@@ -247,28 +247,29 @@ gather_results() {
         config_file="$TMP_DIR/${run_id}.config"
         if [ ! -f "$config_file" ] || [ ! -f "$log_file" ]; then
             echo "WARNING: $config_file or $log_file missing!"
-            result="000"
+            result="111"
         else
             echo "Examining file $log_file"
             _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
 
             # Was a syntax error found in the resulting log? This might be due to a resulting SASS instruction
             # that the SASS parser does not recognize.
-            if [ $syntax_error_msg_grep -eq 0 ]; then
+            if [ $syntax_error_msg_grep -eq 1 ]; then
                 _num_errors_syntax=$((_num_errors_syntax + 1))
             fi
             # Tag bitflips in *valid* cache lines
-            if [ $tag_bitflip_grep -eq 0 ]; then
+            if [ $tag_bitflip_grep -eq 1 ]; then
                 _num_tag_bitflips=$((_num_tag_bitflips + 1))
             fi
-            if [ $false_l1i_hit_grep -eq 0 ]; then
+            if [ $false_l1i_hit_grep -eq 1 ]; then
                 _num_false_l1i_hit=$((_num_false_l1i_hit + 1))
             fi
             # Data bitflips that lead to reading an injected instruction
-            if [ $data_bitflip_grep -eq 0 ]; then
+            if [ $data_bitflip_grep -eq 1 ]; then
                 _num_l1i_data_bitflips=$((_num_l1i_data_bitflips + 1))
             fi
-            if [ $different_l1i_misses -eq 1 ]; then
+            # Inverse logic here
+            if [ $l1i_misses_grep -eq 0 ]; then
                 _num_l1i_different_misses=$((_num_l1i_different_misses + 1))
             fi
 
@@ -290,18 +291,18 @@ gather_results() {
             fi
         fi
         case $result in
-        "001")
+        "110")
             # Success msg found, same total cycles, no failure
             NUM_RUNS=$((NUM_RUNS - 1))
             _errors_masked=$((_errors_masked + 1))
             ;;
-        "011")
+        "100")
             # Success msg found, different total cycles, no failure
             NUM_RUNS=$((NUM_RUNS - 1))
             _errors_masked=$((_errors_masked + 1))
             _errors_performance=$((_errors_performance + 1))
             ;;
-        "100" | "110")
+        "011" | "001")
             # No success msg, same or different cycles, failure message
             NUM_RUNS=$((NUM_RUNS - 1))
             _errors_sdc=$((_errors_sdc + 1))

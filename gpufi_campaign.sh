@@ -35,10 +35,6 @@ DELETE_LOGS=1                          # if 1 then all logs will be deleted at t
 _NUM_AVAILABLE_CORES=$(($(nproc) - 1)) # How many instances of the simulator to run in parallel
 # ---------------------------------------------- END ONE-TIME PARAMETERS ------------------------------------------------
 
-# ---------------------------------------------- START PER GPGPU CARD PARAMETERS ----------------------------------------------
-
-# ---------------------------------------------- END PER GPGPU CARD PARAMETERS ------------------------------------------------
-
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+_GPUFI_PROFILE=1) ----------------------------------------------
 # gpuFI TODO: Configuration in this section seems to have been intended for targeting a
 # specific kernel of a speicific executable. But this does not make sense, as there is an option,
@@ -71,9 +67,6 @@ _SHADERS_USED=
 _LMEM_SIZE_BITS=
 _SMEM_SIZE_BITS=
 # ---------------------------------------------- END PER KERNEL/APPLICATION PARAMETERS (+_GPUFI_PROFILE=1) ------------------------------------------------
-
-_FAULT_INJECTION_OCCURRED="gpuFI: Fault injection"
-_CYCLES_MSG="gpu_tot_sim_cycle ="
 
 # Campaign runtime variables
 _errors_masked=0
@@ -309,7 +302,7 @@ gather_results() {
             ;;
         *)
             # Any other combination is considered a crash
-            if grep -iq "${_FAULT_INJECTION_OCCURRED}" "$log_file"; then
+            if grep -iq "gpuFI: Fault injection" "$log_file"; then
                 # Fault injection was performed, but then program crashed
                 NUM_RUNS=$((NUM_RUNS - 1))
                 _errors_due=$((_errors_due + 1))

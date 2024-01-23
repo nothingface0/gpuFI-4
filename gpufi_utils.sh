@@ -98,7 +98,7 @@ _examine_log_file() {
     l1i_cache_total_misses=${3?L1I Cache expected misses not specified}
 
     grep -iq "${_SUCCESS_MSG}" "$log_file" && success_msg_grep=1 || success_msg_grep=0
-    grep -i "${_CYCLES_MSG}" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=1 || cycles_grep=0
+    grep -i "gpu_tot_sim_cycle =" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=1 || cycles_grep=0
     grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=1 || failed_msg_grep=0
     grep -iqE "(syntax error)|(parse error)" "$log_file" && syntax_error_msg_grep=1 || syntax_error_msg_grep=0
     grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=1 || tag_bitflip_grep=0

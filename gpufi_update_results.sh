@@ -69,21 +69,21 @@ update_results() {
     first_line=1
     while read -r line; do
 
-	# Skip first line
-	if [ $first_line -eq 1 ]; then
-	    first_line=0
-	    continue
-	fi
+        # Skip first line
+        if [ $first_line -eq 1 ]; then
+            first_line=0
+            continue
+        fi
         run_id=$(echo $line | cut -d',' -f1)
-	if [ -f "./${run_id}.log" ]; then
-	    log_file="./${run_id}.log"
-	elif [ -f "./.gpufi_execution_logs/${run_id}.log" ]; then
-	    log_file="./.gpufi_execution_logs/${run_id}.log"
-	else
-	    continue
-	fi
+        if [ -f "./${run_id}.log" ]; then
+            log_file="./${run_id}.log"
+        elif [ -f "./.gpufi_execution_logs/${run_id}.log" ]; then
+            log_file="./.gpufi_execution_logs/${run_id}.log"
+        else
+            continue
+        fi
         _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
-        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
+        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep
     done <"$(_get_gpufi_analysis_path)/results/results.csv"
 }
 

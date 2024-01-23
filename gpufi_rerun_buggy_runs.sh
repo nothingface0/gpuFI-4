@@ -75,7 +75,7 @@ update_results() {
     for run_id in "${BUGGY_RUN_IDS[@]}"; do
         echo "Examining run $run_id"
         _examine_log_file "${run_id}.log" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
-        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
+        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep
     done
 }
 

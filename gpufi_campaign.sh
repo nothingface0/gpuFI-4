@@ -286,7 +286,7 @@ gather_results() {
                 echo "WARNING: Run id validation failed when parsing $config_file. Expected $run_id_validate, read $run_id"
             fi
             if [ -n "$run_id" ]; then
-                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $different_l1i_misses
+                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep
                 _archive_config_file $run_id $config_file
             fi
         fi

@@ -53,10 +53,10 @@ preliminary_checks() {
 
 # Look into the results.csv file for runs where the run was successful, but
 # cycles were different, without a tag or data bitflip taking place.
-find_buggy_runs() {
-    echo -n "Looking for possibly buggy runs..."
-    # Find the runs and add them into an array.
-    BUGGY_RUN_IDS=($(gawk -v pat="^([a-f0-9]{32}),1,0,0,0,0,0,0,0$" 'match($0, pat, a) {print a[1]}' <"$(_get_gpufi_analysis_path)/results/results.csv"))
+find_injection_runs() {
+    echo -n "Looking for runs with an injection..."
+    # Find the runs and add them into an array. Ignore those with syntax errors.
+    BUGGY_RUN_IDS=($(gawk -v pat="^([a-f0-9]{32}),[01],[01],[01],0,[01],1,[01],[01]$" 'match($0, pat, a) {print a[1]}' <"$(_get_gpufi_analysis_path)/results/results.csv"))
     export BUGGY_RUN_IDS
     echo "Done. Found ${#BUGGY_RUN_IDS[@]} runs."
 }
@@ -81,7 +81,7 @@ update_results() {
 
 ### Script execution sequence ###
 declare -a steps=(preliminary_checks
-    find_buggy_runs
+    find_injection_runs
     run_simulator
     update_results)
 

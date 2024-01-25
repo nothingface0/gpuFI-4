@@ -666,14 +666,23 @@ void ptx_recognizer::add_opcode(int opcode) { g_opcode = opcode; }
 void ptx_recognizer::add_pred(const char *identifier, int neg,
                               int predModifier) {
   PTX_PARSE_DPRINTF("add_pred");
-  // gpuFI TODO: Will this need to get the symbol from the original symbol
-  // table?
+
   const symbol *s = g_current_symbol_table->lookup(identifier);
   if (s == NULL) {
     std::string msg =
         std::string("predicate \"") + identifier + "\" has no declaration.";
     parse_error(msg.c_str());
   }
+
+  // gpuFI
+  if (g_original_global_symbol_table != NULL) {
+    const symbol *s_backup = s;
+    s = g_original_global_symbol_table
+            ->get_function_symtab_lookup()[g_current_symbol_table
+                                               ->get_scope_name()]
+            ->lookup(identifier);
+  }
+
   g_pred = s;
   g_neg_pred = neg;
   g_pred_mod = predModifier;

@@ -135,20 +135,14 @@ _update_csv_file() {
     # Inverse logic for this flag, it's 1 when the misses were different
     different_l1i_misses=$((l1i_misses_grep ^ 1))
 
-    # Flag to control whether we should check if the run_id exists in the csv file, in order
-    # to replace it or not.
-    replace_exising_run=${10:-1}
 
     if [ ! -f "$csv_file_path" ]; then
         echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"
     fi
     echo "Updating results in $csv_file_path"
-    # gpuFI TODO: Check whether run_id already exists, compare results, should be the same!
-    if [ $replace_exising_run -ne 0 ]; then
-        if grep -q "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
-            echo "$run_id already exists in results.csv, updating existing entry"
-            sed -Ei "s/^${run_id}(,[01]){8}/${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}/" "$(_get_gpufi_analysis_path)/results/results.csv"
-        fi
+    if grep -q "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
+        echo "$run_id already exists in results.csv, updating existing entry"
+        sed -Ei "s/^${run_id}(,[01]){8}/${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}/" "$(_get_gpufi_analysis_path)/results/results.csv"
     else
         echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
     fi

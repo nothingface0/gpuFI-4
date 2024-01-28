@@ -68,7 +68,7 @@ extract_config() {
 }
 
 run_simulator() {
-    "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >$_OUTPUT_LOG
+    timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >$_OUTPUT_LOG 2>&1
 }
 
 verify_run_id() {

@@ -58,7 +58,7 @@ fi
 
 kernel_byte_offset_in_file=$(grep --byte-offset --only-matching --text "nv.info.$kernel_name" "$app_binary_path" | cut -d':' -f 1)
 
-full_binary_dump=$(xxd -c 0 -p "$app_binary_path")
+full_binary_dump=$(xxd -c 0 -p "$app_binary_path" | tr -d '\n')
 # Only search after the offset we found before. I could
 # not find a more elegant way, so I split the file at the offset,
 # manipulate it with sed and then put it back together.

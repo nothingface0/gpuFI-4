@@ -68,6 +68,7 @@ extract_config() {
 }
 
 run_simulator() {
+    source "$(_get_gpufi_analysis_path)/executable_analysis.sh"
     timeout $((_TIMEOUT_VALUE)) "$CUDA_EXECUTABLE_PATH" $CUDA_EXECUTABLE_ARGS >$_OUTPUT_LOG 2>&1
 }
 

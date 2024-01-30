@@ -67,4 +67,5 @@ new_file_first_part=$(echo "$full_binary_dump" | head -c $(((kernel_byte_offset_
 new_file_last_part=$(echo "$full_binary_dump" | tail -c $((${#full_binary_dump} - ((kernel_byte_offset_in_file - 2) * 2) - 1)) | sed "s/${original_instruction_hex}/${injected_instruction_hex}/g")
 
 # Put the file back together, using xxd, store in app_binary_path_out
+rm -rf "$app_binary_path_out"
 echo "${new_file_first_part}${new_file_last_part}" | xxd -p -r >"$app_binary_path_out"

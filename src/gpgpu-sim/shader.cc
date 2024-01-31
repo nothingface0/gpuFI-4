@@ -1165,13 +1165,13 @@ void shader_core_ctx::fetch() {
               cached data, find which PC it corresponds to and fill the
               i_fetch_buffer_t with it.
             */
-            for (int i = 0; i < m_gpu->l1i_with_tag_bf_enabled.size(); i++) {
-              if (m_gpu->l1i_with_tag_bf_enabled[i] == false) {
+            for (int j = 0; j < m_gpu->l1i_with_tag_bf_enabled.size(); j++) {
+              if (m_gpu->l1i_with_tag_bf_enabled[j] == false) {
                 continue;
               }
-              if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
+              if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[j] &&
                   m_config->sid_to_cid(m_sid) ==
-                      m_gpu->l1i_shader_core_ctx[i]) {
+                      m_gpu->l1i_shader_core_ctx[j]) {
                 unsigned instr_cache_line_location;
                 // Non-sectored cache, so mask does not play a role.
                 mem_access_sector_mask_t mask = mem_access_sector_mask_t();
@@ -1182,17 +1182,17 @@ void shader_core_ctx::fetch() {
                 m_L1I->m_tag_array->probe(ppc, instr_cache_line_location, mask,
                                           false);
                 for (int bf_enabled_idx = 0;
-                     bf_enabled_idx < m_gpu->l1i_tag_bf_enabled[i].size();
+                     bf_enabled_idx < m_gpu->l1i_tag_bf_enabled[j].size();
                      bf_enabled_idx++) {
                   //  Skip inactive tag bitlips
-                  if (!m_gpu->l1i_tag_bf_enabled[i][bf_enabled_idx]) {
+                  if (!m_gpu->l1i_tag_bf_enabled[j][bf_enabled_idx]) {
                     continue;
                   }
                   /*
                     Finally, check if we're at the right cache line that has
                     a tag bitflip.
                   */
-                  if (m_gpu->l1i_tag_bf_line_index[i][bf_enabled_idx] ==
+                  if (m_gpu->l1i_tag_bf_line_index[j][bf_enabled_idx] ==
                       instr_cache_line_location) {
                     /*
                       Find the PC of the instruction that is actually "stored"
@@ -1208,7 +1208,7 @@ void shader_core_ctx::fetch() {
                       set_and_offset_mask.set(bit_pos);
                     }
                     next_pc = (ppc & set_and_offset_mask.to_ullong()) |
-                              m_gpu->l1i_tag_bf_line_tag[i][bf_enabled_idx] -
+                              m_gpu->l1i_tag_bf_line_tag[j][bf_enabled_idx] -
                                   PROGRAM_MEM_START;
                     std::cout << "gpuFI: False L1I cache hit due to tag "
                                  "bitflip detected. Warp "
@@ -1222,7 +1222,7 @@ void shader_core_ctx::fetch() {
                                      ->get_block(instr_cache_line_location)
                                      ->m_tag
                               << ", original was "
-                              << m_gpu->l1i_tag_bf_line_tag[i][bf_enabled_idx]
+                              << m_gpu->l1i_tag_bf_line_tag[j][bf_enabled_idx]
                               << ". New PC=" << next_pc << std::endl;
                   }
                 }
@@ -4118,10 +4118,53 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
 
   // gpuFI start
   /*
-    Check if mf received overwrites bitflip. Since L2 is sectored, each L1I
-    request generates 4 sub-requests to L2. The simulator waits for all of them
-    to arrive for the cache line to be written to L1I.
-  */
+  Check if mf received overwrites bitflip. Since L2 is sectored, each L1I
+  request generates 4 sub-requests to L2. The simulator waits for all of them
+  to arrive for the cache line to be written to L1I.
+  First check if any of the tag bitflips is replaced.
+*/
+  for (int i = 0; i < m_gpu->l1i_with_tag_bf_enabled.size(); i++) {
+    if (m_gpu->l1i_with_tag_bf_enabled[i] == false) continue;
+    if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
+        m_config->sid_to_cid(m_sid) == m_gpu->l1i_shader_core_ctx[i]) {
+      unsigned mf_cache_line_location;  // Unique incremental cache line
+                                        // index that the mf is cached in.
+      // Non-sectored cache, so mask does not play a role.
+      mem_access_sector_mask_t mask = mem_access_sector_mask_t();
+      /*
+        Check if mf_address is cached. That's the only way to check
+      */
+      enum cache_request_status probe_status = m_L1I->m_tag_array->probe(
+          mf_address, mf_cache_line_location, mask, false);
+      /*
+        If mf address is cached, all the requests to the sectored L2
+        have arrived to L1I.
+      */
+      if (probe_status == HIT || probe_status == HIT_RESERVED) {
+        // Iterate over active bitflips
+        for (int bf_enabled_idx = 0;
+             bf_enabled_idx < m_gpu->l1i_tag_bf_enabled[i].size();
+             bf_enabled_idx++) {
+          /*
+            Skip inactive bitflips (i.e. deactivated by a cache line being
+            replaced)
+          */
+          if (!m_gpu->l1i_tag_bf_enabled[i][bf_enabled_idx]) {
+            continue;
+          }
+          if (m_gpu->l1i_tag_bf_line_index[i][bf_enabled_idx] ==
+              mf_cache_line_location) {
+            std::cout << "gpuFI: L1I cache line " << mf_cache_line_location
+                      << " has been replaced, deactivating tag bitflip " << i
+                      << ", " << bf_enabled_idx << std::endl;
+
+            m_gpu->l1i_tag_bf_enabled[i][bf_enabled_idx] = false;
+          }
+        }
+      }
+    }
+  }
+  // Do the similar for data bitflips.
   for (int i = 0; i < m_gpu->l1i_with_data_bf_enabled.size(); i++) {
     if (m_gpu->l1i_with_data_bf_enabled[i] == false) continue;
     if (m_cluster->get_cluster_id() == m_gpu->l1i_cluster_idx[i] &&
@@ -4154,7 +4197,7 @@ void shader_core_ctx::accept_fetch_response(mem_fetch *mf) {
           if (m_gpu->l1i_data_bf_line_index[i][bf_enabled_idx] ==
               mf_cache_line_location) {
             std::cout << "gpuFI: L1I cache line " << mf_cache_line_location
-                      << " has been replaced, deactivating bitflip " << i
+                      << " has been replaced, deactivating data bitflip " << i
                       << ", " << bf_enabled_idx << std::endl;
 
             m_gpu->l1i_data_bf_enabled[i][bf_enabled_idx] = false;

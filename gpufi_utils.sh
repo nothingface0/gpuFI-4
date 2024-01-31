@@ -83,7 +83,7 @@ _copy_gpgpusim_config() {
         # Get it from the tested configs.
         original_config=$(_get_gpgpusim_config_path_from_gpu_id "$gpu_id")
         cp "$original_config" "$SCRIPT_DIR/gpgpusim.config"
-        export _GPGPU_SIM_CONFIG_PATH="$SCRIPT_DIR/gpgpusim.config"
+	_GPGPU_SIM_CONFIG_PATH="$SCRIPT_DIR/gpgpusim.config"
     else
         cp "$_GPGPU_SIM_CONFIG_PATH" "$SCRIPT_DIR/gpgpusim.config"
     fi

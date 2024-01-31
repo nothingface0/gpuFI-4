@@ -15,6 +15,10 @@ CUDA_EXECUTABLE_ARGS=""
 # Needed to locate the archive of the configs
 GPU_ID=
 
+# The regex pattern to use on the results to filter the runs. By default, only
+# selects runs with an injection that leads to a data bitflip: "[01],[01],[01],0,[01],1,[01],[01]"
+CUSTOM_PATTERN="[01],[01],[01],0,[01],1,[01],[01]"
+
 preliminary_checks() {
     if [ -z "$CUDA_EXECUTABLE_PATH" ]; then
         echo "Please provide a valid CUDA executable to run"
@@ -56,7 +60,7 @@ preliminary_checks() {
 find_injection_runs() {
     echo -n "Looking for runs with an injection..."
     # Find the runs and add them into an array. Ignore those with syntax errors.
-    BUGGY_RUN_IDS=($(gawk -v pat="^([a-f0-9]{32}),[01],[01],[01],0,[01],1,[01],[01]$" 'match($0, pat, a) {print a[1]}' <"$(_get_gpufi_analysis_path)/results/results.csv"))
+    BUGGY_RUN_IDS=($(gawk -v pat="^([a-f0-9]{32}),$CUSTOM_PATTERN" 'match($0, pat, a) {print a[1]}' <"$(_get_gpufi_analysis_path)/results/results.csv"))
     export BUGGY_RUN_IDS
     echo "Done. Found ${#BUGGY_RUN_IDS[@]} runs."
 }

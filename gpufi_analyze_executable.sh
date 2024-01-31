@@ -43,20 +43,24 @@ preliminary_checks() {
         exit 1
     fi
 
-    if [ -n "$_GPGPU_SIM_CONFIG_PATH" ] && [ ! -f "$_GPGPU_SIM_CONFIG_PATH" ]; then
-        # A path to the config has been supplied, but the file does not exist
-        echo "File $_GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
-        exit 1
-    fi
-
-    if ! grep -q "gpufi_profile" "$_GPGPU_SIM_CONFIG_PATH"; then
-        echo "$_GPGPU_SIM_CONFIG_PATH does not have gpufi configuration!"
-    fi
     if ! _is_gpu_id_valid $GPU_ID; then
         echo "No valid GPU_ID was given, please provide a valid GPU id, e.g. SM7_QV100"
         exit 1
     fi
 
+    if [ -n "$_GPGPU_SIM_CONFIG_PATH" ] && [ ! -f "$_GPGPU_SIM_CONFIG_PATH" ]; then
+        # A path to the config has been supplied, but the file does not exist
+        echo "File $_GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
+        exit 1
+    elif [ -f $(_get_gpgpusim_config_path_from_gpu_id $GPU_ID) ]; then
+        echo "Configuration for $GPU_ID does not exist"
+        return 1
+    fi
+
+    if ! grep -q "gpufi_profile" "$_GPGPU_SIM_CONFIG_PATH"; then
+        echo "$_GPGPU_SIM_CONFIG_PATH does not have gpufi configuration!"
+        return 1
+    fi
     if [ -z "$GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN" ]; then
         echo "GPGPU-Sim's setup_environment has not been run!"
         exit 1

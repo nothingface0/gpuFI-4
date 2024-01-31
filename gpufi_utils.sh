@@ -58,6 +58,7 @@ _calculate_md5_hash() {
 # Given a GPU_ID, constructs the path to its gpgpusim.config file.
 # The path is not guaranteed to exist.
 _get_gpgpusim_config_path_from_gpu_id() {
+    gpu_id=$1
     SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
     echo "$SCRIPT_DIR/configs/tested-cfgs/$gpu_id/gpgpusim.config"
 }
@@ -134,7 +135,6 @@ _update_csv_file() {
     l1i_misses_grep=$9
     # Inverse logic for this flag, it's 1 when the misses were different
     different_l1i_misses=$((l1i_misses_grep ^ 1))
-
 
     if [ ! -f "$csv_file_path" ]; then
         echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"

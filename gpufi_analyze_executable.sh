@@ -52,7 +52,7 @@ preliminary_checks() {
         # A path to the config has been supplied, but the file does not exist
         echo "File $_GPGPU_SIM_CONFIG_PATH does not exist, please provide a valid gpgpusim.config"
         exit 1
-    elif [ -f $(_get_gpgpusim_config_path_from_gpu_id $GPU_ID) ]; then
+    elif [ ! -f $(_get_gpgpusim_config_path_from_gpu_id $GPU_ID) ]; then
         echo "Configuration for $GPU_ID does not exist"
         return 1
     fi

@@ -65,7 +65,7 @@ preliminary_checks() {
 # Look into the results.csv file for runs where the run was successful, but
 # cycles were different, without a tag or data bitflip taking place.
 find_injection_runs() {
-    echo -n "Looking for runs which match $CUSTOM_PATTERN..."
+    echo -n "Looking for runs which match $CUSTOM_PATTERN in $(_get_gpufi_analysis_path)/results/results.csv..."
     # Find the runs and add them into an array. Ignore those with syntax errors.
     FILTERED_RUN_IDS=($(_filter_results_csv $CUSTOM_PATTERN "$(_get_gpufi_analysis_path)/results/results.csv"))
     export FILTERED_RUN_IDS

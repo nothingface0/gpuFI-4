@@ -67,7 +67,7 @@ preliminary_checks() {
 find_injection_runs() {
     echo -n "Looking for runs which match $CUSTOM_PATTERN in $(_get_gpufi_analysis_path)/results/results.csv..."
     # Find the runs and add them into an array. Ignore those with syntax errors.
-    FILTERED_RUN_IDS=($(_filter_results_csv "$(_get_gpufi_analysis_path)/results/results.csv") "$CUSTOM_PATTERN")
+    FILTERED_RUN_IDS=($(_filter_results_csv "$(_get_gpufi_analysis_path)/results/results.csv" "$CUSTOM_PATTERN"))
     export FILTERED_RUN_IDS
     echo "Done. Found ${#FILTERED_RUN_IDS[@]} runs."
 }

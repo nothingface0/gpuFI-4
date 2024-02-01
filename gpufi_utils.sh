@@ -155,6 +155,6 @@ _filter_results_csv() {
     # The regex pattern to use on the results to filter the runs. By default, only
     # selects runs with an injection that leads to a data bitflip: "[01],[01],[01],0,[01],1,[01],[01]"
     custom_pattern=${2:-[01],[01],[01],0,[01],1,[01],[01]}
-    filtered_run_ids=($(gawk -v pat="^([a-f0-9]{32}),$custom_pattern" 'match($0, pat, a) {print a[1]}' <"$results_filepath"))
+    filtered_run_ids=($(gawk -v pat="^([a-f0-9]{32}),$custom_pattern\$" 'match($0, pat, a) {print a[1]}' <"$results_filepath"))
     echo "${filtered_run_ids[*]}"
 }

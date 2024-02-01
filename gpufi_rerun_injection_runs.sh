@@ -26,6 +26,9 @@ GPU_ID=
 # selects runs with an injection that leads to a data bitflip but NOT to a syntax error.
 CUSTOM_PATTERN="[01],[01],[01],0,[01],1,[01],[01]"
 
+# Print the run numbers during get_filtered_runs
+PRINT_RUNS=0
+
 preliminary_checks() {
     if [ -z "$CUDA_EXECUTABLE_PATH" ]; then
         echo "Please provide a valid CUDA executable to run"
@@ -64,12 +67,17 @@ preliminary_checks() {
 
 # Look into the results.csv file for runs where the run was successful, but
 # cycles were different, without a tag or data bitflip taking place.
-find_injection_runs() {
+get_filtered_runs() {
     echo -n "Looking for runs which match $CUSTOM_PATTERN in $(_get_gpufi_analysis_path)/results/results.csv..."
     # Find the runs and add them into an array. Ignore those with syntax errors.
     FILTERED_RUN_IDS=($(_filter_results_csv "$(_get_gpufi_analysis_path)/results/results.csv" "$CUSTOM_PATTERN"))
     export FILTERED_RUN_IDS
     echo "Done. Found ${#FILTERED_RUN_IDS[@]} runs."
+    if [ $PRINT_RUNS -ne 0 ]; then
+        for run_id in "${FILTERED_RUN_IDS[@]}"; do
+            echo $run_id
+        done
+    fi
 }
 
 # For each run id, run the gpufi_replay_run script.
@@ -98,7 +106,7 @@ update_results() {
 
 ### Script execution sequence ###
 declare -a steps=(preliminary_checks
-    find_injection_runs
+    get_filtered_runs
     run_simulator
     update_results)
 

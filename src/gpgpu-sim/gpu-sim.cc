@@ -2188,6 +2188,8 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         unsigned int old_dynamic_warp_id =
             ptx->m_dynamic_warp_id;                          // gpuFI: test
         const core_config *old_core_config = ptx->m_config;  // gpuFI: test
+        unsigned long long old_issue_cycle = ptx->issue_cycle;
+        unsigned old_cycles = ptx->cycles;
 
         delete ptx;
         /*
@@ -2203,6 +2205,8 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         ptx->pre_decode();
         ptx->assign_bb(old_block);               // gpuFI: test
         ptx->m_scheduler_id = old_scheduler_id;  // gpuFI: test
+        ptx->cycles = old_cycles;
+        ptx->issue_cycle = old_issue_cycle;
       }
     }
   } else {

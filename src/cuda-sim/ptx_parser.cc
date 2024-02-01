@@ -526,12 +526,16 @@ void ptx_recognizer::add_constptr(const char *identifier1,
     // procedure, as it's setting the target address of s1. We definitely don't
     // want to change the original s1.
     const symbol *s2_backup = s2;
-    s2 = g_original_global_symbol_table
-             ->get_function_symtab_lookup()[g_current_symbol_table
-                                                ->get_scope_name()]
-             ->lookup(identifier2);
-    if (s2 == NULL) {
+    symbol_table *symtab =
+        g_original_global_symbol_table->get_function_symtab_lookup()
+            [g_current_symbol_table->get_scope_name()];
+    if (symtab == NULL) {
       s2 = s2_backup;
+    } else {
+      s2 = symtab->lookup(identifier2);
+      if (s2 == NULL) {
+        s2 = s2_backup;
+      }
     }
   }
   unsigned addr = s2->get_address();

@@ -66,6 +66,7 @@ _get_gpgpusim_config_path_from_gpu_id() {
 # Get the path to a unique directory in the same directory the executable is in
 # which is identified by the GPU_ID and the arguments the executable is run with,
 # after sanitization.
+# Requires the CUDA_EXECUTABLE_PATH, GPU_ID and CUDA_EXECUTABLE_ARGS env vars to be set.
 _get_gpufi_analysis_path() {
     echo "$(dirname $CUDA_EXECUTABLE_PATH)/.gpufi/$GPU_ID/$(_sanitize_string $CUDA_EXECUTABLE_ARGS)"
 }
@@ -83,7 +84,7 @@ _copy_gpgpusim_config() {
         # Get it from the tested configs.
         original_config=$(_get_gpgpusim_config_path_from_gpu_id "$gpu_id")
         cp "$original_config" "$SCRIPT_DIR/gpgpusim.config"
-	_GPGPU_SIM_CONFIG_PATH="$SCRIPT_DIR/gpgpusim.config"
+        _GPGPU_SIM_CONFIG_PATH="$SCRIPT_DIR/gpgpusim.config"
     else
         cp "$_GPGPU_SIM_CONFIG_PATH" "$SCRIPT_DIR/gpgpusim.config"
     fi
@@ -146,5 +147,14 @@ _update_csv_file() {
     else
         echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
     fi
+}
 
+# Given a results.csv and a regexp filter, filter the runs that match the regexp
+_filter_results_csv() {
+    results_filepath=${1?No results.csv provided}
+    # The regex pattern to use on the results to filter the runs. By default, only
+    # selects runs with an injection that leads to a data bitflip: "[01],[01],[01],0,[01],1,[01],[01]"
+    custom_pattern=${2:-[01],[01],[01],0,[01],1,[01],[01]}
+    filtered_run_ids=($(gawk -v pat="^([a-f0-9]{32}),$custom_pattern" 'match($0, pat, a) {print a[1]}' <"$results_filepath"))
+    echo "${filtered_run_ids[*]}"
 }

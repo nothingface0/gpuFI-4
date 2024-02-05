@@ -2037,7 +2037,7 @@ void gpgpu_sim::inject_executable(const std::string &original_instruction_hex,
   if (result != 0) {
     std::cout << "gpuFI: Error " << result
               << " when injecting executable. Aborting." << std::endl;
-    throw(SIGABRT);
+    abort();
   }
 
   std::cout << "gpuFI: Command succeeded" << std::endl;
@@ -2059,7 +2059,7 @@ void gpgpu_sim::cuobjdump_injected_executable() {
   if (result) {
     std::cout << "gpuFI: Error when disassembling injected file. Aborting."
               << std::endl;
-    throw(SIGABRT);
+    abort();
   }
 }
 

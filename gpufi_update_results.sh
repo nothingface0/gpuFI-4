@@ -53,14 +53,12 @@ preliminary_checks() {
     fi
 }
 
-# Look into the results.csv file for runs where the run was successful, but
-# cycles were different, without a tag or data bitflip taking place.
-find_run_list() {
-    echo -n "Looking for runs..."
-    # Find the runs and add them into an array.
-    BUGGY_RUN_IDS=($(gawk -v pat="^([a-f0-9]{32}),1,0,0,0,0,0,0,0$" 'match($0, pat, a) {print a[1]}' <"$(_get_gpufi_analysis_path)/results/results.csv"))
-    export BUGGY_RUN_IDS
-    echo "Done. Found ${#BUGGY_RUN_IDS[@]} runs."
+# Before updating the results, make a backup just in case
+make_backup() {
+    results_file="$(_get_gpufi_analysis_path)/results/results.csv"
+    backup_file="${results_file}_backup_$(printf '%(%Y%m%d_%H%M%S)T\n' -1)"
+    echo "Backing up $results_file to $backup_file"
+    cp "$results_file" "$backup_file" || echo "Failed to create backup file!"
 }
 
 update_results() {
@@ -89,6 +87,7 @@ update_results() {
 
 ### Script execution sequence ###
 declare -a steps=(preliminary_checks
+    make_backup
     update_results)
 
 for step in "${steps[@]}"; do

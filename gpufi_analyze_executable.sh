@@ -47,7 +47,7 @@ preliminary_checks() {
         echo "No valid GPU_ID was given, please provide a valid GPU id, e.g. SM7_QV100"
         exit 1
     fi
-    
+
     local _config_file=$(_get_gpgpusim_config_path_from_gpu_id $GPU_ID)
     if [ ! -f $_config_file ]; then
         echo "Configuration for $GPU_ID does not exist"
@@ -149,7 +149,7 @@ parse_executable_output() {
     TIMEOUT_VALUE=$((CUDA_EXECUTABLE_EXECUTION_TIME))
     regex_mangled_name="(_Z[0-9_[:alnum:]]+)"
     export KERNEL_NAMES
-    KERNEL_NAMES=$(grep -E "kernel_name = $regex_mangled_name" "$output_log" | uniq | gawk -v pat="kernel_name = $regex_mangled_name" 'match($0, pat, a) {print a[1]}')
+    KERNEL_NAMES=$(grep -E "kernel_name = $regex_mangled_name" "$output_log" | sort | uniq | gawk -v pat="kernel_name = $regex_mangled_name" 'match($0, pat, a) {print a[1]}')
     export L1I_CACHE_TOTAL_MISSES
     L1I_CACHE_TOTAL_MISSES=$(grep "L1I_total_cache_misses" "$output_log" | tail -1 | gawk -v pat="L1I_total_cache_misses = ([0-9]+)" 'match($0, pat, a) {print a[1]}')
 
@@ -360,7 +360,7 @@ declare -a analysis_steps=(
 
 # Create dynamic flags to selectively disable/enable steps of the analysis if needed.
 # Those flags are named "do_" with the name of the function.
-# We set those flags to 1 by dstepefault.
+# We set those flags to 1 by default.
 for step in "${analysis_steps[@]}"; do
     eval "do_${step}=1"
 done

@@ -35,9 +35,10 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>  // gpuFI
-#include <regex>       // gpuFI
-#include <sstream>     // gpuFI
+#include <sys/time.h>               // gpuFI
+#include <experimental/filesystem>  // gpuFI
+#include <regex>                    // gpuFI
+#include <sstream>                  // gpuFI
 #include "zlib.h"
 
 #include "dram.h"
@@ -2158,24 +2159,52 @@ ptx_instruction *gpgpu_sim::get_injected_instruction(
         // affects the original context and affects all execution.
         gpgpu_context temp_gpgpu_context = gpgpu_context(gpgpu_ctx);
         std::vector<operand_info> original_operands = ptx->m_operands;
-        std::string base_filename = "_cuobjdump_1_";
-        base_filename.append(m_config.gpufi_run_id);
+        std::string base_filename = "_cuobjdump_";
 
-        char *ptxplus_str =
-            temp_gpgpu_context.ptxinfo
-                ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
-                    base_filename + ".ptx", base_filename + ".elf",
-                    base_filename + ".sass");
-        // Parse PTXPLUS into a symbol_table.
-        symbol_table *symtab;
-        // gpuFI TODO: Is it safe to call the class method? Maybe it updates
-        // some variable for the whole context that shouldn't be updated?
-        // gpuFI TODO: Is it safe to always use source num 1?
-        symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
-            ptxplus_str, 1, m_config.gpufi_run_id);
-        auto ptx_instr = symtab->get_symbols()[kernel_name]
-                             ->get_pc()
-                             ->get_instruction_from_m_instructions(pc);
+        // There might be more than 1 disassembled files, iterate
+        // until we find the instruction we want.
+        int file_id = 1;
+        const ptx_instruction *ptx_instr = NULL;
+
+        while (1) {
+          std::string filename = base_filename;
+          filename.append(std::to_string(file_id));
+          filename.append("_");
+          filename.append(m_config.gpufi_run_id);
+          namespace fs = std::experimental::filesystem;
+          fs::path filepath_ptx(fs::current_path());
+          fs::path filepath_elf(fs::current_path());
+          fs::path filepath_sass(fs::current_path());
+          filepath_ptx /= filename + ".ptx";
+          filepath_elf /= filename + ".elf";
+          filepath_sass /= filename + ".sass";
+          if (!(fs::exists(filepath_ptx) && fs::exists(filepath_elf) &&
+                fs::exists(filepath_sass))) {
+            std::cout << "gpuFI: No file named " << filepath_ptx << std::endl;
+            // File does not exist
+            break;
+          }
+          std::cout << "gpuFI: Looking for injected instruction in file "
+                    << filename << std::endl;
+          char *ptxplus_str =
+              temp_gpgpu_context.ptxinfo
+                  ->gpgpu_ptx_sim_convert_ptx_and_sass_to_ptxplus(
+                      filename + ".ptx", filename + ".elf", filename + ".sass");
+          // Parse PTXPLUS into a symbol_table.
+          symbol_table *symtab;
+          symtab = temp_gpgpu_context.gpgpu_ptx_sim_load_ptx_from_string(
+              ptxplus_str, file_id, m_config.gpufi_run_id);
+          if (symtab->get_symbols().count(kernel_name) == 0) {
+            // This file does not contain the kernel we're looking for,
+            // keep looking.
+            file_id++;  // Increment id for next possible file
+            continue;
+          }
+          ptx_instr = symtab->get_symbols()[kernel_name]
+                          ->get_pc()
+                          ->get_instruction_from_m_instructions(pc);
+          break;
+        }
         assert(ptx_instr != NULL);
         // gpuFI TODO: assert that the instruction's SASS source matches the
         // expected injected source.

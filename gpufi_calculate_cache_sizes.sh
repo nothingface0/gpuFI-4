@@ -30,18 +30,18 @@ cache_bits_and_size_calculations() {
     [[ ${parsed_arr[0]} = "S" ]] && is_sectored=1 || is_sectored=0 # Check if sectored.
 
     sets=${parsed_arr[1]}
-    eval "export $1_NUM_SETS=$sets"
+    eval "export ${1}_NUM_SETS=$sets"
     # Log2 of number of sets = num bits for indexing
     bits_for_sets_indexing=$(printf "%.0f" $(bc -l <<<"l($sets)/l(2)"))
 
     bytes_per_line=${parsed_arr[2]}
-    eval "export $1_BYTES_PER_LINE=$bytes_per_line"
+    eval "export ${1}_BYTES_PER_LINE=$bytes_per_line"
     # Log2 of number of bytes per line = bits for byte indexing
     bits_for_byte_offset=$(printf "%.0f" $(bc -l <<<"l($bytes_per_line)/l(2)"))
-    eval "export $1_BITS_FOR_BYTE_OFFSET=$bits_for_byte_offset"
+    eval "export ${1}_BITS_FOR_BYTE_OFFSET=$bits_for_byte_offset"
 
     associativity=${parsed_arr[3]}
-    eval "export $1_ASSOC=$associativity"
+    eval "export ${1}_ASSOC=$associativity"
 
     echo -n "$cache_name: sets=$sets bytes per line=$bytes_per_line, associativity=$associativity"
     if [[ $is_sectored -ne 0 ]]; then
@@ -50,7 +50,7 @@ cache_bits_and_size_calculations() {
         echo ""
     fi
     tag_bits=$((ADDRESS_WIDTH - bits_for_byte_offset - bits_for_sets_indexing))
-    eval "export $1_TAG_BITS=$tag_bits"
+    eval "export ${1}_TAG_BITS=$tag_bits"
 
     echo "Bits for tag=$tag_bits"
     echo "Bits for index=$bits_for_sets_indexing"
@@ -86,7 +86,7 @@ cache_bits_and_size_calculations() {
         echo "Total size per SIMT core (bits)=$total_bits"
     fi
     echo
-    eval "export $1_SIZE_BITS=$total_bits"
+    eval "export ${1}_SIZE_BITS=$total_bits"
 
 }
 

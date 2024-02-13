@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug GPGPU-Sim - SM7: QV100 - test_if",
+      "name": "Debug GPGPU-Sim - test_if",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/../cuda-tests/kernels/test_if/bin/test_if",
@@ -33,7 +33,7 @@
       }
     },
     {
-      "name": "Debug GPGPU-Sim - SM7: QV100 - kmeans",
+      "name": "Debug GPGPU-Sim - kmeans",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/../gpu-rodinia/cuda/kmeans/kmeans",
@@ -65,7 +65,7 @@
       }
     },
     {
-      "name": "Debug GPGPU-Sim - SM7: QV100 - srad_v1",
+      "name": "Debug GPGPU-Sim - srad_v1",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/../gpu-rodinia/cuda/srad/srad_v1/srad",
@@ -75,6 +75,103 @@
         "128",
         "128",
         "${workspaceFolder}/../gpu-rodinia/data/srad/image.pgm"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "setupenv",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "text": "source ${workspaceFolder}/.gdbinit" },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+            "ignoreFailures": false
+          },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "Debug GPGPU-Sim - hotspot 512",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../gpu-rodinia/cuda/hotspot/hotspot",
+      "args": [
+        "512",
+        "2",
+        "2",
+        "${workspaceFolder}/../gpu-rodinia/data/hotspot/temp_512",
+        "${workspaceFolder}/../gpu-rodinia/data/hotspot/power_512",
+        "${workspaceFolder}/../gpu-rodinia/cuda/hotspot/results_512"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "setupenv",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "text": "source ${workspaceFolder}/.gdbinit" },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+            "ignoreFailures": false
+          },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "Debug GPGPU-Sim - lud",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../gpu-rodinia/cuda/lud/cuda/lud_cuda",
+      "args": ["-s", "128", "-v"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "preLaunchTask": "setupenv",
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          { "text": "source ${workspaceFolder}/.gdbinit" },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+            "ignoreFailures": false
+          },
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "Debug GPGPU-Sim - bfs",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../gpu-rodinia/cuda/bfs/bfs",
+      "args": [
+        "$HOME/Documents/workspace/gpu-rodinia/data/bfs/graph32k.txt",
+        "$HOME/Documents/workspace/gpu-rodinia/data/bfs/results_32k.txt"
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
@@ -121,9 +218,9 @@
       "request": "launch",
       "program": "${workspaceFolder}/build/gcc-9.5.0/cuda-4020/debug/cuobjdump_to_ptxplus/cuobjdump_to_ptxplus",
       "args": [
-        "_cuobjdump_1.ptx",
-        "_cuobjdump_1.sass",
-        "_cuobjdump_1.elf",
+        "_cuobjdump_1_a7aef1a6dd52e508d97caf731fddd7f2.ptx",
+        "_cuobjdump_1_a7aef1a6dd52e508d97caf731fddd7f2.sass",
+        "_cuobjdump_1_a7aef1a6dd52e508d97caf731fddd7f2.elf",
         "_ptxplus_neUGKw"
       ],
       "stopAtEntry": false,

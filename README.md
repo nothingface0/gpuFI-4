@@ -50,6 +50,8 @@ in the standard output. The custom messages of your choice upon a successful or 
 need to be set in SUCCESS_MSG, FAILED_MSG parameters of the campaign.sh
 
 ### Step 2: Campaign script preparation
+> [!IMPORTANT]
+> This is outdated now, needs to be adapted to current `gpufi_campaign.sh`
 
 The campaign.sh script (the file with example values already uploaded) requires several
 parameters to be configured before the injection campaigns are performed. We can differentiate
@@ -71,23 +73,10 @@ uploaded under configs/tested-cfgs/{SM75_RTX2060, SM7_QV100, SM3_KEPLER_TITAN}. 
 - **TMP_DIR:** This is the directory where the CONFIG_FILE and GPGPU-Sim output (TMP_FILE) files are saved for each execution. In fact, roundup(RUNS/BATCH) number of TMP_DIR directories will be created appended with an identifier. For example, if we have RUNS=10, BATCH=5, TMP_DIR=logs and TMP_FILE=tmp then logs1 and logs2 directories will be created where each one contains the files {gpgpusim.config1,gpgpusim.config2,...,gpgpusim.config5} and {tmp1, tmp2,...,tmp5}.
 - **CACHE_LOGS_DIR:** This is a directory where logs are saved for all the executions when we run injection campaigns on caches. The information that is saved is the cache line that the fault was injected and the exact bit that was flipped.
 
-**Per GPGPU card parameters**
-- **L1D_SIZE_BITS:** This is the total size in bits of the L1 data cache per SM. Tag bits should be included.
-- **L1T_SIZE_BITS:** Same as the L1D_SIZE_BITS but for the texture cache.
-- **L2_SIZE_BITS:** This is the total size in bits of the L2 cache. Tag bits should be included here as well.
-
 **Per kernel/application parameters**
-- **CUDA_UUT:** The CUDA application command.
-- **CYCLES:** The total cycles that the application took on a fault-free execution, meaning without any fault injections. GPGPU-Sim is deterministic and thus each fault free execution of the same program with the same inputs gives the same number of clock cycles.
+
 - **profile=1:** This will run the application once without any fault injections and output the cycles for each kernel’s invocation at TMP_FILE during the last cycle of the application, which we can use as input to initialize the CYCLES_FILE parameter. The two previous parameters CUDA_UUT and CYCLES are required for this profiling to work.
 - **profile=3:** This will run the application once without any fault injections. Is the same as profile=1 but without any computations that makes the fault-free application execution slower.
-- **CYCLES_FILE:** This is a file that contains all the cycles one by one per line that will be used for our injections. A random cycle from this file is chosen before every execution. With this file, our framework is capable of performing injections on specific cycles like on a kernel invocation, on all the invocations of a kernel, or the whole application.
-- **MAX_REGISTERS_USED:** This is the maximum number of registers that a kernel uses per thread.
-- **SHADER_USED:** This is the SIMT cores that a kernel uses.
-- **SUCCESS_MSG, FAILED_MSG:** This is the success and failure message respectively that an application prints after its own evaluation.
-- **TIMEOUT_VAL:** This is the timeout of an execution which is useful in case the execution of an application hangs. The format is the one needed for the timeout command in Linux.
-- **LMEM_SIZE_BITS:** This is the size in bits that a kernel uses for the local memory per thread.
-- **SMEM_SIZE_BITS:** This is the size in bits that a kernel uses for the shared memory per CTA.
 
 **Per injection campaign parameters**
 - **profile=0:** By setting the profile value to 0, the profiling procedure will be disabled and the actual injection campaigns will be executed.
@@ -101,7 +90,6 @@ uploaded under configs/tested-cfgs/{SM75_RTX2060, SM7_QV100, SM3_KEPLER_TITAN}. 
 - **l1d_shader_rand_n:** This is in which running SIMT core, hence L1 data cache, to inject shared_mem_bitflip_rand_n bit flips.
 - **l1t_cache_bitflip_rand_n, l1t_shader_rand_n:** Same like L1 data cache but they are used for the texture cache.
 - **l2_cache_bitflip_rand_n:** Same as reg_bitflip_rand_n but for L2 cache. This will randomly choose, in every execution, value(s) between 1 to L2_SIZE_BITS.
-
 
 ## INJECTION CAMPAIGN EXECUTION AND RESULTS
 

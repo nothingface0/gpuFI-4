@@ -5,11 +5,11 @@ set -e
 # it tries to find it inside the current dir.
 ADDRESS_WIDTH=64
 CONFIG_FILE=./gpgpusim.config
-if [[ -n $1 ]]; then
-    if test -f "$1"; then
-        CONFIG_FILE=$1
-    fi
+if [ -n "$1" ] && [ -f "$1" ]; then
+    CONFIG_FILE=$1
 fi
+# Sanity check
+echo "Reading config from $CONFIG_FILE"
 
 # Calculates total cache size for a specific cache, given the cache config.
 # $1: The cache name (e.g. L1D). Will also be used to export the appropriate var, i.e. L1D_SIZE_BITS
@@ -81,9 +81,11 @@ cache_bits_and_size_calculations() {
         # size by multiplying with the number of mem controllers and the number
         # of sub partitions that each controller has.
         total_bits=$((total_bits * num_mem_controllers * num_sub_partitions))
-        echo "Total size (bits)=$total_bits"
+        echo "Total size (bytes, w/o tags)=$((sets * associativity * bytes_per_line * num_mem_controllers * num_sub_partitions))"
+        echo "Total size (bits, w/tags)=$total_bits"
     else
-        echo "Total size per SIMT core (bits)=$total_bits"
+        echo "Total size per SIMT core (bytes, w/o tags)=$((sets * associativity * bytes_per_line))"
+        echo "Total size per SIMT core (bits, w/ tags)=$total_bits"
     fi
     echo
     eval "export ${1}_SIZE_BITS=$total_bits"

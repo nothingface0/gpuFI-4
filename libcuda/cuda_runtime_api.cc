@@ -3136,6 +3136,7 @@ void cuda_runtime_api::extract_code_using_cuobjdump() {
       cuobjdump_parse(parser.scanner, &parser, cuobjdumpSectionList);
       cuobjdump_lex_destroy(parser.scanner);
       fclose(cuobjdump_in);
+      // gpuFI: Store the name of the binary for future injection
       context->get_device()->get_gpgpu()->app_binary_path = app_binary;
       printf("Done parsing!!!\n");
     } else {

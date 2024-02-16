@@ -161,9 +161,6 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
                            bool is_rw, bool is_constant, bool is_texture) {
   gpgpu_sim *gpu_sim = (gpgpu_sim *)(thread->m_gpu);
 
-  //  printf("GLOBAL/LOCAL MISSED L1 -> READ L2 OEOEOEO FROM ld_exec from thread
-  //  uid=%u on address=%x\n", thread->get_uid(), addr);
-
   addrdec_t addrdec = addrdec_t();
   gpu_sim->m_memory_config->m_L2_config.m_address_mapping->addrdec_tlx(
       addr, &addrdec);
@@ -189,12 +186,6 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
         L2->m_tag_array->probe(addr, index, mask, false, NULL);
 
     if (gpu_sim->l2_index[j] == index) {
-      //        printf("Thread = %u, index = %u, l2_idx = %u, tag = %u,
-      //        l2_tag=%u, probe_status = %u\n", thread->get_uid(), index,
-      //        gpu_sim->l2_index[j], tag, gpu_sim->l2_tag[j], probe_status);
-      //        printf("l2_line_bitflip_bits_idx=%u, bit_start=%u,
-      //        bit_end=%u\n", gpu_sim->l2_line_bitflip_bits_idx[j], bit_start,
-      //        bit_end);
       bool probe_status_hit, probe_status_miss;
       if (is_store || is_rw) {
         probe_status_hit = probe_status == HIT || probe_status == HIT_RESERVED;
@@ -241,16 +232,7 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
             bf_size_bits_idx = gpu_sim->l2_line_bitflip_bits_idx[j] % size;
           }
 
-          //            printf("bit_start=%u, bit_end=%u,
-          //            bf_line_sz_bits_idx=%u, bf_size_bits_idx=%u\n",
-          //            bit_start, bit_end,
-          //            gpu_sim->l2_line_bitflip_bits_idx[j]+1,
-          //            bf_size_bits_idx+1); printf("Before bit flip of
-          //            thread=%u, value = %llu, reg_bf=%u\n",
-          //            thread->get_uid(), data.u64, bf_size_bits_idx+1);
           *reg_bf ^= 1UL << bf_size_bits_idx;
-          //            printf("After bit flip value = %llu\n", data.u64);
-          //            printf("DATA INSIDE= %llu\n", data.u64);
         }
       } else if (gpu_sim->l2_tag[j] == tag && probe_status_miss) {
         if (is_constant) {
@@ -266,7 +248,7 @@ void check_and_apply_l2_bf(ptx_thread_info *thread, addr_t addr,
           }
         } else {
           printf("gpuFI: DEACTIVATING L2 BIT FLIP ON LOAD GLOBAL/LOCAL\n");
-          // TODO disable main flag if l2_bf_enabled[*]==false
+          // gpuFI TODO: disable main flag if l2_bf_enabled[*]==false
           gpu_sim->l2_bf_enabled[j] = false;
         }
       }
@@ -283,8 +265,6 @@ void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
       gpu_sim->m_cluster[gpu_sim->l1t_cluster_idx[l1t_used_index]];
   shader_core_ctx *shader_core =
       simt_cluster->get_core()[gpu_sim->l1t_shader_core_ctx[l1t_used_index]];
-
-  //  printf("...on address=%x\n", data_tex_array_index);
 
   tex_cache *L1T = shader_core->m_ldst_unit->m_L1T;
   new_addr_type block_addr = L1T->m_config.block_addr(data_tex_array_index);
@@ -314,11 +294,6 @@ void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
     }
 
     if (l1t_index_vector[j] == index) {
-      //      printf("index = %u, l1t_idx = %u, tag = %u, l1t_tag=%u,
-      //      probe_status = %u\n", index, l1t_index_vector[j], tag,
-      //      l1t_tag_vector[j], probe_status);
-      //      printf("l1t_line_bitflip_bits_idx=%u, bit_start=%u, bit_end=%u\n",
-      //      l1t_line_bitflip_bits_idx_vector[j], bit_start, bit_end);
       if (l1t_tag_vector[j] == tag && probe_status == HIT) {  // hit
         // Inject the error to the specific value of a thread that the bit flip
         // belongs to
@@ -328,13 +303,7 @@ void l1t_bit_flip(ptx_thread_info *thread, unsigned data_tex_array_index,
               l1t_line_bitflip_bits_idx_vector[j] % data_size;
           unsigned long long *reg_bf = &data_bf.u64;
 
-          //          printf("bit_start=%u, bit_end=%u, bf_line_sz_bits_idx=%u,
-          //          bf_size_bits_idx=%u\n", bit_start, bit_end,
-          //          l1t_line_bitflip_bits_idx_vector[j]+1,
-          //          bf_size_bits_idx+1); printf("Before bit flip value = %llu,
-          //          reg_bf=%u\n", data_bf.u64, bf_size_bits_idx+1);
           *reg_bf ^= 1UL << bf_size_bits_idx;
-          //          printf("After bit flip value = %llu\n", data_bf.u64);
         }
       } else if (l1t_tag_vector[j] == tag && probe_status == MISS) {  // miss
         printf("gpuFI: DEACTIVATING L1T BIT FLIP ON LOAD TEXTURE\n");
@@ -391,10 +360,6 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
     shader_core_ctx *shader_core =
         simt_cluster->get_core()[gpu_sim->l1d_shader_core_ctx[l1d_used_index]];
 
-    //  printf("GLOBAL/LOCAL READ OEOEOEO FROM ld_exec from thread uid=%u on
-    //  address=%x with instruction type=%u\n", thread->get_uid(), addr,
-    //  type);
-
     l1_cache *L1D = shader_core->m_ldst_unit->m_L1D;
     new_addr_type block_addr = L1D->m_config.block_addr(addr);
     unsigned set_index = L1D->m_config.set_index(block_addr);
@@ -426,18 +391,6 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
             L1D->m_tag_array->probe(addr, index, mask, false, NULL);
 
         if (l1d_index_vector[j] == index) {
-          // printf("Thread = %u, bf_chunk_idx = %u, index = %u,
-          //        l1d_idx = % u,
-          //        tag = % u, l1d_tag = % u,
-          //        probe_status = % u\n ", thread->get_uid(), bf_chunk_idx,
-          //        index,
-          //                       l1d_index_vector[j],
-          //        tag, l1d_tag_vector[j], probe_status);
-          // printf("l1d_line_bitflip_bits_idx=%u,
-          //        bit_start = % u,
-          //        bit_end = % u\n ",
-          //                  l1d_line_bitflip_bits_idx_vector[j],
-          //        bit_start, bit_end);
           if (l1d_tag_vector[j] == tag &&
               (probe_status == HIT || probe_status == HIT_RESERVED)) {  // hit
             // Inject the error to the specific value of a thread that the bit
@@ -464,23 +417,7 @@ void local_global_read_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
                 reg_bf = &data.u64;
                 bf_size_bits_idx = l1d_line_bitflip_bits_idx_vector[j] % size;
               }
-
-              // printf("Thread on chunk %u, bit_start=%u,
-              //        bit_end = % u,
-              //        bf_line_sz_bits_idx = % u,
-              //        bf_size_bits_idx = % u\n ", chunk_idx, bit_start,
-              //                           bit_end,
-              //        l1d_line_bitflip_bits_idx_vector[j] + 1,
-              //        bf_size_bits_idx + 1);
-              // printf("Before bit flip of
-              //        thread = % u,
-              //        value = % llu,
-              //        reg_bf = % u\n ",
-              //                   thread->get_uid(),
-              //        data.u64, bf_size_bits_idx + 1);
               *reg_bf ^= 1UL << bf_size_bits_idx;
-              // printf("After bit flip value = %llu\n", data.u64);
-              // printf("DATA INSIDE= %f\n", data.f32);
             }
           } else if (l1d_tag_vector[j] == tag &&
                      probe_status != RESERVATION_FAIL) {  // miss
@@ -533,15 +470,6 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
       enum cache_request_status probe_status = L1C->m_tag_array->probe(
           addr, index, mask, false, false, NULL, 666U);  // TODO: check is_write
       if (l1c_index_vector[j] == index) {
-        // printf("Thread = %u, index = %u, l1c_idx = %u, tag = %u,
-        //        l1c_tag = % u,
-        //        probe_status = % u\n ", thread->get_uid(), index,
-        //                       l1c_index_vector[j],
-        //        tag, l1c_tag_vector[j], probe_status);
-        // printf("l1c_line_bitflip_bits_idx=%u, bit_start=%u,
-        //        bit_end =
-        //            % u\n ", l1c_line_bitflip_bits_idx_vector[j], bit_start,
-        //            bit_end);
         if (l1c_tag_vector[j] == tag && probe_status == HIT) {  // hit
           // Inject the error to the specific value of a thread that the bit
           // flip belongs to
@@ -568,21 +496,7 @@ void constant_read_l1C_bf(ptx_thread_info *thread, ptx_reg_t &data, size_t size,
               bf_size_bits_idx = l1c_line_bitflip_bits_idx_vector[j] % size;
             }
 
-            // printf("bit_start=%u, bit_end=%u,
-            //        bf_line_sz_bits_idx = % u,
-            //        bf_size_bits_idx = % u\n ",
-            //                           bit_start,
-            //        bit_end, l1c_line_bitflip_bits_idx_vector[j] + 1,
-            //        bf_size_bits_idx + 1);
-            // printf("Before bit flip of
-            //        thread = % u,
-            //        value = % llu,
-            //        reg_bf = % u\n ",
-            //                   thread->get_uid(),
-            //        data.u64, bf_size_bits_idx + 1);
             *reg_bf ^= 1UL << bf_size_bits_idx;
-            // printf("After bit flip value = %llu\n", data.u64);
-            // printf("DATA INSIDE= %f\n", data.f64);
           }
         } else if (l1c_tag_vector[j] == tag &&
                    probe_status != RESERVATION_FAIL) {
@@ -683,9 +597,6 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
     shader_core_ctx *shader_core =
         simt_cluster->get_core()[gpu_sim->l1d_shader_core_ctx[l1d_used_index]];
 
-    //  printf("GLOBAL/LOCAL WRITE OEOEOEO FROM st_impl from thread uid=%u on
-    //  address=%x with instruction type=%u\n", thread->get_uid(), addr, type);
-
     l1_cache *L1D = shader_core->m_ldst_unit->m_L1D;
     new_addr_type block_addr = L1D->m_config.block_addr(addr);
     unsigned set_index = L1D->m_config.set_index(block_addr);
@@ -717,18 +628,6 @@ void local_global_write_l1D_bf(ptx_thread_info *thread, ptx_reg_t &data,
             L1D->m_tag_array->probe(addr, index, mask, false, NULL);
 
         if (l1d_index_vector[j] == index) {
-          // printf("Thread = %u, bf_chunk_idx = %u, index = %u,
-          //        l1d_idx = % u,
-          //        tag = % u, l1d_tag = % u,
-          //        probe_status = % u\n ", thread->get_uid(), bf_chunk_idx,
-          //        index,
-          //                       l1d_index_vector[j],
-          //        tag, l1d_tag_vector[j], probe_status);
-          // printf("l1d_line_bitflip_bits_idx=%u,
-          //        bit_start = % u,
-          //        bit_end = % u\n ",
-          //                  l1d_line_bitflip_bits_idx_vector[j],
-          //        bit_start, bit_end);
           // Write no-allocate policy so we don't care about miss or reservation
           // fail statuses
           if (l1d_tag_vector[j] == tag &&

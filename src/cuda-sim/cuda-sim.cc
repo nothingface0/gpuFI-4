@@ -1781,10 +1781,12 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
     // cluster.
     int num_cores_per_cluster =
         m_core->get_gpu()->m_cluster[0]->get_config()->n_simt_cores_per_cluster;
-    int core_id = get_hw_sid();  // gpuFI TODO: is this correct?
+    int core_id = get_hw_sid();
     int cluster_id = core_id / num_cores_per_cluster;
     core_id = core_id % num_cores_per_cluster;
 
+    // Find which index in l1i_pc_to_injected_instruction we should use,
+    // based on the current cluster & core id.
     for (int i = 0; i < m_core->get_gpu()->l1i_data_bf_enabled.size(); ++i) {
       if (m_core->get_gpu()->l1i_shader_core_ctx[i] == core_id &&
           m_core->get_gpu()->l1i_cluster_idx[i] == cluster_id) {
@@ -1802,6 +1804,8 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
                      ->get_source_str()
               << ")" << std::endl;
   }
+  // If injected, get the ptx_instruction from the map we filled earlier, using
+  // the index calculated above.
   const ptx_instruction *pI =
       inst.m_is_injected
           ? m_core->get_gpu()->l1i_pc_to_injected_instruction[l1i_index][pc]

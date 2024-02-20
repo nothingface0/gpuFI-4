@@ -43,7 +43,7 @@ cache_bits_and_size_calculations() {
     associativity=${parsed_arr[3]}
     eval "export ${1}_ASSOC=$associativity"
 
-    echo -n "$cache_name: sets=$sets bytes per line=$bytes_per_line, associativity=$associativity"
+    echo -n "$cache_name: sets=${sets}, bytes per line=${bytes_per_line}, associativity=${associativity}"
     if [[ $is_sectored -ne 0 ]]; then
         echo " (Sectored)"
     else

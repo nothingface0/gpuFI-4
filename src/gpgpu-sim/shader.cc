@@ -35,6 +35,7 @@
 #include <limits.h>
 #include <string.h>
 #include <bitset>
+#include <iomanip>
 #include "../../libcuda/gpgpu_context.h"
 #include "../cuda-sim/cuda-sim.h"
 #include "../cuda-sim/ptx-stats.h"
@@ -3171,6 +3172,39 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     fprintf(fout, "L1I_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
       m_cluster[i]->get_L1I_sub_stats(css);
+
+      // gpuFI: Calculate % of per-core L1I lines with valid data
+      for (unsigned j = 0;
+           j < m_cluster[i]->get_config()->n_simt_cores_per_cluster; j++) {
+        unsigned num_lines_tot =
+            m_cluster[i]->get_core()[j]->m_L1I->m_config.get_num_lines();
+        unsigned num_lines_valid = 0;
+
+        for (unsigned k = 0; k < num_lines_tot; k++) {
+          if (m_cluster[i]
+                  ->get_core()[j]
+                  ->m_L1I->m_tag_array->m_lines[k]
+                  ->is_valid_line()) {
+            num_lines_valid++;
+          }
+          // std::cout << "\t\tLine " << k << ": "
+          //           << m_cluster[i]
+          //                  ->get_core()[j]
+          //                  ->m_L1I->m_tag_array->m_lines[k]
+          //                  ->m_tag
+          //           << std::endl;
+        }
+        // gpuFI: Print more detailed per-core L1I stats
+        fprintf(stdout,
+                "\tL1I_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = "
+                "%.3lf, Pending_hits = %llu, Reservation_fails = %llu, "
+                "Valid_lines = %d/%d (%.2f%)\n",
+                i, css.accesses, css.misses,
+                (double)css.misses / (double)css.accesses, css.pending_hits,
+                css.res_fails, num_lines_valid, num_lines_tot,
+                ((float)num_lines_valid / (float)num_lines_tot) * 100.0);
+      }
+
       total_css += css;
     }
     fprintf(fout, "\tL1I_total_cache_accesses = %llu\n", total_css.accesses);

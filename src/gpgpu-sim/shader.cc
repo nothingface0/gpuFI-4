@@ -35,7 +35,6 @@
 #include <limits.h>
 #include <string.h>
 #include <bitset>
-#include <iomanip>
 #include "../../libcuda/gpgpu_context.h"
 #include "../cuda-sim/cuda-sim.h"
 #include "../cuda-sim/ptx-stats.h"
@@ -3168,6 +3167,11 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
   if (!m_shader_config->m_L1I_config.disabled()) {
     total_css.clear();
     css.clear();
+    // Store cache usage per core
+    // gpuFI TODO: Assumes all clusters have same number of cores
+    float l1i_cache_usage[m_shader_config->n_simt_clusters *
+                          m_cluster[0]->get_config()->n_simt_cores_per_cluster];
+
     fprintf(fout, "\n========= Core cache stats =========\n");
     fprintf(fout, "L1I_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
@@ -3195,6 +3199,10 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
           //           << std::endl;
         }
         // gpuFI: Print more detailed per-core L1I stats
+        unsigned core_id =
+            m_cluster[i]->get_config()->n_simt_cores_per_cluster * i + j;
+        l1i_cache_usage[core_id] =
+            (float)num_lines_valid / (float)num_lines_tot;
         fprintf(stdout,
                 "\tL1I_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = "
                 "%.3lf, Pending_hits = %llu, Reservation_fails = %llu, "
@@ -3202,7 +3210,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
                 i, css.accesses, css.misses,
                 (double)css.misses / (double)css.accesses, css.pending_hits,
                 css.res_fails, num_lines_valid, num_lines_tot,
-                ((float)num_lines_valid / (float)num_lines_tot) * 100.0);
+                (l1i_cache_usage[core_id]) * 100.0);
       }
 
       total_css += css;
@@ -3217,6 +3225,18 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
             total_css.pending_hits);
     fprintf(fout, "\tL1I_total_cache_reservation_fails = %llu\n",
             total_css.res_fails);
+
+    float average = 0;
+
+    for (unsigned i = 0;
+         i < m_shader_config->n_simt_clusters *
+                 m_cluster[0]->get_config()->n_simt_cores_per_cluster;
+         i++) {
+      average += l1i_cache_usage[i];
+    }
+    average /= m_shader_config->n_simt_clusters *
+               m_cluster[0]->get_config()->n_simt_cores_per_cluster;
+    fprintf(fout, "\tL1I_average_usage = %.2f%\n", average * 100.0);
   }
 
   // L1D

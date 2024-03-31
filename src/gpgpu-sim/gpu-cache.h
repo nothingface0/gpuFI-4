@@ -992,6 +992,15 @@ class tag_array {
   cache_config &m_config;   // gpuFI
   cache_block_t **m_lines;  // gpuFI: nbanks x nset x assoc lines in total
   void inc_dirty() { m_dirty++; }
+  // gpuFI
+  const std::vector<unsigned long long> &get_accesses_per_set() {
+    return m_accesses_per_set;
+  }
+  // gpufFI: terrible workaround, because doing it the right way will be too
+  // time consuming
+  void clear_accesses_per_set() {
+    std::fill(m_accesses_per_set.begin(), m_accesses_per_set.end(), 0);
+  }
 
  protected:
   // This constructor is intended for use only from derived classes that wish to
@@ -1027,6 +1036,10 @@ class tag_array {
 
   typedef tr1_hash_map<new_addr_type, unsigned> line_table;
   line_table pending_lines;
+
+  // gpuFI: Store accesses per set. cache_stats is probably a better place to
+  // put this, but it's simpler to put it here...
+  std::vector<unsigned long long> m_accesses_per_set;
 };
 
 class mshr_table {

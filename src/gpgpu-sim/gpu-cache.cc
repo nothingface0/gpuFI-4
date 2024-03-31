@@ -216,6 +216,8 @@ void tag_array::init(int core_id, int type_id) {
   m_type_id = type_id;
   is_used = false;
   m_dirty = 0;
+  m_accesses_per_set.resize(m_config.m_nset);  // gpuFI
+  clear_accesses_per_set();
 }
 
 void tag_array::add_pending_line(mem_fetch *mf) {
@@ -355,6 +357,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
       m_pending_hit++;
     case HIT:
       m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
+      m_accesses_per_set[idx % m_config.m_nset]++;  // gpuFI
       break;
     case MISS:
       m_miss++;

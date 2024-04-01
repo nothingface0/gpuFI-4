@@ -8,13 +8,18 @@ CONFIG_FILE=./gpgpusim.config
 if [ -n "$1" ] && [ -f "$1" ]; then
     CONFIG_FILE=$1
 fi
+
+if [ ! -f $CONFIG_FILE ]; then
+    echo "Could not find file $CONFIG_FILE"
+    exit 1
+fi
 # Sanity check
 echo "Reading config from $CONFIG_FILE"
 
 # Calculates total cache size for a specific cache, given the cache config.
 # $1: The cache name (e.g. L1D). Will also be used to export the appropriate var, i.e. L1D_SIZE_BITS
 # $2: The name of the variable to read from the gpgpusim.config file. E.g. for L1D it's "-gpgpu_cache:dl1".
-cache_bits_and_size_calculations() {
+cache_size_calculation() {
     cache_name=$1
     cache_config_id=$2
     # L2 is the only cache type with subpartitions
@@ -92,8 +97,8 @@ cache_bits_and_size_calculations() {
 
 }
 
-cache_bits_and_size_calculations "L1I" "-gpgpu_cache:il1"
-cache_bits_and_size_calculations "L1D" "-gpgpu_cache:dl1"
-cache_bits_and_size_calculations "L1T" "-gpgpu_tex_cache:l1"
-cache_bits_and_size_calculations "L1C" "-gpgpu_const_cache:l1"
-cache_bits_and_size_calculations "L2" "-gpgpu_cache:dl2"
+cache_size_calculation "L1I" "-gpgpu_cache:il1"
+cache_size_calculation "L1D" "-gpgpu_cache:dl1"
+cache_size_calculation "L1T" "-gpgpu_tex_cache:l1"
+cache_size_calculation "L1C" "-gpgpu_const_cache:l1"
+cache_size_calculation "L2" "-gpgpu_cache:dl2"

@@ -65,7 +65,7 @@ preliminary_checks() {
     # GPU id, executable and args.
     if [ -f "$(_get_gpufi_analysis_path)/.analysis_complete" ]; then
         echo "\"$CUDA_EXECUTABLE_PATH\" with args \"$CUDA_EXECUTABLE_ARGS\" has already been analyzed, skipping."
-        exit 0
+        exit 128
     fi
 }
 

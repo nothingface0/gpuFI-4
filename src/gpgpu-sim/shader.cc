@@ -3211,16 +3211,18 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
                 (double)css.misses / (double)css.accesses, css.pending_hits,
                 css.res_fails, num_lines_valid, num_lines_tot,
                 (l1i_cache_usage[core_id]) * 100.0);
-        // Print accesses per set
-        unsigned l1i_num_sets =
-            m_cluster[i]->get_core()[j]->m_L1I->m_config.get_nset();
-        // fprintf(stdout, "\t\tAccesses per set:\n");
-        for (unsigned l = 0; l < l1i_num_sets; l++) {
-          fprintf(stdout, "\t\tL1I_cache_core[%d],Set[%d]: Access = %lld\n", i,
-                  l,
-                  m_cluster[i]
-                      ->get_core()[j]
-                      ->m_L1I->m_tag_array->get_accesses_per_set()[l]);
+        if (m_config.gpufi_l1i_print_stats_per_set) {
+          // Print accesses per set
+          unsigned l1i_num_sets =
+              m_cluster[i]->get_core()[j]->m_L1I->m_config.get_nset();
+          // fprintf(stdout, "\t\tAccesses per set:\n");
+          for (unsigned l = 0; l < l1i_num_sets; l++) {
+            fprintf(stdout, "\t\tL1I_cache_core[%d],Set[%d]: Access = %lld\n",
+                    i, l,
+                    m_cluster[i]
+                        ->get_core()[j]
+                        ->m_L1I->m_tag_array->get_accesses_per_set()[l]);
+          }
         }
         // gpuFI: terrible workaround, continued.
         m_cluster[i]

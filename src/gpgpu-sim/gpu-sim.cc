@@ -730,6 +730,10 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
       "gpuFI: If true, instructions fetched from the MSHR "
       "will be treated as if they arrived from the L1I cache.",
       "0");
+  option_parser_register(
+      opp, "-gpufi_l1i_print_stats_per_set", OPT_BOOL,
+      &gpufi_l1i_print_stats_per_set,
+      "gpuFI: If true, accesses per set of each L1I are printed.", "0");
   option_parser_register(opp, "-gpufi_l2_cache_bitflip_rand_n", OPT_CSTR,
                          &gpufi_l2_cache_bitflip_rand_n, "TODO", "0");
   // gpuFI end

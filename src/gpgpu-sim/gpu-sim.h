@@ -429,6 +429,7 @@ class gpgpu_sim_config : public power_config,
 
   // gpuFI
   bool gpufi_l1i_cache_bitflips_ignore_mshr;
+  bool gpufi_l1i_print_stats_per_set;
 
  private:
   void init_clock_domains(void);

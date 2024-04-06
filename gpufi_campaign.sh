@@ -501,6 +501,17 @@ preliminary_checks() {
         _GPUFI_PROFILE=0
     fi
 
+    # Check if we already have enough runs recorded in our results
+    if [ -f "$(_get_gpufi_analysis_path)/results/results.csv" ]; then
+        num_runs_done=$(wc -l <"$(_get_gpufi_analysis_path)/results/results.csv")
+        num_runs_done=$((num_runs_done - 1))
+        echo "There are already $num_runs_done runs recorded for this campaign."
+        if [ "$NUM_RUNS" -le "$num_runs_done" ]; then
+            exit 0
+        fi
+        NUM_RUNS=$((NUM_RUNS - num_runs_done))
+        echo "Starting a campaign for the remaining $NUM_RUNS runs."
+    fi
 }
 
 read_executable_analysis_files() {

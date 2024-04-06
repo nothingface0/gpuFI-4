@@ -562,6 +562,12 @@ class cache_config {
   void init(char *config, FuncCache status) {
     cache_status = status;
     assert(config);
+    // ct: cache type
+    // rp: replacement policy
+    // wp: write policy
+    // ap: allocation policy
+    // wap: write-allocate policy?
+    // sif: set-index function
     char ct, rp, wp, ap, mshr_type, wap, sif;
 
     int ntok =

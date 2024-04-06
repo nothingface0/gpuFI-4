@@ -33,19 +33,25 @@ cache_size_calculation() {
     parsed_regex=$(gawk -v pat="$cache_config_regex" 'match($0, pat, a) {print a[1], a[2], a[3], a[4]}' <"$CONFIG_FILE")
     parsed_arr=(${parsed_regex// / })                              # Split with spaces.
     [[ ${parsed_arr[0]} = "S" ]] && is_sectored=1 || is_sectored=0 # Check if sectored.
-
-    sets=${parsed_arr[1]}
+    # Figure out if there was a letter leading the cache config or not,
+    # so that we know where to start looking for the sets and line lenght
+    if [ "${#parsed_arr[*]}" -eq 4 ]; then
+        start_idx=1
+    else
+        start_idx=0
+    fi
+    sets=${parsed_arr[$start_idx]}
     eval "export ${1}_NUM_SETS=$sets"
     # Log2 of number of sets = num bits for indexing
     bits_for_sets_indexing=$(printf "%.0f" $(bc -l <<<"l($sets)/l(2)"))
 
-    bytes_per_line=${parsed_arr[2]}
+    bytes_per_line=${parsed_arr[$((start_idx + 1))]}
     eval "export ${1}_BYTES_PER_LINE=$bytes_per_line"
     # Log2 of number of bytes per line = bits for byte indexing
     bits_for_byte_offset=$(printf "%.0f" $(bc -l <<<"l($bytes_per_line)/l(2)"))
     eval "export ${1}_BITS_FOR_BYTE_OFFSET=$bits_for_byte_offset"
 
-    associativity=${parsed_arr[3]}
+    associativity=${parsed_arr[$((start_idx + 2))]}
     eval "export ${1}_ASSOC=$associativity"
 
     echo -n "$cache_name: sets=${sets}, bytes per line=${bytes_per_line}, associativity=${associativity}"

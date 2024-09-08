@@ -358,7 +358,7 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
     case HIT:
       m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
       m_accesses_per_set[idx % m_config.m_nset]++;  // gpuFI: Increase
-                                                    // specific set's acceses
+                                                    // specific set's accesses
       break;
     case MISS:
       m_miss++;

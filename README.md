@@ -94,7 +94,7 @@ An example of how this was done can be found [here](https://github.com/nothingfa
 
 Considering the fact that gpuFI relies on running with the `gpgpu_ptx_convert_to_ptxplus` option enabled, the CUDA applications must be built (as of 2024/09) with CUDA Toolkit 4.2, to contain `sm_1x` SASS instructions. Since the CUDA Toolkit 4.2 requires gcc version 4.x, the most straightforward way to build the applications inside a container.
 
-> [!INFO]
+> [!NOTE]
 > For this example, we are using `docker` and we are assuming that the source code of the benchmarks has been cloned into: `$HOME/Documents/workspace/gpu-rodinia`
 
 First start the container:

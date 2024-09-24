@@ -10,40 +10,21 @@ If you use gpuFI-4 for your research, please cite:
 
 The full ISPASS 2022 paper for gpuFI-4 can be found [here](http://cal.di.uoa.gr/wp-content/uploads/2022/04/gpuFI-4_ISPASS_2022.pdf).
 
-## Installing and building
+## Building the simulator
 
-gpuFI-4 is developed on top of GPGPU-Sim 4.0 and several input parameters have
-been created for this purpose which are passed through the `gpgpusim.config` file
-to the simulator. The installation and the building process is identical to [GPGPU-Sim](https://github.com/gpgpu-sim/gpgpu-sim_distribution).
+gpuFI-4's requirements and building process are mostly identical to [GPGPU-Sim](https://github.com/gpgpu-sim/gpgpu-sim_distribution).
 
-If your purpose is to use gpuFI-4 to evaluate the fault effects of a CUDA application using
-PTXPLUS and not PTX then make sure that you are compiling GPGPU-Sim and the application with CUDA 4.2 or less
-as PTXPLUS currently only supports `sm_1x`.
-
-Here is the message from the GPGPU-Sim developers during the setup_environment that
-explains it thoroughly:
-
-> INFO - If you only care about PTX execution, ignore this message. GPGPU-Sim supports PTX execution in modern CUDA.
-> If you want to run PTXPLUS (sm_1x SASS) with a modern card configuration - set the environment variable
-> $PTXAS_CUDA_INSTALL_PATH to point a CUDA version compabible with your card configurations (i.e. 8+ for PASCAL, 9+ for VOLTA etc..)
-> For example: "export $PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-9.1"
->
-> The following text describes why:
-> If you are using PTXPLUS, only sm_1x is supported and it requires that the app and simulator binaries are compiled in CUDA 4.2 or less.
-> The simulator requires it since CUDA headers desribe struct sizes in the exec which change from gen to gen.
-> The apps require 4.2 because new versions of CUDA tools have dropped parsing support for generating sm_1x
-> When running using modern config (i.e. volta) and PTXPLUS with CUDA 4.2, the $PTXAS_CUDA_INSTALL_PATH env variable is required to get proper register >usage
-> (and hence occupancy) using a version of CUDA that knows the register usage on the real card.
+If your purpose is to use gpuFI-4 to evaluate the fault effects of a CUDA application using PTXPLUS and not PTX then make sure that you are compiling GPGPU-Sim and the application with CUDA 4.2 or less as PTXPLUS currently only supports `sm_1x`.
 
 ### Prerequisites
 
-To use gpuFI, you will need:
+To build and use gpuFI, you will be needing:
 
-- A C++ compiler (we used the GNU toolchain, and tested with versions 9.5 up to 12.3)
-- CUDA Toolkit version 4.2
-- CUDA Toolkit version 11.0
+- A C++ compiler (we used the GNU toolchain, and tested with versions 9.5 up to 12.3).
+- CUDA Toolkit version 4.2 (to be used with `CUDA_INSTALL_PATH`).
+- CUDA Toolkit version 11.0 (to be used with `PTXAS_CUDA_INSTALL_PATH`).
 
-Below, instructions on how to install both on a Linux distribution (Ubuntu versions 22.10 and 23.04 were tested).
+Below, instructions on how to install both on a Linux distribution (Ubuntu versions 22.10 and 23.04 were tested) are given.
 
 The CUDA Toolkit 4.2 can be installed by running:
 
@@ -66,83 +47,90 @@ Choose `/usr/local/cuda-11.0/` as the installation directory.
 
 ### Step-by-step guide
 
-To compile the simulator, make sure you've installed the [Prerequisites](#prerequisites) first.
+To compile the simulator, make sure you've installed the [prerequisites](#prerequisites) first.
 
-Clone or download the gpuFI source code from this repository and edit the `startup.sh` file inside the gpuFI-4 directory. Update the following values:
+1. Clone or download the gpuFI source code from this repository and edit the `startup.sh` file inside the gpuFI-4 directory. Update the following values:
 
-- `PTXAS_CUDA_INSTALL_PATH`: Adapt this to your CUDA Toolkit 11.0 installation (e.g., `/usr/local/cuda-11.0`).
-- `CUDA_INSTALL_PATH` to point to your CUDA Toolkit 4.2 installation (e.g., `/usr/local/cuda-4.2/cuda`).
+   - `PTXAS_CUDA_INSTALL_PATH`: Adapt this to your CUDA Toolkit 11.0 installation (e.g., `/usr/local/cuda-11.0`).
+   - `CUDA_INSTALL_PATH` to point to your CUDA Toolkit 4.2 installation (e.g., `/usr/local/cuda-4.2/cuda`).
 
-Then, open a terminal inside the same directory and run:
+2. Then, open a terminal inside the same directory and run:
+
+   ```bash
+   source startup.sh
+   make -j
+   ```
+
+   To compile without optimizations, in order to run with a debugger, run:
+
+   ```bash
+   source startup.sh debug
+   make -j
+   ```
+
+## CUDA applications
+
+For a CUDA application to be used with this simulator, the following requirements must be met:
+
+- The application's source code should be available.
+- The application should be slightly modified so that it runs a validation procedure before its exit, printing out if the validation passed or failed.
+
+The second point is due to the fact that gpuFI-4 must have a way of knowing, at the end of each execution, if the application ran correctly or not.
+
+### Modifying the applications
+
+The applications to be used with the simulator should be slightly modified to run a comparison procedure of the results they produce from the GPU part of the execution.
+
+Examples of how this can be achieved include:
+
+- Generating a fault-free execution results file (once per application), by running the application without a fault injection, which can be used during each run of an injection campaign to compare the run's results against.
+- Hardcoding the results of a reference execution inside the application, and running a validation against them at the end of each run.
+
+In any case, a success (`Tests PASSED`) or a failure (`Tests FAILED`) message is expected to be found in the standard output of the application at the end of each run, in order to determine if data validation passed or not.
+
+An example of how this was done can be found [here](https://github.com/nothingface0/gpu-rodinia/blob/gpgpu_sim_fi/cuda/bfs/bfs.cu) for the `bfs` Rodinia benchmark, with some sample reference input files [here](https://github.com/nothingface0/gpu-rodinia/tree/gpgpu_sim_fi/data/bfs).
+
+### Building the applications
+
+Considering the fact that gpuFI relies on running with the `gpgpu_ptx_convert_to_ptxplus` option enabled, the CUDA applications must be built (as of 2024/09) with CUDA Toolkit 4.2, to contain `sm_1x` SASS instructions. Since the CUDA Toolkit 4.2 requires gcc version 4.x, the most straightforward way to build the applications inside a container.
+
+> [!INFO]
+> For this example, we are using `docker` and we are assuming that the source code of the benchmarks has been cloned into: `$HOME/Documents/workspace/gpu-rodinia`
+
+First start the container:
 
 ```bash
-source startup.sh
-make -j
+sudo docker run --privileged \
+-v $HOME/Documents/workspace/gpu-rodinia:/home/runner/gpu-rodinia \
+aamodt/gpgpu-sim_regress:latest \
+/bin/bash -c "tail -f /dev/null"
 ```
 
-To compile without optimizations, in order to run with a debugger, run:
+In a separate terminal, run the following to connect to a `sh` session inside the container:
 
 ```bash
-source startup.sh debug
-make -j
+sudo docker exec -it $(sudo docker ps | grep aamodt | awk '{print($1)}') \
+/bin/bash -c "su -l runner"
 ```
 
-## Preparing and profiling
+From the terminal that opens inside the container, we can `cd` to the benchmark of our choosing, under the `gpu-rodinia/cuda` directory and issue `make`. The compiled CUDA executable will be available on the host operating system, alongside the CUDA application source code.
 
-There are two steps that needs to be done before starting the injection campaigns.
-The first step is to make some minor modifications to the CUDA application and the
-second step is to set all the necessary parameters in the campaign.sh accordingly.
+For example, to compile the `srad_v1` benchmark, from within the container run:
 
-### Step 1: CUDA application preparation
+```bash
+cd gpu-rodinia/cuda/srad/srad_v1
+make clean
+make
+```
 
-gpuFI-4 relies its evaluation process on the evaluation of the application itself. As a result, the applications should be slightly modified to compare the results of the GPU part execution with either a predefined result file (taken from a fault-free execution) or the results that come from the CPU "golden" reference execution and print a success or error message (rather unique to the GPGPU-Sim output) in their standard output stream.
+The compiled executable will then be found on the host OS in the path:
+`$HOME/Documents/workspace/gpu-rodinia/cuda/srad/srad_v1/srad`
 
-> [!IMPORTANT]
-> TODO
+Once done, you can stop the running container with:
 
-### Step 2: Campaign script preparation
-
-> [!IMPORTANT]
-> This is outdated now, needs to be adapted to current `gpufi_campaign.sh`
-
-The campaign.sh script (the file with example values already uploaded) requires several
-parameters to be configured before the injection campaigns are performed. We can differentiate
-these parameters into four abstract groups. The first group contains one-time parameters.
-The second contains parameters that need to be initialized once per GPGPU card and are necessary
-to define values that describe some of the hardware structures. In the third group, there are
-parameters that need to be initialized every time we analyze the vulnerability of a new CUDA
-application or single kernel. Let’s call these groups: one time, per GPGPU card, per
-kernel/application and per injection campaign parameters respectively.
-To get the values for some of the parameters in the "per kernel/application" group requires a fault-free execution of the CUDA application in GPGPU-Sim. You can run a fult-free execution with profile=3.
-
-#### One-time parameters
-
-- **CONFIG_FILE:** This is the GPGPU-Sim configuration file where the new input parameters must be defined. The configuration files that we used in our paper are already
-  uploaded under configs/tested-cfgs/{SM75_RTX2060, SM7_QV100, SM3_KEPLER_TITAN}. They have the new parameters defined and PTXPLUS enabled.
-- **RUNS:** This is how many executions the campaign is going to run. For example, if we set the campaign.sh to inject a bit flip on one register and we have RUNS=3000 then 3000 application executions will be performed by injecting a bit flip on a random register on each run.
-- **BATCH:** To make the campaigns faster we provided it with some kind of parallelism. Specifically, #BATCH number of executions run in parallel until all are finished before starting the next batch. The default value of this parameter is the number of processors (or virtual cores if hyper-threading is supported) minus one core so the system will not hang.
-- **TMP_FILE:** This is a file that contains the GPGPU-Sim execution default output along with the CUDA application output.
-- **TMP_DIR:** This is the directory where the CONFIG_FILE and GPGPU-Sim output (TMP_FILE) files are saved for each execution. In fact, roundup(RUNS/BATCH) number of TMP_DIR directories will be created appended with an identifier. For example, if we have RUNS=10, BATCH=5, TMP_DIR=logs and TMP_FILE=tmp then logs1 and logs2 directories will be created where each one contains the files {gpgpusim.config1,gpgpusim.config2,...,gpgpusim.config5} and {tmp1, tmp2,...,tmp5}.
-- **CACHE_LOGS_DIR:** This is a directory where logs are saved for all the executions when we run injection campaigns on caches. The information that is saved is the cache line that the fault was injected and the exact bit that was flipped.
-
-#### Per kernel/application parameters
-
-- **profile=1:** This will run the application once without any fault injections and output the cycles for each kernel’s invocation at TMP_FILE during the last cycle of the application, which we can use as input to initialize the CYCLES_FILE parameter. The two previous parameters CUDA_UUT and CYCLES are required for this profiling to work.
-- **profile=3:** This will run the application once without any fault injections. Is the same as profile=1 but without any computations that makes the fault-free application execution slower.
-
-#### Per injection campaign parameters
-
-- **profile=0:** By setting the profile value to 0, the profiling procedure will be disabled and the actual injection campaigns will be executed.
-- **components_to_flip:** This is the hardware structure on which the injections will be applied. The value that describes a specific structure can be found within the campaign script. If a user wishes, can also perform injections on multiple components per execution by inserting more than one component value with a colon as a delimiter. For example, with components_to_flip=0:2 injections will be done on both register file and shared memory at the same execution.
-- **register_rand_n:** This is the number of the register that the transient faults will be injected. In gpuFI-4 we are not targeting specific registers by name, so the value can be a number between 1 to MAX_REGISTERS_USED. Again this parameter can be crafted with more registers using a colon as a delimiter in case we want to inject the same fault on multiple registers and the same practice has been applied to all the parameters that end with ‘\_n’. Furthermore, a ‘\_rand’ on a parameter’s name indicates that on each execution the value will be changed randomly between some boundaries.
-- **reg_bitflip_rand_n:** This is the specific bit that will be flipped.
-- **per_warp:** If activated with the value of 1 then #register_rand_n registers will have their #reg_bitflip_rand_n bits flipped on every thread of an active warp. Otherwise, one running thread only will be affected.
-- **shared_mem_bitflip_rand_n:** Same as reg_bitflip_rand_n but for the shared memory. This will randomly choose, in every execution, value(s) between 1 to SMEM_SIZE_BITS.
-- **blocks:** This is on how many running CTAs, hence shared memories, to inject #shared_mem_bitflip_rand_n bit flips.
-- **l1d_cache_bitflip_rand_n:** Same as reg_bitflip_rand_n but for the L1 data cache. This will randomly choose, in every execution, value(s) between 1 to L1D_SIZE_BITS.
-- **l1d_shader_rand_n:** This is in which running SIMT core, hence L1 data cache, to inject shared_mem_bitflip_rand_n bit flips.
-- **l1t_cache_bitflip_rand_n, l1t_shader_rand_n:** Same like L1 data cache but they are used for the texture cache.
-- **l2_cache_bitflip_rand_n:** Same as reg_bitflip_rand_n but for L2 cache. This will randomly choose, in every execution, value(s) between 1 to L2_SIZE_BITS.
+```bash
+sudo docker kill $(sudo docker ps | grep aamodt | awk '{print($1)}')
+```
 
 ## Injection campaign execution and results
 

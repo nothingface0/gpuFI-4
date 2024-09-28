@@ -2,37 +2,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug GPGPU-Sim - test_if",
-      "type": "cppdbg",
-      "request": "launch",
-      "program": "${workspaceFolder}/../cuda-tests/kernels/test_if/bin/test_if",
-      "args": [
-        "/home/dpapagiannis/Documents/workspace/cuda-tests/kernels/test_if/golden.txt"
-      ],
-      "stopAtEntry": false,
-      "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "preLaunchTask": "setupenv",
-      "externalConsole": false,
-      "MIMode": "gdb",
-      "linux": {
-        "MIMode": "gdb",
-        "setupCommands": [
-          { "text": "source ${workspaceFolder}/.gdbinit" },
-          {
-            "description": "Enable pretty-printing for gdb",
-            "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
-            "ignoreFailures": false
-          },
-          {
-            "description": "Enable pretty-printing for gdb",
-            "text": "-enable-pretty-printing",
-            "ignoreFailures": true
-          }
-        ]
-      }
-    },
-    {
       "name": "Debug GPGPU-Sim - kmeans",
       "type": "cppdbg",
       "request": "launch",

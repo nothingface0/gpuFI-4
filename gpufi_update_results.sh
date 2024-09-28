@@ -81,7 +81,7 @@ update_results() {
             continue
         fi
         _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
-        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep
+        _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $l1i_tag_bitflip_grep $l1i_data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep $l1d_tag_bitflip_grep $l1d_data_bitflip_grep $l1c_tag_bitflip_grep $l1c_data_bitflip_grep $l1t_tag_bitflip_grep $l1t_data_bitflip_grep $l2_tag_bitflip_grep $l2_data_bitflip_grep $reg_bitflip_grep $local_bitflip_grep $shared_bitflip_grep
     done <"$(_get_gpufi_analysis_path)/results/results.csv"
 }
 

@@ -71,14 +71,10 @@ _SMEM_SIZE_BITS=
 # Campaign runtime variables
 _errors_masked=0
 _errors_performance=0
-_errors_sdc=0            # Silent data corruption
-_errors_due=0            # Detected unrecoverable error (crash)
-_avg_timeout_seconds=0   # Average time that each batch takes to finish execution, only used for user information.
-_num_errors_syntax=0     # Injected instructions not recognized by sass parser
-_num_tag_bitflips=0      # Accumulate number of tag bitflips detected, for printing a summary
-_num_false_l1i_hit=0     # L1I tag bitlfips that lead to a HIT
-_num_l1i_data_bitflips=0 # Accumulate number of data bitlips detected, for printing a summary
-_num_l1i_different_misses=0
+_errors_sdc=0          # Silent data corruption
+_errors_due=0          # Detected unrecoverable error (crash)
+_avg_timeout_seconds=0 # Average time that each batch takes to finish execution, only used for user information.
+
 # _max_retries to avoid flooding the system storage with logs infinitely if the user
 # has wrong configuration and only Unclassified errors are returned.
 _max_retries=$((3))
@@ -94,7 +90,7 @@ _GPUFI_PROFILE=0
 
 # Which components to apply a bif flip to. Multiple ones can be
 # specified with a colon, e.g. COMPONENTS_TO_FLIP=0:1 for both RF and local_mem). Possible values:
-# 0: RF
+# 0: Register file
 # 1: local_mem
 # 2: shared_mem
 # 3: L1D_cache
@@ -243,28 +239,9 @@ gather_results() {
             result="111"
         else
             echo "Examining file $log_file"
+            # This function exports a bunch of env variables,
+            # which we check right after.
             _examine_log_file "$log_file" "$_TOTAL_CYCLES" "$_L1I_CACHE_TOTAL_MISSES"
-
-            # Was a syntax error found in the resulting log? This might be due to a resulting SASS instruction
-            # that the SASS parser does not recognize.
-            if [ $syntax_error_msg_grep -eq 1 ]; then
-                _num_errors_syntax=$((_num_errors_syntax + 1))
-            fi
-            # Tag bitflips in *valid* cache lines
-            if [ $tag_bitflip_grep -eq 1 ]; then
-                _num_tag_bitflips=$((_num_tag_bitflips + 1))
-            fi
-            if [ $false_l1i_hit_grep -eq 1 ]; then
-                _num_false_l1i_hit=$((_num_false_l1i_hit + 1))
-            fi
-            # Data bitflips that lead to reading an injected instruction
-            if [ $data_bitflip_grep -eq 1 ]; then
-                _num_l1i_data_bitflips=$((_num_l1i_data_bitflips + 1))
-            fi
-            # Inverse logic here
-            if [ $l1i_misses_grep -eq 0 ]; then
-                _num_l1i_different_misses=$((_num_l1i_different_misses + 1))
-            fi
 
             # Result consists of three numbers:
             # - Was the _SUCCESS_MSG found in the resulting log?
@@ -279,7 +256,7 @@ gather_results() {
                 echo "WARNING: Run id validation failed when parsing $config_file. Expected $run_id_validate, read $run_id"
             fi
             if [ -n "$run_id" ]; then
-                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $tag_bitflip_grep $data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep
+                _update_csv_file $run_id $success_msg_grep $cycles_grep $failed_msg_grep $syntax_error_msg_grep $l1i_tag_bitflip_grep $l1i_data_bitflip_grep $false_l1i_hit_grep $l1i_misses_grep $l1d_tag_bitflip_grep $l1d_data_bitflip_grep $l1c_tag_bitflip_grep $l1c_data_bitflip_grep $l1t_tag_bitflip_grep $l1t_data_bitflip_grep $l2_tag_bitflip_grep $l2_data_bitflip_grep $reg_bitflip_grep $local_bitflip_grep $shared_bitflip_grep
                 _archive_config_file $run_id $config_file
             fi
         fi
@@ -432,11 +409,6 @@ run_campaign() {
         echo "DUEs: ${_errors_due}"
         echo
         echo "-----Misc stats-----"
-        echo "Syntax errors due to instruction bitflips: ${_num_errors_syntax}"
-        echo "Tag bitflips that flipped valid data in the cache: ${_num_tag_bitflips}"
-        echo "Tag bitflips (L1I) that lead to a HIT: ${_num_false_l1i_hit}"
-        echo "Data bitflips that resulted in reading a false instruction: ${_num_l1i_data_bitflips}"
-        echo "L1I cache misses altered: ${_num_l1i_different_misses}"
         _sum_errors=$((_errors_due + _errors_sdc + _errors_masked))
         if [ $_total_runs -ne $_sum_errors ]; then
             echo "WARNING: Total runs requested ($_total_runs) don't match sum of errors ($_sum_errors)"

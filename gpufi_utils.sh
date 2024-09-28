@@ -91,7 +91,7 @@ _copy_gpgpusim_config() {
 }
 
 # Examine a given execution log file and assess the execution results.
-# Exports the resulting variables.
+# Exports the results as environment variables.
 # Also requires the _TOTAL_CYCLES that the executable is expected to run for and the
 # _L1I_CACHE_TOTAL_MISSES (calculated during the executable_analysis script)
 _examine_log_file() {
@@ -103,8 +103,19 @@ _examine_log_file() {
     grep -i "gpu_tot_sim_cycle =" "$log_file" | tail -1 | grep -q "${total_cycles}" && cycles_grep=1 || cycles_grep=0
     grep -iq "${_FAILED_MSG}" "$log_file" && failed_msg_grep=1 || failed_msg_grep=0
     grep -iqE "(syntax error)|(parse error)|(invalid token)" "$log_file" && syntax_error_msg_grep=1 || syntax_error_msg_grep=0
-    grep -iq "gpuFI: Tag before" "$log_file" && tag_bitflip_grep=1 || tag_bitflip_grep=0
-    grep -iq "gpuFI: Resulting injected instruction" "$log_file" && data_bitflip_grep=1 || data_bitflip_grep=0
+    grep -iq "gpuFI: Bitflip on register" "$log_file" && reg_bitflip_grep=1 || reg_bitflip_grep=0
+    grep -iq "gpuFI: Bitflip on local memory" "$log_file" && local_bitflip_grep=1 || local_bitflip_grep=0
+    grep -iq "gpuFI: Bitflip on shared memory" "$log_file" && shared_bitflip_grep=1 || shared_bitflip_grep=0
+    grep -iq "gpuFI: Tag bitflip on cache type 0" "$log_file" && l1d_tag_bitflip_grep=1 || l1d_tag_bitflip_grep=0
+    grep -iq "gpuFI: Tag bitflip on cache type 1" "$log_file" && l1c_tag_bitflip_grep=1 || l1c_tag_bitflip_grep=0
+    grep -iq "gpuFI: Tag bitflip on cache type 2" "$log_file" && l1t_tag_bitflip_grep=1 || l1t_tag_bitflip_grep=0
+    grep -iq "gpuFI: Tag bitflip on cache type 3" "$log_file" && l1i_tag_bitflip_grep=1 || l1i_tag_bitflip_grep=0
+    grep -iq "gpuFI: Tag bitflip on cache type L2" "$log_file" && l2_tag_bitflip_grep=1 || l2_tag_bitflip_grep=0
+    grep -iq "gpuFI: Data bitflip on cache type 0" "$log_file" && l1d_data_bitflip_grep=1 || l1d_data_bitflip_grep=0
+    grep -iq "gpuFI: Data bitflip on cache type 1" "$log_file" && l1c_data_bitflip_grep=1 || l1c_data_bitflip_grep=0
+    grep -iq "gpuFI: Data bitflip on cache type 2" "$log_file" && l1t_data_bitflip_grep=1 || l1t_data_bitflip_grep=0
+    grep -iq "gpuFI: Resulting injected instruction" "$log_file" && l1i_data_bitflip_grep=1 || l1i_data_bitflip_grep=0
+    grep -iq "gpuFI: Data bitflip on cache type L2" "$log_file" && l2_data_bitflip_grep=1 || l2_data_bitflip_grep=0
     grep -iq "gpuFI: False L1I cache hit due to tag" "$log_file" && false_l1i_hit_grep=1 || false_l1i_hit_grep=0
     grep -i "L1I_total_cache_misses" "$log_file" | tail -1 | grep -q "${l1i_cache_total_misses}" && l1i_misses_grep=1 || l1i_misses_grep=0
 
@@ -112,8 +123,27 @@ _examine_log_file() {
     export cycles_grep
     export failed_msg_grep
     export syntax_error_msg_grep
-    export tag_bitflip_grep
-    export data_bitflip_grep
+
+    # Tag bitflips
+    export l1d_tag_bitflip_grep
+    export l1c_tag_bitflip_grep
+    export l1t_tag_bitflip_grep
+    export l1i_tag_bitflip_grep
+    export l2_tag_bitflip_grep
+
+    # Data bitflips
+    export l1d_data_bitflip_grep
+    export l1c_data_bitflip_grep
+    export l1t_data_bitflip_grep
+    export l1i_data_bitflip_grep
+    export l2_data_bitflip_grep
+
+    # Other bitflips
+    export reg_bitflip_grep
+    export local_bitflip_grep
+    export shared_bitflip_grep
+
+    # Misc
     export false_l1i_hit_grep
     export l1i_misses_grep
 }
@@ -126,26 +156,42 @@ _update_csv_file() {
     csv_file_path="$csv_results_path/results.csv"
     run_id=$1
 
+    # TODO: This is very ugly and unmaintainable.
+    # All those scripts need to be ported to something
+    # higher level.
     success_msg_grep=$2
     cycles_grep=$3
     failed_msg_grep=$4
     syntax_error_msg_grep=$5
-    tag_bitflip_grep=$6
+    l1i_tag_bitflip_grep=$6
     l1i_data_bitflip_grep=$7
     false_l1i_hit_grep=$8
     l1i_misses_grep=$9
+    l1d_tag_bitflip_grep=${10}
+    l1d_data_bitflip_grep=${11}
+    l1c_tag_bitflip_grep=${12}
+    l1c_data_bitflip_grep=${13}
+    l1t_tag_bitflip_grep=${14}
+    l1t_data_bitflip_grep=${15}
+    l2_tag_bitflip_grep=${16}
+    l2_data_bitflip_grep=${17}
+    reg_bitflip_grep=${18}
+    local_bitflip_grep=${19}
+    shared_bitflip_grep=${20}
+
     # Inverse logic for this flag, it's 1 when the misses were different
     different_l1i_misses=$((l1i_misses_grep ^ 1))
 
     if [ ! -f "$csv_file_path" ]; then
-        echo "run_id,success,same_cycles,failed,syntax_error,tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses" >"$csv_file_path"
+        echo "run_id,success,same_cycles,failed,syntax_error,l1i_tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses,l1d_tag_bitflip,l1d_data_bitflip,l1c_tag_bitflip,l1c_data_bitflip,l1d_tag_bitflip,l1d_data_bitflip,l2_tag_bitflip,l2_data_bitflip,reg_bitflip,local_bitflip,shared_bitflip" >"$csv_file_path"
     fi
     echo "Updating results in $csv_file_path"
+    new_result="${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${l1i_tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses},${l1d_tag_bitflip_grep},${l1d_data_bitflip_grep},${l1c_tag_bitflip_grep},${l1c_data_bitflip_grep},${l1d_tag_bitflip_grep},${l1d_data_bitflip_grep},${l2_tag_bitflip_grep},${l2_data_bitflip_grep},${reg_bitflip_grep},${local_bitflip_grep},${shared_bitflip_grep}"
     if grep -q "${run_id}" "$(_get_gpufi_analysis_path)/results/results.csv"; then
         echo "$run_id already exists in results.csv, updating existing entry"
-        sed -Ei "s/^${run_id}(,[01]){8}/${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}/" "$(_get_gpufi_analysis_path)/results/results.csv"
+        sed -Ei "s/^${run_id}(,[01]){19}/$new_result/" "$(_get_gpufi_analysis_path)/results/results.csv"
     else
-        echo "${run_id},${success_msg_grep},${cycles_grep},${failed_msg_grep},${syntax_error_msg_grep},${tag_bitflip_grep},${l1i_data_bitflip_grep},${false_l1i_hit_grep},${different_l1i_misses}" >>"$csv_file_path"
+        echo "$new_result" >>"$csv_file_path"
     fi
 }
 

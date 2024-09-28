@@ -720,10 +720,13 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          &gpufi_l1t_shader_rand_n, "TODO", "0");
   option_parser_register(opp, "-gpufi_l1t_cache_bitflip_rand_n", OPT_CSTR,
                          &gpufi_l1t_cache_bitflip_rand_n, "TODO", "0");
-  option_parser_register(opp, "-gpufi_l1i_shader_rand_n", OPT_CSTR,
-                         &gpufi_l1i_shader_rand_n, "TODO", "0");
+  option_parser_register(
+      opp, "-gpufi_l1i_shader_rand_n", OPT_CSTR, &gpufi_l1i_shader_rand_n,
+      "Shader id whose L1I cache the bitflip will be applied to.", "0");
   option_parser_register(opp, "-gpufi_l1i_cache_bitflip_rand_n", OPT_CSTR,
-                         &gpufi_l1i_cache_bitflip_rand_n, "TODO", "0");
+                         &gpufi_l1i_cache_bitflip_rand_n,
+                         "Bit number of L1I cache to apply the bitflip to.",
+                         "0");
   option_parser_register(
       opp, "-gpufi_l1i_cache_bitflips_ignore_mshr", OPT_BOOL,
       &gpufi_l1i_cache_bitflips_ignore_mshr,
@@ -2498,15 +2501,16 @@ void bitflip_n_nregs(std::vector<ptx_thread_info *> &threads_vector,
              register_rand_n_vector.begin();
          reg_num_it != register_rand_n_vector.end(); ++reg_num_it) {
       int reg_idx = (*reg_num_it) - 1;
+      printf("gpuFI: Bitflip on register %d\n", reg_idx);
       if (reg_idx < regs.size()) {
         ptx_reg_t *reg_to_bitflip = regs[reg_idx];
         unsigned long *reg_64b = (unsigned long *)reg_to_bitflip;  // 8 bytes
         for (std::vector<unsigned>::iterator bf_it = reg_bitflip_vector.begin();
              bf_it != reg_bitflip_vector.end(); ++bf_it) {
-          //  printf("Before bit flip of reg=%s, value = %lu\n",
+          //  printf("gpuFI: Before bit flip of reg=%s, value = %lu\n",
           //  reg_symbols[reg_idx]->name().c_str(), *reg_to_bitflip);
           *reg_64b ^= 1UL << (*bf_it - 1);
-          //  printf("After bit %u flip of reg=%s, value = %lu\n",
+          //  printf("gpuFI: After bit %u flip of reg=%s, value = %lu\n",
           //  *bf_it, reg_symbols[reg_idx]->name().c_str(),
           //  *reg_to_bitflip);
         }
@@ -2542,12 +2546,13 @@ void bitflip_n_local_mem(std::vector<ptx_thread_info *> &threads_vector,
       unsigned bit_in_64b = bit_in_block - idx_64b * 64;
 
       if (memory_data.find(block_idx) != memory_data.end()) {
+        printf("gpuFI: Bitflip on local memory\n");
         unsigned long long *i_data =
             (unsigned long long *)memory_data[block_idx].get_m_data();
-        //  printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //  printf("gpuFI: BEFORE BIT FLIP: address=%p\n", i_data);
         //  (*threads_it)->m_local_mem->print("%d", stdout);
         i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
-        //  printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //  printf("gpuFI: AFTER BIT FLIP: address=%p\n", i_data);
         //  g_print_memory_space((*threads_it)->m_local_mem, "%d");
       }
       printf(
@@ -2585,12 +2590,13 @@ void bitflip_n_shared_mem_nblocks(std::vector<memory_space *> shared_memories,
       unsigned bit_in_64b = bit_in_block - idx_64b * 64;
 
       if (memory_data.find(block_idx) != memory_data.end()) {
+        printf("gpuFI: Bitflip on shared memory\n");
         unsigned long long *i_data =
             (unsigned long long *)memory_data[block_idx].get_m_data();
-        //  printf("BEFORE BIT FLIP: address=%p\n", i_data);
+        //  printf("gpuFI: BEFORE BIT FLIP: address=%p\n", i_data);
         //  shared_mem_to_bitflip->print("%d", stdout);
         i_data[idx_64b] ^= 1UL << (bit_in_64b - 1);
-        //  printf("AFTER BIT FLIP: address=%p\n", i_data);
+        //  printf("gpuFI: AFTER BIT FLIP: address=%p\n", i_data);
         //  shared_mem_to_bitflip->print("%08x", stdout);
       }
       printf(
@@ -2793,7 +2799,7 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
           l1_tag_bf_tag.push_back(line->m_tag);
           l1_tag_bf_index.push_back(bf_line_idx);
         }
-
+        printf("gpuFI: Tag bitflip on cache type %d\n", l1_cache_type);
         unsigned int tag_bitflip_position =
             (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
         printf("gpuFI: Tag before = %llu, bf_tag=%u\n", line->m_tag,
@@ -2804,6 +2810,8 @@ void gpgpu_sim::bitflip_l1_cache(l1_cache_t l1_cache_type) {
 
       } else {  // Data bitflip
         if (is_valid_line) {
+          printf("gpuFI: Data bitflip on cache type %d\n", l1_cache_type);
+
           // Bit offset of bit to flip in cache line, excl. tag bits
           unsigned l1_line_sz_data_bits_idx =
               bf_line_sz_bits_extra_idx - tag_array_size_bits;
@@ -3251,6 +3259,8 @@ void gpgpu_sim::cycle() {
 
             // bf on tag array
             if (bf_line_sz_bits_extra_idx <= tag_array_size_bits - 1) {
+              printf("gpuFI: Tag bitflip on cache type L2\n");
+
               unsigned tag_bitflip_position =
                   (sizeof(new_addr_type) * 8) - 1 - bf_line_sz_bits_extra_idx;
               printf("gpuFI: Tag before = %x, bf_tag=%u\n", line->m_tag,
@@ -3264,6 +3274,7 @@ void gpgpu_sim::cycle() {
             unsigned l2_line_sz_data_bits_idx =
                 bf_line_sz_bits_extra_idx - tag_array_size_bits;
             if (line->is_valid_line()) {
+              printf("gpuFI: Data bitflip on cache type L2\n");
               this->l2_enabled = true;
               this->l2_bf_enabled.push_back(true);
               this->l2_bank_id.push_back(bank_id);

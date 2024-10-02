@@ -132,22 +132,40 @@ Once done, you can stop the running container with:
 sudo docker kill $(sudo docker ps | grep aamodt | awk '{print($1)}')
 ```
 
-## Injection campaign execution and results
+## Injection campaigns
 
-After setting up everything described on the previous section, the fault injection campaign can be easily executed
-by simply running the campaign.sh script. The script eventually will go on a loop (until it reaches #RUNS cycles),
-where each cycle will modify the framework’s new parameters at gpgpusim.config file before executing the application.
+gpuFI-4’s operation is based on the concept of _injection campaigns_. A campaign is composed of multiple executions (_runs_) of the same combination of:
 
-After completion of every batch of fault injections, a parser post-processes the output of the experiments one
-by one and accumulates the results. The final results will be printed when all the batches have finished and
-the script has quit. The parser classifies the fault effects of each experiment as Masked, Silent Data Corruption (SDC),
-or Detected Unrecoverable Error (DUE).
+- a **GPU configuration**, i.e., a valid `gpgpusim.config` file,
+- a (properly modified) **CUDA executable**, and
+- a specific set of **executable arguments.**
+
+Before each execution starts, a bit of the target memory type and an execution cycle are selected randomly. During execution, when the randomly selected execution cycle is reached, the randomized bit of the target memory is flipped (_bitflip_) and the execution is resumed. In the case that the target memory is an L1 cache, the shared memory, local memory or a register, an SM is also selected at random. For the L2 cache, such a selection is not required, as L2 cache is shared among SMs. When execution ends, or when it exceeds a predetermined timeout, the results are collected and stored in a `results.csv` file.
+
+When gpuFI-4 selects a random SM, it limits the selection to those that are active during the executable’s execution. The same applies for the cycle, registers, constant memory, local memory and shared memory bits.
+
+To know the exact limits of the selection, an _analysis_ of the executable has to be performed. This analysis is done in two steps:
+
+1. Execution of the CUDA executable without fault injections. This creates a record of the total cycles that the kernels run for, as well as the simulation time.
+2. Execution of the CUDA executable in “profiling mode”. This mode extracts information on SM, register, shared memory, constant and local memory usage. This information is known on the last cycle of simulation, which is the reason why step 1 is needed.
+
+Once analysis is complete, a campaign can start, launching multiple executions, or “runs”, of the given executable with a randomized bitflip.
+
+Injection campaigns are managed by the `gpufi_campaign.sh` script. This script manages the execution of a whole injection campaign on a specific combination of CUDA executable, arguments and GPU configuration file.
+
+For each new run initiated by the script, a unique `run_id` is created. This is computed as the MD5 sum of:
+
+1. the full contents of the `gpgpusim.config` file,
+2. the full binary contents of the CUDA executable and
+3. the full string of arguments passed to the executable.
+
+The results of each run's bitflip are categorized as followed:
 
 - **Masked:** Faults in this category let the application run until the end and the result is identical to that of a fault-free execution.
-- **Silent Data Corruption (SDC):** The behavior of an application with these types of faults is the same as with masked faults but the application’s result is incorrect. These faults are difficult to identify as they occur without any indication that a fault has been recorded (an abnormal event such as an exception, etc.).
-- **Detected Unrecoverable Error (DUE):** In this case, an error is recorded and the application reaches an abnormal state without the ability to recover.
+- **Silent Data Corruption (SDC):** The application reaches the end of execution without error, but the data verification step fails.
+- **Detected Unrecoverable Error (DUE):** In this case, an error is recorded and the application reaches an abnormal state without the ability to recover (e.g., a crash).
 
-We additionally use the term “Performance” as a fault effect which is nothing but a Masked fault effect where the total cycles of the application are different from the fault-free execution.
+We additionally use the term “Performance” to label faults, which is actually just a Masked fault, which has the extra effect of leading to different total execution cycles of the application, compared to the fault-free execution.
 
 ## Available scripts
 

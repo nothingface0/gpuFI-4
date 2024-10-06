@@ -92,7 +92,7 @@ An example of how this was done can be found [here](https://github.com/nothingfa
 
 ### Building the applications
 
-Considering the fact that gpuFI relies on running with the `gpgpu_ptx_convert_to_ptxplus` option enabled, the CUDA applications must be built (as of 2024/09) with CUDA Toolkit 4.2, to contain `sm_1x` SASS instructions. Since the CUDA Toolkit 4.2 requires gcc version 4.x, the most straightforward way to build the applications is inside a container.
+Considering the fact that gpuFI relies on running with the `gpgpu_ptx_convert_to_ptxplus` option enabled, the CUDA applications must be built (as of 2024/09) with CUDA Toolkit 4.2, to contain `sm_1x` SASS instructions. Since the CUDA Toolkit 4.2 requires gcc version 4.x, the most straightforward way to build the applications is inside a container. An example of how this can be done follows below.
 
 > [!NOTE]
 > For this example, we are using `docker` to compile a benchmark from the Rodinia suite. We are also assuming that the [source code](https://github.com/nothingface0/gpu-rodinia/tree/gpgpu_sim_fi) has been cloned into: `$HOME/Documents/workspace/gpu-rodinia`
@@ -137,7 +137,7 @@ sudo docker kill $(sudo docker ps | grep aamodt | awk '{print($1)}')
 gpuFI-4’s operation is based on the concept of _injection campaigns_. A campaign is composed of multiple executions (_runs_) of the same combination of:
 
 - a **GPU configuration**, i.e., a valid `gpgpusim.config` file,
-- a (properly modified) **CUDA executable**, and
+- a ([properly modified](#modifying-the-applications)) **CUDA executable**, and
 - a specific set of **executable arguments.**
 
 Before each execution starts, a bit of the target memory type and an execution cycle are selected randomly. During execution, when the randomly selected execution cycle is reached, the randomized bit of the target memory is flipped (_bitflip_) and the execution is resumed. In the case that the target memory is an L1 cache, the shared memory, local memory or a register, an SM is also selected at random. For the L2 cache, such a selection is not required, as L2 cache is shared among SMs. When execution ends, or when it exceeds a predetermined timeout, the results are collected and stored in a `results.csv` file.
@@ -222,16 +222,16 @@ bash gpufi_campaign.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-rodini
 
 A list of arguments accepted by the script can be found below.
 
-| Argument               | Required | Functionality                                                                                                                                                                                                                | Default value                        |
-| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `CUDA_EXECUTABLE_PATH` | Yes      | Specifies the path to the CUDA executable to run.                                                                                                                                                                            | None                                 |
-| `CUDA_EXECUTABLE_ARGS` | Yes      | Specifies the arguments for the CUDA executable to run, enclosed in double quotes (`"`).                                                                                                                                     | None                                 |
-| `GPU_ID`               | Yes      | Specifies the base GPU configuration file to use. Must be the name of one of the folders under `configs/tested-configs`, e.g., `SM6_TITANX`.                                                                                 | None                                 |
-| `NUM_RUNS`             | Yes      | Specifies the number of injections to run.                                                                                                                                                                                   | None                                 |
-| `COMPONENTS_TO_FLIP`   | No       | Specifies the GPU components to target during the campaign, semicolon-separated if many are required. `0`: Register file, `1`: Local mem, `2`: Shared mem, `3`: L1D, `4`: L1C (not implemented), `5`: L1T, `6`: L2, `7`: L1I | 7                                    |
-| `_NUM_AVAILABLE_CORES` | No       | Specifies the number of CPU cores to use for the simulations.                                                                                                                                                                | `$(nproc)` (all available CPU cores) |
-| `DELETE_LOGS`          | No       | Delete temporary execution log files.                                                                                                                                                                                        | `1`                                  |
-| `KERNEL_INDICES`       | No       | Specifies the id of the kernel to inject. (Not implemented yet)                                                                                                                                                              | `0` (all kernels)                    |
+| Argument               | Required | Functionality                                                                                                                                                                                                                                               | Default value                        |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `CUDA_EXECUTABLE_PATH` | Yes      | Specifies the path to the CUDA executable to run.                                                                                                                                                                                                           | None                                 |
+| `CUDA_EXECUTABLE_ARGS` | Yes      | Specifies the arguments for the CUDA executable to run, enclosed in double quotes (`"`).                                                                                                                                                                    | None                                 |
+| `GPU_ID`               | Yes      | Specifies the base GPU configuration file to use. Must be the name of one of the folders under `configs/tested-configs`, e.g., `SM6_TITANX`.                                                                                                                | None                                 |
+| `NUM_RUNS`             | Yes      | Specifies the number of injections to run. If results have already been recorded in `results.csv`, their number is abstracted from `NUM_RUNS`. For example, if `results.csv` contains results from 300 runs, and `NUM_RUNS=500`, only 200 runs will be run. | None                                 |
+| `COMPONENTS_TO_FLIP`   | No       | Specifies the GPU components to target during the campaign, semicolon-separated if many are required. `0`: Register file, `1`: Local mem, `2`: Shared mem, `3`: L1D, `4`: L1C (not implemented), `5`: L1T, `6`: L2, `7`: L1I                                | 7                                    |
+| `_NUM_AVAILABLE_CORES` | No       | Specifies the number of CPU cores to use for the simulations.                                                                                                                                                                                               | `$(nproc)` (all available CPU cores) |
+| `DELETE_LOGS`          | No       | Delete temporary execution log files.                                                                                                                                                                                                                       | `1`                                  |
+| `KERNEL_INDICES`       | No       | Specifies the id of the kernel to inject. (Not implemented yet)                                                                                                                                                                                             | `0` (all kernels)                    |
 
 ### `gpufi_replay_run.sh`
 

@@ -171,7 +171,162 @@ We additionally use the term “Performance” to label faults, which is actuall
 
 More detailed information about each available script can be found in this section.
 
+### `gpufi_analyze_executable.sh`
+
+This script is responsible for executing a series of analyses for each unique combination of a CUDA executable, a set of arguments and a specific GPU configuration. Its goal is to create a series of files which contain information that gpuFI will need in order to start a campaign.
+
+This script executes the CUDA executable twice: once with the `gpufi_profile` option of `gpgpusim.config` set to `3` (no fault injection) and a second time with the same option set to 1 (profiling mode). During this process, a series of directories and files are created in the same directory where the CUDA executable is:
+
+- A main directory named `.gpufi`, where all the analysis files are stored.
+  - A directory for the specific GPU configuration used, e.g., `SM6_TITANX`. A copy of the `gpgpusim.config` file is also stored here.
+    - A directory named using the specific arguments passed to the executable, after sanitization.
+      - One directory for each kernel invoked by the executable, in which two files may be found: `cycles.txt` (a file of all the simulated cycles during which the kernel is active) and `kernel_analysis.sh` (which lists the ids of the SMs that the kernel was assigned to, as well as the registers and total sizes of several types of memories that the kernel used).
+      - A file named executable_analysis.sh, which contains executable-wide statistics, including the total simulated cycles that the executable runs for and the maximum timeout value (in seconds), that the campaign should wait for before stopping execution.
+      - A file named `.analysis_complete` which signals the fact that the analysis script has been executed for this specific combination of GPU configuration, executable and set of arguments.
+      - A directory named results will be created here once a campaign is started, storing not only a CSV file with all the results of each run, but also the g-zipped configuration file of each run, for future reference.
+
+As an example, to analyze the Rodinia NW benchmark with arguments `288 10` and for the `SM6_TITANX` configuration, one should run:
+
+```bash
+bash gpufi_analyze_executable.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=SM6_TITANX
+```
+
+A detailed list of arguments accepted by the script can be seen below:
+
+| Argument                | Required | Functionality                                                                                                                                                 | Default value |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `CUDA_EXECUTABLE_PATH`  | Yes      | Specifies the path to the CUDA executable to run.                                                                                                             | None          |
+| `CUDA_EXECUTABLE_ARGS`  | Yes      | Specifies the arguments for the CUDA executable to run, enclosed in double quotes.                                                                            | None          |
+| `GPU_ID`                | Yes      | Specifies the base GPU configuration file to use. It must be the name of one of the folders under the `configs/tested-configs` directory, e.g., `SM6_TITANX`. | None          |
+| `do_execute_executable` | No       | Enables running the actual analysis or not. Mostly for debugging purposes.                                                                                    | `1`           |
+
+### `gpufi_campaign.sh`
+
+This script manages the execution of a whole injection campaign on a specific combination of CUDA executable, arguments and GPU configuration file. It covers the functionality
+needed for injection campaigns.
+
+Running the campaign script requires that the aforementioned combination has been analyzed (see [`gpufi_analyze_executable.sh`](#gpufi_analyze_executablesh)).
+
+For each new run initiated by the script, a unique run_id is created. This is computed as
+the MD5 sum of:
+
+1. the full contents of the `gpgpusim.config` file,
+2. the full binary contents of the CUDA executable and
+3. the full string of arguments passed to the executable.
+
+As an example, for executing an injection campaign of 2000 runs for the Rodinia NW benchmark, with arguments `288 10`, using the `SM6_TITANX` configuration one should run:
+
+```bash
+bash gpufi_campaign.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=SM6_TITANX NUM_RUNS=2000
+```
+
+A list of arguments accepted by the script can be found below.
+
+| Argument               | Required | Functionality                                                                                                                                                                                                                | Default value                        |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `CUDA_EXECUTABLE_PATH` | Yes      | Specifies the path to the CUDA executable to run.                                                                                                                                                                            | None                                 |
+| `CUDA_EXECUTABLE_ARGS` | Yes      | Specifies the arguments for the CUDA executable to run, enclosed in double quotes (`"`).                                                                                                                                     | None                                 |
+| `GPU_ID`               | Yes      | Specifies the base GPU configuration file to use. Must be the name of one of the folders under `configs/tested-configs`, e.g., `SM6_TITANX`.                                                                                 | None                                 |
+| `NUM_RUNS`             | Yes      | Specifies the number of injections to run.                                                                                                                                                                                   | None                                 |
+| `COMPONENTS_TO_FLIP`   | No       | Specifies the GPU components to target during the campaign, semicolon-separated if many are required. `0`: Register file, `1`: Local mem, `2`: Shared mem, `3`: L1D, `4`: L1C (not implemented), `5`: L1T, `6`: L2, `7`: L1I | 7                                    |
+| `_NUM_AVAILABLE_CORES` | No       | Specifies the number of CPU cores to use for the simulations.                                                                                                                                                                | `$(nproc)` (all available CPU cores) |
+| `DELETE_LOGS`          | No       | Delete temporary execution log files.                                                                                                                                                                                        | `1`                                  |
+| `KERNEL_INDICES`       | No       | Specifies the id of the kernel to inject. (Not implemented yet)                                                                                                                                                              | `0` (all kernels)                    |
+
+### `gpufi_replay_run.sh`
+
+A bash script which allows the replay of a specific injection run which is present in the results.csv file, for a specific CUDA executable and its arguments, and GPU configuration. The `RUN_ID` provided must be a valid run id, and the corresponding `<RUN_ID>.tar.gz` file must be located in the configs subdirectory of the `.gpufi` directory.
+
+A detailed list of arguments accepted by this script can be found below:
+
+| Argument               | Required | Functionality                                                                                                                                | Default value    |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `CUDA_EXECUTABLE_PATH` | Yes      | Specifies the path to the CUDA executable to run.                                                                                            | None             |
+| `CUDA_EXECUTABLE_ARGS` | Yes      | Specifies the arguments for the CUDA executable to run, enclosed in double quotes (`"`).                                                     | None             |
+| `GPU_ID`               | Yes      | Specifies the base GPU configuration file to use. Must be the name of one of the folders under `configs/tested-configs`, e.g., `SM6_TITANX`. | None             |
+| `RUN_ID`               | Yes      | The unique 32-digit MD5sum of the run to replay.                                                                                             | None             |
+| `_OUTPUT_LOG`          | No       | The filepath where the log of the replay will be stored.                                                                                     | `./<RUN_ID>.log` |
+
+### Helper: `gpufi_calculate_cache_sizes.sh`
+
+A helper script used to calculate all cache sizes configured in a `gpgpusim.config` file. It also exports the following bash environment variables for each type of cache, also used by `gpufi_campaign.sh`:
+
+- `x_SIZE_BITS`
+- `x_TAG_BITS`
+- `x_ASSOC`
+- `x_NUM_SETS`
+- `x_BYTES_PER_LINE`
+- `x_BITS_FOR_BYTE_OFFSET`
+
+Where `x` is replaced with `L1D`, `L1C`, `L1T`, `L1I`, `L2`, meaning that a total of 30 environmental variables are exported by this script.
+
+The arguments accepted by the script can be found below:
+
+| Argument      | Required | Functionality                                     | Default value       |
+| ------------- | -------- | ------------------------------------------------- | ------------------- |
+| `CONFIG_FILE` | Yes      | Specifies the path to the `gpgpusim.config` file. | `./gpgpusim.config` |
+
+### Helper: `gpufi_inject_cuda_executable.sh`
+
+This is the script invoked by gpuFI to replace a specific byte sequence with another one in a CUDA executable, used during L1I cache injections.
+
+This is the only script which does not accept its arguments in `KEY=VALUE` format, but as **positional arguments** instead.
+
+The arguments accepted by the script can be found below:
+
+| Argument Position | Functionality                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| 0                 | Specifies the full path of the CUDA executable to inject.                                         |
+| 1                 | Specifies the full path to place the injected executable to.                                      |
+| 2                 | The byte sequence (i.e., the instruction) in hex format (without `0x`) to look for and replace.   |
+| 3                 | The byte sequence (i.e., the instruction) in hex format (without `0x`) to replace with.           |
+| 4                 | The (mangled) kernel name to limit the search and replacement to. **NOTE:** Not fully functional. |
+
+## Full campaign execution transcript
+
+As a reference, the full procedure to run a campaign of 2000 L1I injections for the Rodinia NW benchmark, with arguments `288 10` for the Titan X (Pascal) GPU (`SM6_TITANX`) is described here. It assumes that you have cloned the source code of gpuFI in `$HOME/Documents/workspace/gpu-rodinia` and the modified rodinia benchmarks in `$HOME/Documents/workspace/gpuFI-4` and that you have CUDA 4.2 installed in `/usr/local/cuda-4.2/cuda/` and CUDA 11.0 installed in `/usr/local/cuda-11.0/`.
+
+```bash
+# Step 1, in a new terminal.
+# Starts a docker container where the benchmarks will be compiled in.
+# The output directory is mounted from the host OS, so that the binary will be
+# readily available to the host OS.
+sudo docker run --privileged \
+-v $HOME/Documents/workspace/gpu-rodinia:/home/runner/gpu-rodinia \
+aamodt/gpgpu-sim_regress:latest \
+/bin/bash -c "tail -f /dev/null"
+```
+
+```bash
+# Step 2, in a second terminal.
+# Connect to the docker container, and build the benchmark.
+sudo docker exec -it $(sudo docker ps | grep aamodt | awk '{print($1)}') \
+/bin/bash -c "su -l runner"
+cd gpu-rodinia/cuda/nw
+make clean
+make
+```
+
+```bash
+# Step 3, in a third terminal.
+# In the host OS, build the simulator and start the campaign.
+cd $HOME/Documents/workspace/gpuFI-4
+source startup.sh
+make -j
+# Run analysis
+bash gpufi_analyze_executable.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/
+workspace/gpu-rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=
+SM6_TITANX
+# Start the campaign
+bash gpufi_campaign.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-
+rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=SM6_TITANX
+KERNEL_INDICES=0 DELETE_LOGS=0 NUM_RUNS=2000
+```
+
 ## Known limitations
 
-> [!IMPORTANT]
-> TODO
+- No support for SM microarchitectures >= 20 (Fermi and above), as GPGPU-Sim does not support them for PTXPlus simulation.
+- Some rare corner cases of modified instructions are not covered by the modified simulator, and some may lead to simulator crashes, e.g., cases where the injected instruction references memory spaces that have not been initialized by the simulator might not behave properly.
+- No support for sectored L1I cache configuration.
+- No support for L2 cache bitflips which should propagate to L1I.
+- It was observed that some benchmarks, namely LUD, SRAD_v1 and SRAD_v2, when simulated with the QV100 configuration, might lead to different execution cycles for no apparent reason. To be precise, some of the randomized campaign configurations (roughly 1 out of 5000 runs), which do not lead to either a tag bitflip or a data bitflip on valid cache lines, might execute in a different number of total cycles than expected. Re-running the same configuration multiple times, we could not reproduce the problem. The workaround was to rerun the same run configuration, leading to the correct results.

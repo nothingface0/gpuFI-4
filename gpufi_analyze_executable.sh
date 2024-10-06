@@ -18,7 +18,6 @@
 # bash analyze_executable.sh CUDA_EXECUTABLE_PATH=<path to executable> \
 #                           CUDA_EXECUTABLE_ARGS="args in double quotes please" \
 #                           GPU_ID=<id/name of the GPU the gpgpusim.config corresponds to, e.g. SM7_QV100>
-
 set -e
 source gpufi_utils.sh
 
@@ -226,8 +225,11 @@ _create_per_kernel_analysis_file() {
     # List of all shaders used by all kernels
     merged_kernel_shaders_used=""
     # gpuFI TODO: Does it make sense to make an aggregate of max registers of all kernels? If yes, how?
-    # merged_kernel_max_registers=0
+    merged_kernel_max_registers=0
     # gpuFI TODO: Does it make sense to make an aggregate of LMEM, SMEM, CMEM for all kernels?
+    merged_kernel_lmem=0
+    merged_kernel_smem=0
+    merged_kernel_cmem=0
 
     for kernel_name in $KERNEL_NAMES; do
         per_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/$kernel_name/kernel_analysis.sh"
@@ -241,19 +243,35 @@ _create_per_kernel_analysis_file() {
 
         # Append shaders used in this kernel
         merged_kernel_shaders_used="$merged_kernel_shaders_used ${!var_name_kernel_shaders}"
+        # LMEM: Keep the greatest value of all kernels
+        if [ ${!var_name_kernel_lmem} -ne 0 ] && [ $merged_kernel_lmem -lt ${!var_name_kernel_lmem} ]; then
+            merged_kernel_lmem=${!var_name_kernel_lmem}
+        fi
+        # CMEM: Keep the greatest value of all kernels
+        if [ ${!var_name_kernel_smem} -ne 0 ] && [ $merged_kernel_smem -lt ${!var_name_kernel_smem} ]; then
+            merged_kernel_smem=${!var_name_kernel_smem}
+        fi
+        # SMEM: Keep the greatest value of all kernels
+        if [ ${!var_name_kernel_cmem} -ne 0 ] && [ $merged_kernel_cmem -lt ${!var_name_kernel_cmem} ]; then
+            merged_kernel_cmem=${!var_name_kernel_cmem}
+        fi
+        # REGISTERS: Keep the greatest value of all kernels
+        if [ ${!var_name_kernel_regs} -gt $merged_kernel_max_registers ]; then
+            merged_kernel_max_registers=${!var_name_kernel_regs}
+        fi
 
         {
             echo "_SHADERS_USED=\"${!var_name_kernel_shaders}\""
             echo "_MAX_REGISTERS_USED=${!var_name_kernel_regs}"
             # If LMEM, SMEM or CMEM are 0, a random positive int is used.
             tmp=${!var_name_kernel_lmem}
-            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            [ $tmp -eq 0 ] && tmp=$_USED_MEM_SIZE_PLACEHOLDER || tmp=$((tmp * 8))
             echo "_LMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_smem}
-            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            [ $tmp -eq 0 ] && tmp=$_USED_MEM_SIZE_PLACEHOLDER || tmp=$((tmp * 8))
             echo "_SMEM_SIZE_BITS=$tmp"
             tmp=${!var_name_kernel_cmem}
-            [ $tmp -eq 0 ] && tmp=999999 || tmp=$((tmp * 8))
+            [ $tmp -eq 0 ] && tmp=$_USED_MEM_SIZE_PLACEHOLDER || tmp=$((tmp * 8))
             echo "_CMEM_SIZE_BITS=$tmp"
         } >>"$per_kernel_analysis_file_path"
     done
@@ -274,15 +292,25 @@ _create_per_kernel_analysis_file() {
         done
         echo $tmp
     )
+    # TODO: Add check for zero cmem, lmem, smem and make it _USED_MEM_SIZE_PLACEHOLDER
+    if [ $merged_kernel_lmem -eq 0 ]; then
+        merged_kernel_lmem=$_USED_MEM_SIZE_PLACEHOLDER
+    fi
+    if [ $merged_kernel_cmem -eq 0 ]; then
+        merged_kernel_cmem=$_USED_MEM_SIZE_PLACEHOLDER
+    fi
+    if [ $merged_kernel_smem -eq 0 ]; then
+        merged_kernel_smem=$_USED_MEM_SIZE_PLACEHOLDER
+    fi
 
     merged_kernel_analysis_file_path="$(_get_gpufi_analysis_path)/merged_kernel_analysis.sh"
     rm -rf "$merged_kernel_analysis_file_path"
     {
         echo "_SHADERS_USED=\"${merged_kernel_shaders_used}\""
-        echo "_MAX_REGISTERS_USED=1" # gpuFI TODO
-        echo "_LMEM_SIZE_BITS=1"     # gpuFI TODO
-        echo "_SMEM_SIZE_BITS=1"     # gpuFI TODO
-        echo "_CMEM_SIZE_BITS=1"     # gpuFI TODO
+        echo "_MAX_REGISTERS_USED=${merged_kernel_max_registers}"
+        echo "_LMEM_SIZE_BITS=${merged_kernel_lmem}"
+        echo "_SMEM_SIZE_BITS=${merged_kernel_smem}"
+        echo "_CMEM_SIZE_BITS=${merged_kernel_cmem}"
     } >>"$merged_kernel_analysis_file_path"
 }
 
@@ -372,6 +400,8 @@ for ARGUMENT in "$@"; do
     VALUE="${ARGUMENT:$KEY_LENGTH+1}"
     eval "$KEY=\"$VALUE\""
 done
+
+_USED_MEM_SIZE_PLACEHOLDER=99999999
 
 # The actual analysis procedure.
 # For each step, check if the appropriate flag is enabled.

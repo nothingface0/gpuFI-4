@@ -10,6 +10,12 @@ If you use gpuFI-4 for your research, please cite:
 
 The full ISPASS 2022 paper for gpuFI-4 can be found [here](http://cal.di.uoa.gr/wp-content/uploads/2022/04/gpuFI-4_ISPASS_2022.pdf).
 
+## Introduction
+
+gpuFI-4 is a detailed microarchitecture-level fault injection framework. Its purpose is to assess the cross-layer vulnerability of hardware structures and entire GPU chips for single and multiple-bit faults via the simulation of soft errors. It is built on top of GPGPU-Sim version 4.2.0.
+
+This framework allows targeting the GPU’s register file, local or shared memory, L1 data, L1 texture, L1 instruction and L2 caches.
+
 ## Building the simulator
 
 gpuFI-4's requirements and building process are mostly identical to [GPGPU-Sim](https://github.com/gpgpu-sim/gpgpu-sim_distribution).
@@ -20,7 +26,7 @@ If your purpose is to use gpuFI-4 to evaluate the fault effects of a CUDA applic
 
 To build and use gpuFI, you will be needing:
 
-- A C++ compiler (we used the GNU toolchain, and tested with versions 9.5 up to 12.3).
+- A C++ compiler (we used the GNU toolchain, and tested with versions 9.5 up to 13.2).
 - CUDA Toolkit version 4.2 (to be used with `CUDA_INSTALL_PATH`).
 - CUDA Toolkit version 11.0 (to be used with `PTXAS_CUDA_INSTALL_PATH`).
 
@@ -144,14 +150,16 @@ Before each execution starts, a bit of the target memory type and an execution c
 
 When gpuFI-4 selects a random SM, it limits the selection to those that are active during the executable’s execution. The same applies for the cycle, registers, constant memory, local memory and shared memory bits.
 
-To know the exact limits of the selection, an _analysis_ of the executable has to be performed. This analysis is done in two steps:
+To know the exact limits of the selection, an _analysis_ of the executable has to be performed first. This analysis is done in two steps:
 
 1. Execution of the CUDA executable without fault injections. This creates a record of the total cycles that the kernels run for, as well as the simulation time.
-2. Execution of the CUDA executable in “profiling mode”. This mode extracts information on SM, register, shared memory, constant and local memory usage. This information is known on the last cycle of simulation, which is the reason why step 1 is needed.
+2. Execution of the CUDA executable in "profiling mode". This mode extracts information on SM, register, shared memory, constant and local memory usage. This information is known on the last cycle of simulation, which is the reason why step 1 is needed.
 
-Once analysis is complete, a campaign can start, launching multiple executions, or “runs”, of the given executable with a randomized bitflip.
+This procedure is handled by the [`gpufi_analyze_executable.sh` script](#gpufi_analyze_executablesh).
 
-Injection campaigns are managed by the `gpufi_campaign.sh` script. This script manages the execution of a whole injection campaign on a specific combination of CUDA executable, arguments and GPU configuration file.
+Once analysis is complete, a campaign can start, launching multiple executions, or "runs", of the given executable with a randomized bitflip.
+
+Injection campaigns are managed by the [`gpufi_campaign.sh`](#gpufi_campaignsh) script. This script manages the execution of a whole injection campaign on a specific combination of CUDA executable, arguments and GPU configuration file.
 
 For each new run initiated by the script, a unique `run_id` is created. This is computed as the MD5 sum of:
 
@@ -165,7 +173,11 @@ The results of each run's bitflip are categorized as followed:
 - **Silent Data Corruption (SDC):** The application reaches the end of execution without error, but the data verification step fails.
 - **Detected Unrecoverable Error (DUE):** In this case, an error is recorded and the application reaches an abnormal state without the ability to recover (e.g., a crash).
 
-We additionally use the term “Performance” to label faults, which is actually just a Masked fault, which has the extra effect of leading to different total execution cycles of the application, compared to the fault-free execution.
+We additionally use the term "Performance" to label faults, which is actually just a Masked fault, which has the extra effect of leading to different total execution cycles of the application, compared to the fault-free execution.
+
+The results are stored in CSV files, so that they can be analyzed after the campaigns have concluded, in a dedicated directory for each unique campaign combination. See more about the `.gpufi` directory [here](#gpufi_analyze_executablesh).
+
+A complete step-by-step guide on how to conduct an injection campaign can be found [here](#full-campaign-execution-transcript).
 
 ## Available scripts
 
@@ -175,17 +187,45 @@ More detailed information about each available script can be found in this secti
 
 This script is responsible for executing a series of analyses for each unique combination of a CUDA executable, a set of arguments and a specific GPU configuration. Its goal is to create a series of files which contain information that gpuFI will need in order to start a campaign.
 
-This script executes the CUDA executable twice: once with the `gpufi_profile` option of `gpgpusim.config` set to `3` (no fault injection) and a second time with the same option set to 1 (profiling mode). During this process, a series of directories and files are created in the same directory where the CUDA executable is:
+This script executes the CUDA executable twice: once with the `gpufi_profile` option of `gpgpusim.config` set to `3` (no fault injection) and a second time with the same option set to `1` (profiling mode). During this process, a series of directories and files are created in the same directory where the CUDA executable is:
 
 - A main directory named `.gpufi`, where all the analysis files are stored.
   - A directory for the specific GPU configuration used, e.g., `SM6_TITANX`. A copy of the `gpgpusim.config` file is also stored here.
     - A directory named using the specific arguments passed to the executable, after sanitization.
       - One directory for each kernel invoked by the executable, in which two files may be found: `cycles.txt` (a file of all the simulated cycles during which the kernel is active) and `kernel_analysis.sh` (which lists the ids of the SMs that the kernel was assigned to, as well as the registers and total sizes of several types of memories that the kernel used).
-      - A file named executable_analysis.sh, which contains executable-wide statistics, including the total simulated cycles that the executable runs for and the maximum timeout value (in seconds), that the campaign should wait for before stopping execution.
+      - A file named `executable_analysis.sh`, which contains executable-wide statistics, including the total simulated cycles that the executable runs for and the maximum timeout value (in seconds), that the campaign should wait for before stopping execution.
+      - A filed names `merged_kernel_analysis.sh`, containing the merging of all `kernel_analysis.sh` files.
       - A file named `.analysis_complete` which signals the fact that the analysis script has been executed for this specific combination of GPU configuration, executable and set of arguments.
-      - A directory named results will be created here once a campaign is started, storing not only a CSV file with all the results of each run, but also the g-zipped configuration file of each run, for future reference.
+      - A directory named `results` will be created here once a campaign is started, storing not only a CSV file with all the results of each run, but also the g-zipped configuration file of each run, for future reference.
 
-As an example, to analyze the Rodinia NW benchmark with arguments `288 10` and for the `SM6_TITANX` configuration, one should run:
+An example of the resulting directory structure can be seen below:
+
+```
+.gpufi
+└── SM7_QV100
+    ├── gpgpusim.config
+    └── i--kmeans-800-34-txt
+        ├── executable_analysis.sh
+        ├── merged_cycles.txt
+        ├── merged_kernel_analysis.sh
+        ├── out.log
+        ├── results
+        │   ├── configs
+        │   │   └── 12484c4654041b0416c5a3f75beed1fd.tar.gz
+        │   └── results.csv
+        ├── _Z11kmeansPointPfiiiPiS_S_S0_
+        │   ├── cycles.txt
+        │   └── kernel_analysis.sh
+        └── _Z14invert_mappingPfS_ii
+            ├── cycles.txt
+            └── kernel_analysis.sh
+```
+
+Register and Local/Shared/Constant memory usage are analyzed on a per-kernel basis. At the end of analysis, these values are also merged into a single value, in case the injection campaigns are to be run taking all kernels into account.
+
+For example, in case an executable contains two kernels and kernel1 uses 4 registers while kernel2 uses 9 registers, we consider their "merged" value to be the greatest of the two, i.e., 9. If an injection campaign targeting the register file over all kernels is started, a random value between 0 and 8 will then be chosen.
+
+As an example of how this script is invoked, to analyze the Rodinia NW benchmark with arguments `288 10` and for the `SM6_TITANX` configuration, one should run:
 
 ```bash
 bash gpufi_analyze_executable.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=SM6_TITANX
@@ -284,7 +324,9 @@ The arguments accepted by the script can be found below:
 
 ## Full campaign execution transcript
 
-As a reference, the full procedure to run a campaign of 2000 L1I injections for the Rodinia NW benchmark, with arguments `288 10` for the Titan X (Pascal) GPU (`SM6_TITANX`) is described here. It assumes that you have cloned the source code of gpuFI in `$HOME/Documents/workspace/gpu-rodinia` and the modified rodinia benchmarks in `$HOME/Documents/workspace/gpuFI-4` and that you have CUDA 4.2 installed in `/usr/local/cuda-4.2/cuda/` and CUDA 11.0 installed in `/usr/local/cuda-11.0/`.
+As a reference, the full procedure to run a campaign of 2000 L1I injections for the Rodinia NW benchmark, with arguments `288 10` for the Titan X (Pascal) GPU (`SM6_TITANX`) is described here.
+
+It assumes that you have installed `docker` (or equivalent) to your computer, cloned the source code of gpuFI in `$HOME/Documents/workspace/gpu-rodinia` and the [modified rodinia benchmarks](https://github.com/nothingface0/gpu-rodinia/tree/gpgpu_sim_fi) in `$HOME/Documents/workspace/gpuFI-4` and that you have CUDA 4.2 installed in `/usr/local/cuda-4.2/cuda/` and CUDA 11.0 installed in `/usr/local/cuda-11.0/` (see [Prerequisites](#prerequisites)).
 
 ```bash
 # Step 1, in a new terminal.
@@ -313,14 +355,16 @@ make
 cd $HOME/Documents/workspace/gpuFI-4
 source startup.sh
 make -j
+
 # Run analysis
 bash gpufi_analyze_executable.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/
 workspace/gpu-rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=
 SM6_TITANX
+
 # Start the campaign
 bash gpufi_campaign.sh CUDA_EXECUTABLE_PATH=$HOME/Documents/workspace/gpu-
 rodinia/cuda/nw/needle CUDA_EXECUTABLE_ARGS="288 10" GPU_ID=SM6_TITANX
-KERNEL_INDICES=0 DELETE_LOGS=0 NUM_RUNS=2000
+KERNEL_INDICES=0 DELETE_LOGS=0 NUM_RUNS=2000 COMPONENTS_TO_FLIP=7
 ```
 
 ## Known limitations

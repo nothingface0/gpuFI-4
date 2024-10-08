@@ -37,8 +37,7 @@ _NUM_AVAILABLE_CORES=$(nproc) # How many instances of the simulator to run in pa
 # ---------------------------------------------- START PER KERNEL/APPLICATION PARAMETERS (+_GPUFI_PROFILE=1) ----------------------------------------------
 # gpuFI TODO: Configuration in this section seems to have been intended for targeting a
 # specific kernel of a speicific executable. But this does not make sense, as there is an option,
-# KERNEL_INDICES, which allows gpuFI to target ALL the kernels. How will _MAX_REGISTERS_USED make
-# sense for all the kernels then?
+# KERNEL_INDICES, which allows gpuFI to target ALL the kernels.
 
 # Register size
 # gpuFI TODO: Should this be hardcoded?
@@ -130,6 +129,8 @@ trap _handle_sigint SIGINT
 
 # Function which initializes variables based on user config and edits the gpgpusim.config file.
 initialize_config() {
+    # gpuFI TODO: Instead of shuffling ALL values, only shuffle those targeted by COMPONENTS_TO_FLIP.
+
     # Random number for choosing a random thread after gpufi_thread_rand % #threads operation in gpgpu-sim
     # The number 6000 looks hardcoded but it does not have a significance. It should just
     # be >= the total number of threads, as it will be modulo'd with the total number during
@@ -494,7 +495,6 @@ read_executable_analysis_files() {
     if [ $KERNEL_INDICES -eq 0 ]; then
         source "$base_analysis_path/merged_kernel_analysis.sh"
         _CYCLES_FILE="$base_analysis_path/merged_cycles.txt"
-        # gpuFI TODO: currently the merged files don't have SMEM, LMEM, registers...
     else
         source "$base_analysis_path/$KERNEL_NAME/kernel_analysis.sh"
         _CYCLES_FILE="$base_analysis_path/$KERNEL_NAME/cycles.txt"

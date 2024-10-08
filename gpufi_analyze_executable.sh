@@ -224,7 +224,7 @@ _create_per_kernel_analysis_file() {
 
     # List of all shaders used by all kernels
     merged_kernel_shaders_used=""
-    # gpuFI TODO: Does it make sense to make an aggregate of max registers of all kernels? If yes, how?
+    # gpuFI TODO: Does it make sense to make an aggregate of max registers of all kernels?
     merged_kernel_max_registers=0
     # gpuFI TODO: Does it make sense to make an aggregate of LMEM, SMEM, CMEM for all kernels?
     merged_kernel_lmem=0
@@ -292,7 +292,7 @@ _create_per_kernel_analysis_file() {
         done
         echo $tmp
     )
-    # TODO: Add check for zero cmem, lmem, smem and make it _USED_MEM_SIZE_PLACEHOLDER
+    # Check for 0 usage of those memories, use placeholder then.
     if [ $merged_kernel_lmem -eq 0 ]; then
         merged_kernel_lmem=$_USED_MEM_SIZE_PLACEHOLDER
     fi

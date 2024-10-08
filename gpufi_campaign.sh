@@ -29,7 +29,6 @@ KERNEL_NAME=
 _GPGPU_SIM_CONFIG_PATH=
 TMP_DIR="$_SCRIPT_DIR/.gpufi_execution_logs"
 CACHE_LOGS_DIR="$_SCRIPT_DIR/.gpufi_cache_logs"
-TMP_FILE=tmp.out
 NUM_RUNS=1                    # How many runs to simulate of the given executable. Randomize injections on each run.
 DELETE_LOGS=1                 # if 1 then all logs will be deleted at the end of the script
 _NUM_AVAILABLE_CORES=$(nproc) # How many instances of the simulator to run in parallel

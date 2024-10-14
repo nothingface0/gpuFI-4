@@ -179,6 +179,28 @@ The results are stored in CSV files, so that they can be analyzed after the camp
 
 A complete step-by-step guide on how to conduct an injection campaign can be found [here](#full-campaign-execution-transcript).
 
+### Campaign results
+
+Results for each campaign are stored in a `results.csv` file. This file contains rows for each run (identified by its `run_id`), with each column storing information about the results of the run, along with what action was performed by gpuFI.
+
+The most important columns are:
+
+- `success`, which indicates whether the executable completed both execution and the data verification procedure (`Tests PASSED` found in logs file),
+- `same_cycles`, which indicates whether execution finished at the expected amount of GPU cycles and
+- `failed`, which indicates that the executable completed execution but data verification failed (`Tests FAILED` found in the logs file).
+
+If `success` and `failed` is both `0`, it means that the executable crashed (DUE).
+
+`syntax_error` will only be `1` for L1I cache runs which led to an instruction that GPGPU-Sim failed to parse.
+
+An example of a `results.csv` file which contains the results a campaign of two runs of Register bitflips can be seen below:
+
+```csv
+run_id,success,same_cycles,failed,syntax_error,l1i_tag_bitflip,l1i_data_bitflip,false_l1i_hit,different_l1i_misses,l1d_tag_bitflip,l1d_data_bitflip,l1c_tag_bitflip,l1c_data_bitflip,l1d_tag_bitflip,l1d_data_bitflip,l2_tag_bitflip,l2_data_bitflip,reg_bitflip,local_bitflip,shared_bitflip
+879d321f75cb958e2d1b24b09506c3b5,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0
+12484c4654041b0416c5a3f75beed1fd,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0
+```
+
 ## Available scripts
 
 More detailed information about each available script can be found in this section.
